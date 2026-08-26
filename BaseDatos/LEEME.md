@@ -131,6 +131,16 @@ Respecto de la versión anterior del DDL, la estructura cambió en estos puntos:
 | `verificacion_codigo` | **Tabla nueva.** Códigos de un solo uso de los enlaces con verificación |
 | `persona` | **Pasa a ser por institución:** nueva columna `InstitucionEducativaId`, primaria `(InstitucionEducativaId, PersonaId)`, clave foránea contra la institución y la identificación única **dentro de cada institución** |
 
+La bitácora de auditoría deja de guardar el contenido de los datos: se eliminan
+las columnas `ValorAnterior` y `ValorNuevo` de `auditoria`. A partir de aquí
+anota el **QUÉ**, no el **DATO** —que se modificó, por ejemplo, el correo de una
+persona, con quién, cuándo y desde qué IP, pero no el correo—, de modo que la
+propia bitácora de un sistema de protección de datos no sea una segunda copia,
+sin control de acceso propio y sin caducidad, de lo que custodia. Para llevar una
+base ya instalada a este modelo, ejecute `07_ALTER_auditoria_sin_valores.sql`,
+que se entrega aparte. **Respalde antes:** al eliminar las columnas se pierde
+también lo que ya estaba grabado en ellas.
+
 En los **datos** cambió un nombre. La opción que publicaba los enlaces abiertos
 de consentimiento se retiró, y la que quedó —los enlaces con verificación de
 identidad— pasó a llamarse **Enlaces de Consentimiento**. El permiso conserva su

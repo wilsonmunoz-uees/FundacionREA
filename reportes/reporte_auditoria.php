@@ -2,6 +2,7 @@
 // reportes/reporte_auditoria.php
 // Bitácora de auditoría: todos los movimientos registrados en la base de datos
 // para la institución educativa con la que se inició sesión.
+// Anota QUÉ dato se tocó, nunca su contenido: ni el valor anterior ni el nuevo.
 // Filtros: rango de fechas, usuario (elegido en una subpantalla con pagineo),
 // tabla, tipo de movimiento y texto libre. Los datos vienen de la API REST
 // (/api/reportes/auditoria) y el PDF se arma con includes/pdf_reporte.php.
@@ -99,21 +100,20 @@ if ($consultado && $formato === 'pdf') {
     $pdf->pie([
         'usuario'    => ($_SESSION['username'] ?? 'sistema')
             . (!empty($_SESSION['roles']) ? ' (' . implode(', ', $_SESSION['roles']) . ')' : ''),
-        'disclaimer' => 'Documento de uso interno y confidencial. Contiene trazas de tratamiento de datos personales '
-            . 'protegidos por la Ley Orgánica de Protección de Datos Personales; se emite con fines de control y '
-            . 'auditoría, y su divulgación no autorizada está prohibida.',
+        'disclaimer' => 'Documento de uso interno y confidencial. Deja constancia de quién tocó qué dato y '
+            . 'cuándo; no reproduce el contenido de los datos personales protegidos por la Ley Orgánica de '
+            . 'Protección de Datos Personales. Se emite con fines de control y auditoría, y su divulgación '
+            . 'no autorizada está prohibida.',
     ]);
 
     $columnas = [
-        ['clave' => 'FechaHora',      'titulo' => 'Fecha y hora',   'ancho' => 12, 'align' => 'L'],
-        ['clave' => 'Username',       'titulo' => 'Usuario',        'ancho' => 10, 'align' => 'L', 'estilo' => 'B'],
-        ['clave' => 'IpOrigen',       'titulo' => 'IP origen',      'ancho' => 10, 'align' => 'L'],
-        ['clave' => 'Tabla',          'titulo' => 'Tabla',          'ancho' => 12, 'align' => 'L'],
-        ['clave' => 'RegistroId',     'titulo' => 'Registro',       'ancho' => 7,  'align' => 'L'],
-        ['clave' => 'OperacionTexto', 'titulo' => 'Movimiento',     'ancho' => 9,  'align' => 'L', 'estilo' => 'B'],
-        ['clave' => 'Campo',          'titulo' => 'Dato',           'ancho' => 12, 'align' => 'L'],
-        ['clave' => 'ValorAnterior',  'titulo' => 'Valor original', 'ancho' => 14, 'align' => 'L'],
-        ['clave' => 'ValorNuevo',     'titulo' => 'Valor nuevo',    'ancho' => 14, 'align' => 'L'],
+        ['clave' => 'FechaHora',      'titulo' => 'Fecha y hora', 'ancho' => 16, 'align' => 'L'],
+        ['clave' => 'Username',       'titulo' => 'Usuario',      'ancho' => 14, 'align' => 'L', 'estilo' => 'B'],
+        ['clave' => 'IpOrigen',       'titulo' => 'IP origen',    'ancho' => 14, 'align' => 'L'],
+        ['clave' => 'Tabla',          'titulo' => 'Tabla',        'ancho' => 16, 'align' => 'L'],
+        ['clave' => 'RegistroId',     'titulo' => 'Registro',     'ancho' => 10, 'align' => 'L'],
+        ['clave' => 'OperacionTexto', 'titulo' => 'Movimiento',   'ancho' => 12, 'align' => 'L', 'estilo' => 'B'],
+        ['clave' => 'Campo',          'titulo' => 'Dato tocado',  'ancho' => 18, 'align' => 'L'],
     ];
 
     $coloresOperacion = [
@@ -136,8 +136,6 @@ if ($consultado && $formato === 'pdf') {
             'RegistroId'           => $fila['RegistroId'] ?: '—',
             'OperacionTexto'       => $fila['OperacionTexto'] ?? '',
             'Campo'                => $recortar($fila['Campo'] ?? null),
-            'ValorAnterior'        => $recortar($fila['ValorAnterior'] ?? null),
-            'ValorNuevo'           => $recortar($fila['ValorNuevo'] ?? null),
             '_color_OperacionTexto' => $coloresOperacion[$fila['Operacion'] ?? ''] ?? [40, 44, 52],
         ];
     }
@@ -212,7 +210,7 @@ include __DIR__ . '/../includes/layout_top.php';
     <div>
         <h1>🗂️ Bitácora de Auditoría</h1>
         <p>Movimientos registrados en la base de datos de <strong><?= e($_SESSION['institucion_nombre'] ?? 'la institución') ?></strong>:
-           quién, cuándo, desde qué IP y qué dato cambió.</p>
+           quién, cuándo, desde qué IP y qué dato se tocó.</p>
     </div>
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
@@ -274,8 +272,8 @@ include __DIR__ . '/../includes/layout_top.php';
                 </select>
             </div>
             <div class="form-group" style="flex:2;">
-                <label for="q">Dato o valor <span class="texto-mutado">(opcional)</span></label>
-                <input type="text" name="q" id="q" value="<?= e($filtroTexto) ?>" placeholder="Campo, valor original o valor nuevo...">
+                <label for="q">Dato o registro <span class="texto-mutado">(opcional)</span></label>
+                <input type="text" name="q" id="q" value="<?= e($filtroTexto) ?>" placeholder="Nombre del campo o número de registro...">
             </div>
         </div>
 
@@ -334,14 +332,12 @@ include __DIR__ . '/../includes/layout_top.php';
                     <th>Tabla</th>
                     <th>Registro</th>
                     <th>Movimiento</th>
-                    <th>Dato</th>
-                    <th>Valor Original</th>
-                    <th>Valor Nuevo</th>
+                    <th>Dato tocado</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (empty($registros)): ?>
-                    <tr><td colspan="9" class="tabla-vacia">No se encontraron movimientos con los filtros seleccionados.</td></tr>
+                    <tr><td colspan="7" class="tabla-vacia">No se encontraron movimientos con los filtros seleccionados.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($registros as $r): ?>
                     <tr>
@@ -356,8 +352,6 @@ include __DIR__ . '/../includes/layout_top.php';
                             </span>
                         </td>
                         <td><?= e($r['Campo'] ?: '—') ?></td>
-                        <td><?= $r['ValorAnterior'] === null || $r['ValorAnterior'] === '' ? '—' : truncar($r['ValorAnterior'], 60) ?></td>
-                        <td><?= $r['ValorNuevo'] === null || $r['ValorNuevo'] === '' ? '—' : truncar($r['ValorNuevo'], 60) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>

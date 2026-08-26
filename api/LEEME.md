@@ -420,7 +420,17 @@ usa en desarrollo.)
 Toda escritura que pasa por la API queda registrada en la tabla `auditoria`
 (script `BaseDatos/01_DDL_estructura.sql`): institución, usuario, fecha y
 hora, IP de origen, tabla y registro afectados, y una fila por cada campo
-modificado con su valor original y el nuevo.
+afectado.
+
+**La bitácora anota el QUÉ, no el DATO.** Deja constancia de que se modificó,
+por ejemplo, el correo de una persona, pero **no guarda el correo anterior ni el
+nuevo**: así la propia bitácora de un sistema de protección de datos no se
+convierte en una segunda copia —sin control de acceso propio y sin caducidad— de
+los datos personales que custodia. Para saber qué dice hoy un registro está su
+pantalla; para saber quién lo tocó y cuándo, está la bitácora.
+
+Los valores se siguen comparando en memoria para decidir qué cambió; de esa
+comparación solo queda el nombre del campo.
 
 El registro lo hacen los propios controladores mediante los ayudantes de
 `api/core/Controller.php`:
@@ -445,8 +455,8 @@ $this->auditarLista('rol', $rolId, 'Permisos', $permisosAntes, $permisosDespues)
 Los recursos que llevan institución pasan además el identificador como último
 argumento, de modo que la lectura quede acotada a la institución del token.
 
-La clase `api/core/Auditoria.php` se encarga del resto: enmascara los campos
-sensibles (`PasswordHash`) como `********`, recorta los valores muy largos,
-omite los campos que no cambiaron y resuelve la IP del cliente considerando los
-proxys del hosting. Si la tabla `auditoria` todavía no existe, se desactiva sola
+La clase `api/core/Auditoria.php` se encarga del resto: omite los campos que no
+cambiaron y resuelve la IP del cliente considerando los proxys del hosting. Ya no
+necesita enmascarar contraseñas: como no escribe valores, no hay nada que
+enmascarar —de un cambio de clave queda que se cambió, nunca la clave—. Si la tabla `auditoria` todavía no existe, se desactiva sola
 y deja un aviso en el log: la operación del usuario nunca se interrumpe.

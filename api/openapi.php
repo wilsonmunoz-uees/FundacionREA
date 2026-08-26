@@ -663,7 +663,7 @@ $spec['components'] = [
 
         'MovimientoAuditoria' => [
             'type'        => 'object',
-            'description' => 'Fila de la bitácora de auditoría: un campo modificado de un registro.',
+            'description' => 'Fila de la bitácora de auditoría: un campo afectado de un registro. Anota QUÉ se tocó, nunca el contenido del dato.',
             'properties'  => [
                 'AuditoriaId'    => ['type' => 'integer'],
                 'FechaHora'      => ['type' => 'string', 'example' => '2026-08-20 10:30:00'],
@@ -673,9 +673,7 @@ $spec['components'] = [
                 'RegistroId'     => ['type' => 'string', 'nullable' => true, 'description' => 'Identificador del registro afectado.'],
                 'Operacion'      => ['type' => 'string', 'enum' => ['INSERT', 'UPDATE', 'DELETE']],
                 'OperacionTexto' => ['type' => 'string', 'enum' => ['ALTA', 'CAMBIO', 'BAJA']],
-                'Campo'          => ['type' => 'string', 'nullable' => true, 'description' => 'Columna modificada.'],
-                'ValorAnterior'  => ['type' => 'string', 'nullable' => true, 'description' => 'Valor antes del cambio. Las contraseñas se registran enmascaradas.'],
-                'ValorNuevo'     => ['type' => 'string', 'nullable' => true, 'description' => 'Valor después del cambio.'],
+                'Campo'          => ['type' => 'string', 'nullable' => true, 'description' => 'Qué dato se tocó. La bitácora **no guarda el contenido**: ni el valor anterior ni el nuevo.'],
             ],
         ],
 
@@ -1691,7 +1689,7 @@ $spec['paths']['/reportes/auditoria'] = [
     'get' => [
         'tags'        => ['Reportes'],
         'summary'     => 'Bitácora de auditoría de la base de datos',
-        'description' => "Movimientos registrados automáticamente por la API en la institución del token: alta, cambio o baja, con el usuario, la fecha y hora, la IP de origen, la tabla y el registro afectados, y el valor original y el nuevo de cada campo modificado.\n\nSe genera una fila por cada campo que cambió. Los campos sensibles (contraseñas) se registran enmascarados.\n\nEl bloque `meta.totales` trae los conteos del conjunto filtrado completo, y `meta.tablas` la lista de tablas presentes en la bitácora.\n\nRequiere que se haya ejecutado el script `BaseDatos/01_DDL_estructura.sql`; si la tabla no existe se devuelve `503`.\n\n**Acceso:** SuperAdmin o permiso `REP_AUDITORIA`",
+        'description' => "Movimientos registrados automáticamente por la API en la institución del token: alta, cambio o baja, con el usuario, la fecha y hora, la IP de origen, la tabla y el registro afectados, y **qué campo** se tocó.\n\nSe genera una fila por cada campo que cambió. La bitácora anota el QUÉ, no el DATO: **no guarda el valor anterior ni el nuevo**, de modo que no se convierte en una segunda copia de los datos personales que el sistema custodia.\n\nEl bloque `meta.totales` trae los conteos del conjunto filtrado completo, y `meta.tablas` la lista de tablas presentes en la bitácora.\n\nRequiere que se haya ejecutado el script `BaseDatos/01_DDL_estructura.sql`; si la tabla no existe se devuelve `503`.\n\n**Acceso:** SuperAdmin o permiso `REP_AUDITORIA`",
         'operationId' => 'reporteAuditoria',
         'parameters'  => [
             [
@@ -1727,7 +1725,7 @@ $spec['paths']['/reportes/auditoria'] = [
             [
                 'name'        => 'q',
                 'in'          => 'query',
-                'description' => 'Busca en el campo modificado, el valor original, el valor nuevo o el identificador del registro.',
+                'description' => 'Busca por el nombre del campo afectado o por el identificador del registro.',
                 'schema'      => ['type' => 'string'],
             ],
             ['$ref' => '#/components/parameters/Pagina'],

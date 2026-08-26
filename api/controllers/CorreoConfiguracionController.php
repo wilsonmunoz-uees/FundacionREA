@@ -91,7 +91,8 @@ final class CorreoConfiguracionController extends Controller
             ]
         );
 
-        // La clave queda enmascarada en la bitácora (ver Auditoria::CAMPOS_SENSIBLES)
+        // La bitácora anota qué campos se tocaron, nunca sus valores: la clave
+        // del servidor no llega a escribirse en ninguna parte legible.
         $this->auditarActualizacion('correo_configuracion', 'InstitucionEducativaId', $institucionId, $anterior);
 
         Response::exito(['mensaje' => 'Configuración de correo guardada correctamente.']);

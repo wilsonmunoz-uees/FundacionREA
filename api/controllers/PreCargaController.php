@@ -688,28 +688,28 @@ final class PreCargaController extends Controller
         ]);
     }
 
-    /** Una sola anotación en la bitácora con el balance completo de la operación. */
+    /**
+     * Una sola anotación en la bitácora con el balance de la operación.
+     *
+     * El balance son conteos, no datos de nadie, así que cabe en el propio
+     * nombre del campo: la bitácora ya no guarda valores. Se recorta a lo que
+     * admite la columna (64 caracteres).
+     */
     private function auditarPreCarga(int $institucionId, string $archivo, array $inventario, array $borrado, array $cargado): void
     {
         if ($this->usuario === null) {
             return;
         }
 
-        $resumir = static function (array $datos): string {
-            $partes = [];
-            foreach ($datos as $clave => $valor) {
-                $partes[] = str_replace('_', ' ', $clave) . ': ' . $valor;
-            }
-            return implode(', ', $partes);
-        };
+        $total = static fn(array $datos): int => (int)array_sum(array_map('intval', $datos));
 
         Auditoria::cambioLista(
             $this->usuario,
             'precarga_inicial',
             $institucionId,
-            'PreCarga desde ' . $archivo,
-            'Antes -> ' . $resumir($inventario),
-            'Eliminado -> ' . $resumir($borrado) . ' | Cargado -> ' . $resumir($cargado)
+            'PreCarga: elimina ' . $total($borrado) . ', carga ' . $total($cargado),
+            'PENDIENTE',
+            'EJECUTADA'
         );
     }
 

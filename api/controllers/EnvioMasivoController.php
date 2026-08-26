@@ -394,7 +394,12 @@ final class EnvioMasivoController extends Controller
         return $tipo;
     }
 
-    /** Una anotación por envío en la bitácora, con el balance de la tanda. */
+    /**
+     * Una anotación por envío en la bitácora, con el balance de la tanda.
+     *
+     * El balance son conteos, no direcciones ni nombres, así que cabe en el
+     * propio nombre del campo: la bitácora ya no guarda valores.
+     */
     private function auditarEnvio(
         int $institucionId,
         string $tipo,
@@ -412,11 +417,9 @@ final class EnvioMasivoController extends Controller
             $this->usuario,
             'envio_masivo',
             $institucionId,
-            'Invitaciones a ' . $tipo . ' (' . $alcance . ')',
-            'Destinatarios: ' . $total,
-            'Enviados: ' . $enviados
-            . ' | Sin correo: ' . count($sinCorreo)
-            . ' | Fallidos: ' . count($fallidos)
+            'Invitaciones a ' . $tipo . ': ' . $enviados . ' de ' . $total,
+            'PENDIENTE',
+            'ENVIADO'
         );
     }
 }

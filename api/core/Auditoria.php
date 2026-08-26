@@ -6,11 +6,17 @@
  *
  * Cada alta, cambio o baja realizada a través de la API deja constancia en la
  * tabla `auditoria`: institución, usuario, fecha y hora, IP de origen, tabla y
- * registro afectados, y el detalle campo por campo con su valor original y el
- * nuevo.
+ * registro afectados, y **qué campo** se tocó.
  *
- * Se registra una fila por cada campo modificado, de modo que el reporte puede
- * mostrar exactamente qué dato cambió.
+ * La bitácora anota el QUÉ, no el DATO: registra que se modificó, por ejemplo,
+ * el correo de una persona, pero no guarda ni el correo anterior ni el nuevo.
+ * Así la propia bitácora de un sistema de protección de datos no se convierte en
+ * una segunda copia —sin control de acceso propio y sin caducidad— de los datos
+ * personales que custodia. Para saber qué dice hoy un registro está su pantalla;
+ * para saber quién lo tocó y cuándo, está esta bitácora.
+ *
+ * Se registra una fila por cada campo afectado, de modo que el reporte puede
+ * decir exactamente qué cambió en cada operación.
  *
  * Si la tabla `auditoria` todavía no existe (script 01_DDL_estructura.sql), el
  * registro se omite en silencio para no interrumpir la operación del sistema.
@@ -19,11 +25,6 @@
 
 final class Auditoria
 {
-    /** Campos que nunca deben quedar registrados con su valor real. */
-    private const CAMPOS_SENSIBLES = ['PasswordHash', 'password', 'password_confirm', 'Clave', 'clave'];
-
-    private const OCULTO = '********';
-
     /** Se desactiva sola si la tabla no existe, para no repetir el error. */
     private static bool $disponible = true;
 
@@ -32,31 +33,32 @@ final class Auditoria
     /* ------------------------------------------------------------------ */
 
     /**
-     * Alta de un registro: se anota el valor inicial de cada campo con dato.
+     * Alta de un registro: se anotan los campos que vinieron con dato.
      *
      * @param array $usuario Contexto devuelto por Auth::usuarioDe()
      * @param array $datos   Fila recién insertada (columna => valor)
      */
     public static function insercion(array $usuario, string $tabla, $registroId, array $datos): void
     {
-        $filas = [];
+        $campos = [];
         foreach ($datos as $campo => $valor) {
             if ($valor === null || $valor === '') {
                 continue;   // no se anotan los campos que quedaron vacíos
             }
-            $filas[] = [$campo, null, self::valor($campo, $valor)];
+            $campos[] = $campo;
         }
 
-        if (!$filas) {
-            $filas[] = [null, null, null];   // deja constancia del alta aunque no haya datos
+        if (!$campos) {
+            $campos[] = null;   // deja constancia del alta aunque no haya datos
         }
 
-        self::guardar($usuario, $tabla, $registroId, 'INSERT', $filas);
+        self::guardar($usuario, $tabla, $registroId, 'INSERT', $campos);
     }
 
     /**
-     * Cambio: se comparan los valores antes y después, y solo se anotan
-     * los campos que realmente cambiaron.
+     * Cambio: se comparan los valores antes y después para saber qué campos
+     * cambiaron realmente. La comparación ocurre solo en memoria; de ella queda
+     * el nombre del campo, nunca el valor.
      */
     public static function actualizacion(array $usuario, string $tabla, $registroId, ?array $antes, ?array $despues): void
     {
@@ -64,53 +66,49 @@ final class Auditoria
             return;
         }
 
-        $filas = [];
+        $campos = [];
         foreach ($despues as $campo => $valorNuevo) {
             if (!array_key_exists($campo, $antes)) {
                 continue;
             }
-            $valorAnterior = $antes[$campo];
-
-            if (self::sonIguales($valorAnterior, $valorNuevo)) {
+            if (self::sonIguales($antes[$campo], $valorNuevo)) {
                 continue;
             }
-
-            $filas[] = [
-                $campo,
-                self::valor($campo, $valorAnterior),
-                self::valor($campo, $valorNuevo),
-            ];
+            $campos[] = $campo;
         }
 
-        if (!$filas) {
+        if (!$campos) {
             return;   // se guardó, pero ningún dato cambió: no se registra ruido
         }
 
-        self::guardar($usuario, $tabla, $registroId, 'UPDATE', $filas);
+        self::guardar($usuario, $tabla, $registroId, 'UPDATE', $campos);
     }
 
-    /** Baja: se conserva el valor que tenía cada campo antes de eliminarse. */
+    /** Baja: se anota qué campos tenía el registro que se eliminó. */
     public static function eliminacion(array $usuario, string $tabla, $registroId, ?array $antes): void
     {
-        $filas = [];
+        $campos = [];
         foreach (($antes ?? []) as $campo => $valor) {
             if ($valor === null || $valor === '') {
                 continue;
             }
-            $filas[] = [$campo, self::valor($campo, $valor), null];
+            $campos[] = $campo;
         }
 
-        if (!$filas) {
-            $filas[] = [null, null, null];
+        if (!$campos) {
+            $campos[] = null;
         }
 
-        self::guardar($usuario, $tabla, $registroId, 'DELETE', $filas);
+        self::guardar($usuario, $tabla, $registroId, 'DELETE', $campos);
     }
 
     /**
      * Cambio de una lista asociada (roles de un usuario, permisos de un rol,
-     * tipos de dato de un consentimiento): una sola anotación con la lista
-     * completa antes y después.
+     * tipos de dato de un consentimiento): una sola anotación con el nombre de
+     * la lista que cambió.
+     *
+     * Conserva los parámetros $antes y $despues porque es quien los compara para
+     * decidir si hubo cambio; su contenido no se graba.
      */
     public static function cambioLista(array $usuario, string $tabla, $registroId, string $campo, string $antes, string $despues): void
     {
@@ -118,11 +116,7 @@ final class Auditoria
             return;
         }
 
-        self::guardar($usuario, $tabla, $registroId, 'UPDATE', [[
-            $campo,
-            self::valor($campo, $antes === '' ? null : $antes),
-            self::valor($campo, $despues === '' ? null : $despues),
-        ]]);
+        self::guardar($usuario, $tabla, $registroId, 'UPDATE', [$campo]);
     }
 
     /* ------------------------------------------------------------------ */
@@ -138,22 +132,13 @@ final class Auditoria
         if ($a === null || $b === null) {
             return false;
         }
+        if (is_bool($a) || is_bool($b)) {
+            return (bool)$a === (bool)$b;
+        }
+        if (is_numeric($a) && is_numeric($b)) {
+            return (string)$a === (string)$b || abs((float)$a - (float)$b) < 0.000001;
+        }
         return (string)$a === (string)$b;
-    }
-
-    /** Oculta contraseñas y recorta textos demasiado largos. */
-    private static function valor(?string $campo, $valor): ?string
-    {
-        if ($valor === null) {
-            return null;
-        }
-        if ($campo !== null && in_array($campo, self::CAMPOS_SENSIBLES, true)) {
-            return self::OCULTO;
-        }
-
-        $texto = is_scalar($valor) ? (string)$valor : json_encode($valor, JSON_UNESCAPED_UNICODE);
-
-        return mb_strlen($texto) > 1000 ? mb_substr($texto, 0, 1000) . '…' : $texto;
     }
 
     /** IP del cliente, considerando proxys del hosting. */
@@ -168,8 +153,8 @@ final class Auditoria
         return null;
     }
 
-    /** @param array $filas [[campo, valorAnterior, valorNuevo], ...] */
-    private static function guardar(array $usuario, string $tabla, $registroId, string $operacion, array $filas): void
+    /** @param array<int, string|null> $campos Nombres de los campos afectados */
+    private static function guardar(array $usuario, string $tabla, $registroId, string $operacion, array $campos): void
     {
         if (!self::$disponible) {
             return;
@@ -179,8 +164,8 @@ final class Auditoria
             $stmt = Database::conexion()->prepare(
                 'INSERT INTO auditoria
                     (InstitucionEducativaId, FechaHora, UsuarioId, Username, IpOrigen,
-                     Tabla, RegistroId, Operacion, Campo, ValorAnterior, ValorNuevo)
-                 VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                     Tabla, RegistroId, Operacion, Campo)
+                 VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?)'
             );
 
             $institucion = (int)($usuario['institucion_id'] ?? 0);
@@ -189,10 +174,11 @@ final class Auditoria
             $ip          = self::ip();
             $registro    = $registroId === null ? null : mb_substr((string)$registroId, 0, 64);
 
-            foreach ($filas as [$campo, $anterior, $nuevo]) {
+            foreach ($campos as $campo) {
                 $stmt->execute([
                     $institucion, $usuarioId, $username, $ip,
-                    $tabla, $registro, $operacion, $campo, $anterior, $nuevo,
+                    $tabla, $registro, $operacion,
+                    $campo === null ? null : mb_substr((string)$campo, 0, 64),
                 ]);
             }
         } catch (PDOException $e) {
