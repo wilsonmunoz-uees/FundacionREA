@@ -1,0 +1,33 @@
+# api/.htaccess
+# Redirige cualquier ruta bajo /api hacia el front controller (index.php).
+# Si el hosting no tiene mod_rewrite, la API sigue funcionando con el modo
+# de respaldo:  /api/index.php?ruta=personas/5
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /api/
+
+    # No reescribir archivos o carpetas que existan realmente
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Conserva la cabecera Authorization (algunos Apache/CGI la descartan)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Todo lo demás va al front controller
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>
+
+# Tipos MIME correctos para los archivos de Swagger UI (carpeta docs/assets)
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/css             .css
+</IfModule>
+
+DirectoryIndex index.php

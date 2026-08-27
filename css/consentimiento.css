@@ -1,0 +1,446 @@
+/* =========================================================================
+   REA — Pantalla pública de consentimiento (consentimiento.php)
+   -------------------------------------------------------------------------
+   Hoja de estilos propia e independiente de css/style.css: la pantalla es
+   pública y debe poder abrirse en cualquier dispositivo sin arrastrar nada
+   del sistema interno. Conserva la identidad visual: el granate corporativo,
+   las mismas tipografías y el logotipo sobre fondo claro.
+   ========================================================================= */
+
+:root {
+    --rea-rojo:        #c8102e;
+    --rea-rojo-oscuro: #8f0a1f;
+    --rea-rojo-claro:  #fdeaee;
+    --tinta:           #14161c;
+    --gris-700:        #4c5462;
+    --gris-600:        #667085;
+    --gris-300:        #d6dae3;
+    --gris-200:        #e6e9f0;
+    --gris-50:         #f6f8fb;
+    --verde:           #12734a;
+    --verde-claro:     #e4f7ec;
+    --ambar:           #9a5b00;
+    --ambar-claro:     #fdf2dd;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 24px 14px 40px;
+    background: var(--gris-50);
+    color: var(--tinta);
+    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+}
+
+.hoja {
+    max-width: 740px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid var(--gris-200);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 18px 40px -30px rgba(20, 22, 28, .5);
+}
+
+/* ---------------------------------------------------------------- Cabecera */
+.cabecera {
+    padding: 26px 30px 20px;
+    text-align: center;
+    border-bottom: 3px solid var(--rea-rojo);
+    background: #fff;
+}
+.logo {
+    display: block;
+    width: 260px;
+    max-width: 72%;
+    height: auto;
+    margin: 0 auto;
+}
+.institucion {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gris-200);
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--gris-700);
+    letter-spacing: .01em;
+}
+
+/* ---------------------------------------------------------------- Contenido */
+.contenido { padding: 26px 30px 30px; }
+
+h1 { font-size: 1.35rem; margin: 0 0 10px; }
+h2 { font-size: 1.12rem; margin: 26px 0 12px; color: var(--tinta); }
+.contenido > section:first-of-type h2 { margin-top: 0; }
+p  { margin: 0 0 14px; }
+
+/* ---------------------------------------------------------------- Avisos */
+.aviso {
+    padding: 16px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--gris-200);
+    border-left: 4px solid var(--gris-300);
+    margin-bottom: 22px;
+    background: var(--gris-50);
+}
+.aviso h1, .aviso h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.aviso p:last-child { margin-bottom: 0; }
+.aviso .nota { font-size: .87rem; color: var(--gris-600); }
+
+.aviso-exito    { background: var(--verde-claro);    border-color: #c3ead4; border-left-color: var(--verde);  color: #0d5b3a; }
+.aviso-revocado { background: var(--ambar-claro);    border-color: #f2dcb0; border-left-color: var(--ambar);  color: var(--ambar); }
+.aviso-error    { background: var(--rea-rojo-claro); border-color: #f0b7c1; border-left-color: var(--rea-rojo); color: var(--rea-rojo-oscuro); }
+.aviso-exito .nota, .aviso-revocado .nota, .aviso-error .nota { color: inherit; opacity: .85; }
+
+/* ---------------------------------------------------------------- Ficha */
+.ficha {
+    background: var(--gris-50);
+    border: 1px solid var(--gris-200);
+    border-radius: 12px;
+    padding: 6px 18px;
+    margin-bottom: 24px;
+}
+.ficha-fila {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--gris-200);
+}
+.ficha-fila:last-child { border-bottom: none; }
+.ficha-etiqueta {
+    flex: 0 0 175px;
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--gris-600);
+    padding-top: 2px;
+}
+.ficha-valor { flex: 1 1 220px; font-weight: 600; }
+
+.pastilla {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--gris-200);
+    color: var(--gris-700);
+    font-size: .74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    vertical-align: middle;
+}
+.pastilla-si { background: var(--verde-claro);     color: var(--verde); }
+.pastilla-no { background: var(--rea-rojo-claro);  color: var(--rea-rojo-oscuro); }
+
+/* ---------------------------------------------------------------- Texto legal */
+.texto-legal { color: var(--gris-700); }
+.texto-legal strong { color: var(--tinta); }
+
+.bloque-finalidad {
+    margin: 0 0 16px;
+    padding: 13px 16px;
+    background: var(--rea-rojo-claro);
+    border-left: 3px solid var(--rea-rojo);
+    border-radius: 0 8px 8px 0;
+    color: var(--rea-rojo-oscuro);
+}
+.bloque-finalidad .etiqueta {
+    display: block;
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    margin-bottom: 3px;
+    opacity: .85;
+}
+
+.lista-datos { margin: 0 0 16px; padding-left: 22px; }
+.lista-datos li { margin-bottom: 5px; }
+.marca-sensible {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--ambar-claro);
+    color: var(--ambar);
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+/* ---------------------------------------------------------------- Decisión */
+.decision {
+    margin-top: 30px;
+    padding-top: 24px;
+    border-top: 2px solid var(--gris-200);
+}
+.decision-ayuda { font-size: .9rem; color: var(--gris-600); }
+
+.botonera {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 18px;
+}
+.boton {
+    flex: 1 1 240px;
+    padding: 16px 20px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, background .15s ease;
+}
+.boton:hover:not(:disabled) { transform: translateY(-1px); }
+.boton:disabled { opacity: .55; cursor: progress; transform: none; }
+
+.boton-si {
+    background: var(--verde);
+    color: #fff;
+    box-shadow: 0 10px 20px -14px rgba(18, 115, 74, .9);
+}
+.boton-si:hover:not(:disabled) { background: #0d5b3a; }
+
+.boton-no {
+    background: #fff;
+    color: var(--rea-rojo-oscuro);
+    border-color: var(--rea-rojo);
+}
+.boton-no:hover:not(:disabled) { background: var(--rea-rojo-claro); }
+
+/* ---------------------------------------------------------------- Pie */
+.pie {
+    padding: 18px 30px 22px;
+    background: var(--gris-50);
+    border-top: 1px solid var(--gris-200);
+}
+.pie p {
+    margin: 0;
+    font-size: .78rem;
+    color: var(--gris-600);
+    text-align: center;
+    line-height: 1.65;
+}
+
+/* ---------------------------------------------------------------- Móvil */
+@media (max-width: 560px) {
+    body { padding: 14px 10px 28px; }
+    .hoja { border-radius: 12px; }
+    .cabecera { padding: 20px 18px 16px; }
+    .contenido { padding: 20px 18px 24px; }
+    .pie { padding: 16px 18px; }
+    .ficha { padding: 4px 14px; }
+    .ficha-etiqueta { flex: 1 1 100%; }
+    .botonera { flex-direction: column; }
+    .logo { max-width: 84%; }
+}
+
+/* =========================================================================
+   Autoservicio en tres pasos
+   ========================================================================= */
+
+/* Indicador de avance */
+.pasos {
+    display: flex;
+    margin: 0;
+    padding: 0 30px;
+    list-style: none;
+    background: var(--gris-50);
+    border-bottom: 1px solid var(--gris-200);
+}
+.pasos li {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 6px;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--gris-600);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+}
+.pasos-numero {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--gris-200);
+    color: var(--gris-600);
+    font-size: .76rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.pasos li.hecho .pasos-numero { background: var(--rea-rojo-claro); color: var(--rea-rojo-oscuro); }
+.pasos li.actual {
+    color: var(--rea-rojo-oscuro);
+    border-bottom-color: var(--rea-rojo);
+}
+.pasos li.actual .pasos-numero { background: var(--rea-rojo); color: #fff; }
+
+/* Formularios */
+.entradilla { color: var(--gris-700); margin-bottom: 22px; }
+.texto-menor { font-size: .87rem; color: var(--gris-600); }
+
+.formulario { margin-top: 4px; }
+
+.grupo {
+    border: 1px solid var(--gris-200);
+    border-radius: 12px;
+    padding: 6px 18px 16px;
+    margin: 0 0 20px;
+}
+.grupo legend {
+    padding: 0 8px;
+    font-size: .78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--rea-rojo-oscuro);
+}
+.grupo-ayuda { margin-top: 0; }
+
+.campo { margin-bottom: 15px; }
+.campo-doble {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 0 16px;
+}
+.campo label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--tinta);
+}
+.obligatorio { color: var(--rea-rojo); }
+
+.campo input,
+.campo select {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--gris-300);
+    border-radius: 9px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--tinta);
+}
+.campo input:focus,
+.campo select:focus {
+    outline: none;
+    border-color: var(--rea-rojo);
+    box-shadow: 0 0 0 3px var(--rea-rojo-claro);
+}
+.campo-ayuda {
+    margin: 5px 0 0;
+    font-size: .8rem;
+    color: var(--gris-600);
+}
+
+.boton-principal {
+    background: var(--rea-rojo);
+    color: #fff;
+    box-shadow: 0 10px 20px -14px rgba(200, 16, 46, .9);
+}
+.boton-principal:hover:not(:disabled) { background: var(--rea-rojo-oscuro); }
+
+.boton-secundario {
+    background: #fff;
+    color: var(--gris-700);
+    border-color: var(--gris-300);
+    text-align: center;
+    text-decoration: none;
+    line-height: 1.4;
+}
+.boton-secundario:hover { background: var(--gris-50); }
+
+.version-politica {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gris-200);
+    font-size: .78rem;
+    color: var(--gris-600);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+.enlace-volver {
+    display: inline-block;
+    margin-top: 14px;
+    color: var(--rea-rojo);
+    font-size: .88rem;
+}
+
+.nota-revocar {
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: var(--ambar-claro);
+    border-left: 3px solid var(--ambar);
+    border-radius: 0 8px 8px 0;
+    color: var(--ambar);
+}
+
+/* Tooltip del botón de revocatoria deshabilitado */
+.con-tooltip {
+    position: relative;
+    flex: 1 1 240px;
+    display: flex;
+}
+.con-tooltip .boton { width: 100%; }
+
+.tooltip {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    width: max-content;
+    max-width: 280px;
+    padding: 10px 13px;
+    border-radius: 9px;
+    background: var(--tinta);
+    color: #fff;
+    font-size: .82rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: left;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .16s ease, transform .16s ease;
+    z-index: 5;
+    pointer-events: none;
+}
+.tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: var(--tinta);
+}
+.con-tooltip:hover .tooltip,
+.con-tooltip:focus-within .tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.boton:disabled { cursor: not-allowed; }
+
+@media (max-width: 560px) {
+    .pasos { padding: 0 10px; }
+    .pasos li { font-size: 0; gap: 0; justify-content: center; padding: 12px 4px; }
+    .pasos li.actual { font-size: .78rem; gap: 8px; }
+    .tooltip { max-width: 240px; }
+}
