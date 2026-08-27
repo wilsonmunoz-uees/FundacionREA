@@ -140,7 +140,8 @@ include __DIR__ . '/includes/layout_top.php';
             <?php if (puedeAcceder('permisos')): ?><li><a href="modules/permisos.php">Permisos</a></li><?php endif; ?>
             <?php if (puedeAcceder('instituciones')): ?><li><a href="modules/instituciones.php">Instituciones Educativas</a></li><?php endif; ?>
             <?php if (puedeAcceder('disclaimers')): ?><li><a href="modules/disclaimers.php">Disclaimers de Datos</a></li><?php endif; ?>
-            <?php if (puedeAcceder('enlaces_verificados')): ?><li><a href="modules/enlaces_verificados.php">Enlaces de Consentimiento</a></li><?php endif; ?>
+            <?php if (puedeAcceder('correo_configuracion')): ?><li><a href="modules/enlaces_consentimiento.php">Enlaces de Consentimiento</a></li><?php endif; ?>
+            <?php if (puedeAcceder('enlaces_verificados')): ?><li><a href="modules/enlaces_verificados.php">Links de Consentimiento con Verificación</a></li><?php endif; ?>
             <?php if (puedeAcceder('envio_masivo')): ?><li><a href="modules/envio_masivo.php">Envío Masivo de Invitaciones</a></li><?php endif; ?>
             <?php if (puedeAcceder('precarga')): ?><li><a href="modules/precarga_inicial.php">PreCarga Inicial</a></li><?php endif; ?>
         </ul>
@@ -153,9 +154,12 @@ include __DIR__ . '/includes/layout_top.php';
         <h3>Consultas y Reportes</h3>
         <p>Búsqueda de personas, historial y reportes de cumplimiento.</p>
         <ul>
+            <?php if (puedeAcceder('reporte_cobertura')): ?><li><a href="reportes/reporte_cobertura.php">Cobertura y Pendientes</a></li><?php endif; ?>
+            <?php if (esSuperAdmin()): ?><li><a href="reportes/reporte_red_educativa.php">Red Educativa Multi-Sede</a></li><?php endif; ?>
             <?php if (puedeAcceder('consulta_buscar_persona')): ?><li><a href="consultas/buscar_persona.php">Buscar Persona</a></li><?php endif; ?>
             <?php if (puedeAcceder('reporte_consentimientos')): ?><li><a href="reportes/reporte_consentimientos.php">Reportes de Consentimientos</a></li><?php endif; ?>
             <?php if (puedeAcceder('reporte_titulares')): ?><li><a href="reportes/reporte_titulares.php">Consentimientos por Titular</a></li><?php endif; ?>
+            <?php if (puedeAcceder('reporte_envios_masivos')): ?><li><a href="reportes/reporte_envios_masivos.php">Efectividad de Envíos</a></li><?php endif; ?>
             <?php if (puedeAcceder('reporte_auditoria')): ?><li><a href="reportes/reporte_auditoria.php">Bitácora de Auditoría</a></li><?php endif; ?>
         </ul>
     </div>

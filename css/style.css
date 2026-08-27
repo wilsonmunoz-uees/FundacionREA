@@ -669,27 +669,28 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
     border: 1px solid var(--rea-gris-200);
     box-shadow: var(--sombra-sm);
 }
-table.tabla-datos { width: 100%; border-collapse: collapse; font-size: .87rem; }
+table.tabla-datos { width: 100%; border-collapse: collapse; font-size: .84rem; }
 table.tabla-datos th {
     background: var(--rea-gris-50);
     color: var(--rea-gris-700);
     text-align: left;
-    padding: 12px 16px;
+    padding: 9px 8px;
     font-weight: 700;
-    font-size: .72rem;
+    font-size: .70rem;
     text-transform: uppercase;
-    letter-spacing: .07em;
+    letter-spacing: .03em;
     border-bottom: 1px solid var(--rea-gris-200);
-    white-space: nowrap;
     position: sticky;
     top: 0;
 }
 table.tabla-datos td {
-    padding: 12px 16px;
+    padding: 9px 8px;
     border-bottom: 1px solid var(--rea-gris-100);
     color: var(--rea-gris-800);
     vertical-align: middle;
 }
+table.tabla-datos th:first-child, table.tabla-datos td:first-child { padding-left: 14px; }
+table.tabla-datos th:last-child, table.tabla-datos td:last-child { padding-right: 14px; }
 table.tabla-datos tbody tr { transition: var(--transicion); }
 table.tabla-datos tbody tr:hover { background: var(--rea-gris-50); }
 table.tabla-datos tbody tr:last-child td { border-bottom: none; }
@@ -1152,3 +1153,172 @@ input[type="file"]:hover { border-color: var(--rea-rojo); background: #fff; }
     padding: 0 8px;
 }
 .bloque-persona-ayuda { margin: 0 0 12px; }
+
+/* =========================================================================
+   ESTILOS DE IMPRESIÓN DIRECTA (window.print / Ctrl+P)
+   ========================================================================= */
+@media print {
+    html, body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        font-size: 10pt !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        box-sizing: border-box !important;
+    }
+
+    @page {
+        margin: 10mm 12mm;
+        size: landscape;
+    }
+
+    .sidebar,
+    .topbar,
+    .breadcrumb,
+    .no-imprimir,
+    .btn,
+    button,
+    input[type="submit"],
+    .paginacion-wrap,
+    .footer-app {
+        display: none !important;
+    }
+
+    .solo-impresion {
+        display: block !important;
+    }
+
+    .layout-principal,
+    .main-wrap,
+    .content-wrap {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .page-header {
+        display: none !important;
+    }
+
+    .kpi-grid {
+        display: grid !important;
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 10px !important;
+        margin-bottom: 12px !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .kpi-card {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        padding: 10px 12px !important;
+        box-shadow: none !important;
+        background: #f8fafc !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .kpi-valor {
+        font-size: 1.25rem !important;
+        font-weight: 700 !important;
+        color: #0f172a !important;
+    }
+
+    .kpi-label {
+        font-size: 0.72rem !important;
+        color: #64748b !important;
+        font-weight: 600 !important;
+    }
+
+    .card {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        box-shadow: none !important;
+        padding: 12px 14px !important;
+        margin-bottom: 12px !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        background: #ffffff !important;
+    }
+
+    .card h3 {
+        font-size: 0.95rem !important;
+        margin-bottom: 8px !important;
+        padding-bottom: 4px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+
+    .form-row {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 12px !important;
+        width: 100% !important;
+    }
+
+    .form-row > .card {
+        flex: 1 1 50% !important;
+        max-width: 50% !important;
+    }
+
+    .tabla-wrap {
+        overflow: visible !important;
+        width: 100% !important;
+    }
+
+    .tabla-datos {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-size: 8pt !important;
+    }
+
+    .tabla-datos th,
+    .tabla-datos td {
+        padding: 5px 6px !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+        color: #1e293b !important;
+    }
+
+    .tabla-datos th {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        font-weight: 700 !important;
+        border-top: 1px solid #cbd5e1 !important;
+    }
+
+    .badge {
+        border: 1px solid currentColor !important;
+        padding: 1px 5px !important;
+        font-size: 7pt !important;
+        font-weight: 700 !important;
+        border-radius: 4px !important;
+    }
+
+    .badge-activo {
+        background: #dcfce7 !important;
+        color: #15803d !important;
+    }
+
+    .badge-inactivo {
+        background: #fee2e2 !important;
+        color: #b91c1c !important;
+    }
+
+    .badge-neutro {
+        background: #f1f5f9 !important;
+        color: #475569 !important;
+    }
+}
