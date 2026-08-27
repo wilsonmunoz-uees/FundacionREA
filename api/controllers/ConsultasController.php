@@ -113,8 +113,8 @@ final class ConsultasController extends Controller
         $buscar = $this->peticion->paramTexto('q');
         if ($buscar !== '') {
             $like = $this->like($buscar);
-            $where .= ' AND (p.Nombres LIKE ? OR p.Apellidos LIKE ? OR u.Username LIKE ?)';
-            array_push($params, $like, $like, $like);
+            $where .= ' AND (p.Nombres LIKE ? OR p.Apellidos LIKE ? OR p.Identificacion LIKE ? OR p.Email LIKE ? OR u.Username LIKE ? OR u.Email LIKE ? OR CAST(h.ConsentimientoId AS CHAR) LIKE ?)';
+            array_push($params, $like, $like, $like, $like, $like, $like, $like);
         }
 
         $desdeSql = 'FROM consentimientohistorial h
@@ -166,8 +166,8 @@ final class ConsultasController extends Controller
         $buscar = $this->peticion->paramTexto('q');
         if ($buscar !== '') {
             $like = $this->like($buscar);
-            $where .= ' AND (p.Nombres LIKE ? OR p.Apellidos LIKE ?)';
-            array_push($params, $like, $like);
+            $where .= ' AND (p.Nombres LIKE ? OR p.Apellidos LIKE ? OR p.Identificacion LIKE ? OR p.Email LIKE ?)';
+            array_push($params, $like, $like, $like, $like);
         }
 
         // El filtro por tipo de dato agrega un JOIN cuyo parámetro va primero
