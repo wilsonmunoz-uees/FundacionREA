@@ -715,8 +715,9 @@ final class ReportesController extends Controller
         }
         if ($buscar !== '') {
             $like   = $this->like($buscar);
-            $where .= ' AND (a.Campo LIKE ? OR a.ValorAnterior LIKE ? OR a.ValorNuevo LIKE ? OR a.RegistroId LIKE ?)';
-            array_push($params, $like, $like, $like, $like);
+            // La bitácora no guarda valores: se busca por campo y por registro.
+            $where .= ' AND (a.Campo LIKE ? OR a.RegistroId LIKE ?)';
+            array_push($params, $like, $like);
         }
 
         try {
@@ -736,7 +737,7 @@ final class ReportesController extends Controller
 
             $filas = $this->consultar(
                 "SELECT a.AuditoriaId, a.FechaHora, a.Username, a.IpOrigen, a.Tabla, a.RegistroId,
-                        a.Operacion, a.Campo, a.ValorAnterior, a.ValorNuevo
+                        a.Operacion, a.Campo
                  $desdeSql $where
                  ORDER BY a.FechaHora DESC, a.AuditoriaId DESC
                  LIMIT $offset, $porPagina",
