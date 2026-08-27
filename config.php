@@ -5,5 +5,5 @@ return [
     'db_port' => '3306',
     'db_name' => 'ezyro_42650191_protecciondatos',
     'db_user' => 'root',
-    'db_pass' => 'Paralelo1PC'
+    'db_pass' => ''
 ];
