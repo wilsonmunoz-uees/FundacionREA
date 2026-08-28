@@ -32,7 +32,56 @@
  */
 
 /**
- * @param array $opciones titulo, ayuda, prefijo, registro, correo, columnas
+ * Reglas del documento de identidad, tal como las define el servidor
+ * (`api/core/Documento.php`): qué caracteres admite cada tipo y hasta dónde
+ * llega la columna de la base de datos.
+ *
+ * Se piden una sola vez por página: son datos de esquema, no de negocio.
+ *
+ * @param string $contexto 'persona' o 'proveedor' (su RUC tiene columna propia,
+ *                         más corta, y es la que manda)
+ */
+function reglasDocumento(string $contexto = 'persona'): array
+{
+    static $cache = [];
+
+    if (isset($cache[$contexto])) {
+        return $cache[$contexto];
+    }
+
+    $reglas = apiDatos(apiGet('documento/reglas', ['contexto' => $contexto]), []);
+
+    /* Si la API no responde, el formulario sigue siendo usable: se cae al
+       criterio del DDL. El servidor valida igual al guardar. */
+    if (!$reglas) {
+        $reglas = [
+            'CEDULA'    => ['patron' => '[^0-9]',      'maximo' => 50, 'ayuda' => 'Solo números, sin guiones ni espacios.'],
+            'RUC'       => ['patron' => '[^0-9]',      'maximo' => 50, 'ayuda' => 'Solo números, sin guiones ni espacios.'],
+            'PASAPORTE' => ['patron' => '[^0-9A-Za-z]','maximo' => 50, 'ayuda' => 'Letras y números, sin guiones ni espacios.'],
+        ];
+    }
+
+    return $cache[$contexto] = $reglas;
+}
+
+/**
+ * Imprime una sola vez el script que adapta el campo del documento al tipo
+ * elegido. Se llama solo desde camposPersona().
+ */
+function scriptDocumento(): void
+{
+    static $impreso = false;
+
+    if ($impreso) {
+        return;
+    }
+    $impreso = true;
+
+    echo '<script src="' . e(APP_ROOT) . 'js/documento.js" defer></script>';
+}
+
+/**
+ * @param array $opciones titulo, ayuda, prefijo, registro, correo, documento
  */
 function camposPersona(array $opciones): void
 {
@@ -57,6 +106,11 @@ function camposPersona(array $opciones): void
 
     $tipos = ['CEDULA' => 'Cédula', 'RUC' => 'RUC', 'PASAPORTE' => 'Pasaporte'];
     $tipoActual = $valor('tipo_identificacion', 'TipoIdentificacion') ?: 'CEDULA';
+
+    /* Reglas del documento —qué caracteres admite cada tipo y hasta dónde llega
+       la columna de la base—, pedidas a la API para no duplicarlas aquí. */
+    $reglas = reglasDocumento($opciones['documento'] ?? 'persona');
+    $idCampo = $prefijo . 'identificacion';
     ?>
     <fieldset class="bloque-persona">
         <legend><?= e($titulo) ?></legend>
@@ -77,11 +131,17 @@ function camposPersona(array $opciones): void
                 </select>
             </div>
             <div class="form-group" style="flex:1 1 200px;">
-                <label for="<?= e($prefijo) ?>identificacion" class="campo-requerido">Identificación</label>
-                <input type="text" name="<?= e($prefijo) ?>identificacion" id="<?= e($prefijo) ?>identificacion"
-                       maxlength="50" required autocomplete="off"
+                <label for="<?= e($idCampo) ?>" class="campo-requerido">Identificación</label>
+                <input type="text" name="<?= e($idCampo) ?>" id="<?= e($idCampo) ?>"
+                       maxlength="<?= (int)($reglas[$tipoActual]['maximo'] ?? 50) ?>" required autocomplete="off"
+                       inputmode="<?= $tipoActual === 'PASAPORTE' ? 'text' : 'numeric' ?>"
+                       data-tipo-campo="<?= e($prefijo) ?>tipo_identificacion"
+                       data-ayuda-campo="<?= e($idCampo) ?>_ayuda"
+                       data-reglas="<?= e(json_encode($reglas, JSON_UNESCAPED_UNICODE)) ?>"
                        value="<?= e($valor('identificacion', 'Identificacion')) ?>">
-                <div class="form-ayuda">Solo números, sin guiones ni espacios.</div>
+                <div class="form-ayuda" id="<?= e($idCampo) ?>_ayuda">
+                    <?= e($reglas[$tipoActual]['ayuda'] ?? 'Solo números, sin guiones ni espacios.') ?>
+                </div>
             </div>
         </div>
 
@@ -118,6 +178,7 @@ function camposPersona(array $opciones): void
         </div>
     </fieldset>
     <?php
+    scriptDocumento();
 }
 
 /**

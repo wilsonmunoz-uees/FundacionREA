@@ -115,6 +115,11 @@ $router->get('instituciones/{id}',        [InstitucionesController::class, 'show
 $router->put('instituciones/{id}',        [InstitucionesController::class, 'update']);
 $router->patch('instituciones/{id}/estado', [InstitucionesController::class, 'estadoCambiar']);
 
+// --- Reglas del documento de identidad ----------------------------------------
+// Qué caracteres admite cada tipo y hasta dónde llega la columna de la base.
+// Las pantallas lo consultan para adaptar el campo mientras se escribe.
+$router->get('documento/reglas',       [DocumentoController::class, 'reglas']);
+
 // --- Personas -----------------------------------------------------------------
 // `persona` es la entidad padre de empleados, estudiantes, representantes y
 // proveedores: NO tiene mantenimiento propio. Solo se lee. Sus fichas se crean
@@ -155,6 +160,8 @@ $router->post('consentimientos/{id}/revocar',  [ConsentimientosController::class
 $router->post('consentimientos/{id}/reactivar',[ConsentimientosController::class, 'reactivar']);
 
 // --- Usuarios del sistema -------------------------------------------------------
+// Antes de usuarios/{id}: si no, el enrutador tomaría «politica-clave» por un id.
+$router->get('usuarios/politica-clave',       [UsuariosController::class, 'politicaClave']);
 $router->get('usuarios/personas-disponibles', [UsuariosController::class, 'personasDisponibles']);
 $router->get('usuarios/buscar',                [UsuariosController::class, 'buscar']);
 $router->get('usuarios',                      [UsuariosController::class, 'index']);

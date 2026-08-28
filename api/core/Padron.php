@@ -26,7 +26,8 @@
 
 final class Padron
 {
-    public const TIPOS_ID = ['CEDULA', 'RUC', 'PASAPORTE'];
+    /** Los tipos y sus reglas viven en api/core/Documento.php. */
+    public const TIPOS_ID = Documento::TIPOS;
 
     /* ------------------------------------------------------------------ */
     /* Lectura                                                             */
@@ -87,19 +88,26 @@ final class Padron
             return trim((string)($entrada[$prefijo . $clave] ?? ''));
         };
 
-        $identificacion = (string)preg_replace('/[^0-9A-Za-z]/', '', $campo('identificacion'));
-        $tipo           = mb_strtoupper($campo('tipo_identificacion'));
+        /* El valor crudo se conserva: es el que revisa validar(), para poder
+           decirle a quien captura que escribió letras en una cédula en vez de
+           borrárselas sin avisar. */
+        $crudo = $campo('identificacion');
+        $tipo  = mb_strtoupper($campo('tipo_identificacion'));
 
         if ($tipo === '') {
             // Se deduce por la longitud: 13 dígitos es RUC en Ecuador
-            $tipo = (strlen($identificacion) === 13 && ctype_digit($identificacion)) ? 'RUC' : 'CEDULA';
+            $soloDigitos = (string)preg_replace('/[^0-9]/', '', $crudo);
+            $tipo = (strlen($soloDigitos) === 13 && $soloDigitos === preg_replace('/[^0-9A-Za-z]/', '', $crudo))
+                ? 'RUC' : 'CEDULA';
         }
 
+        $tipo   = Documento::tipoValido($tipo);
         $estado = mb_strtoupper($campo('estado'));
 
         return [
-            'identificacion' => mb_substr($identificacion, 0, 50),
-            'tipo'           => in_array($tipo, self::TIPOS_ID, true) ? $tipo : 'CEDULA',
+            'identificacion' => Documento::normalizar($tipo, $crudo),
+            'identificacion_cruda' => $crudo,
+            'tipo'           => $tipo,
             'nombres'        => mb_substr($campo('nombres'), 0, 100),
             'apellidos'      => mb_substr($campo('apellidos'), 0, 100),
             'email'          => mb_substr($campo('email'), 0, 150),
@@ -114,17 +122,27 @@ final class Padron
      * @param string $etiqueta    Cómo nombrar a la persona en los mensajes
      *                            ('la persona', 'el representante', ...)
      * @param bool   $exigeCorreo true cuando sin correo el registro no sirve
+     * @param bool   $revisaDocumento false cuando quien llama ya lo revisó con
+     *                            un contexto propio (proveedores, por su RUC)
      * @return string[]
      */
-    public static function validar(array $datos, string $etiqueta = 'la persona', bool $exigeCorreo = false): array
-    {
+    public static function validar(
+        array $datos,
+        string $etiqueta = 'la persona',
+        bool $exigeCorreo = false,
+        bool $revisaDocumento = true
+    ): array {
         $errores = [];
-        $de      = ' de ' . $etiqueta;
+        $de      = ' ' . Documento::contraer($etiqueta);   // «de el» -> «del»
 
-        if ($datos['identificacion'] === '') {
-            $errores[] = 'Ingrese la identificación' . $de . '.';
-        } elseif (mb_strlen($datos['identificacion']) < 5) {
-            $errores[] = 'La identificación' . $de . ' es demasiado corta.';
+        /* El documento lo revisa Documento::validar sobre el valor tal como se
+           escribió: así avisa de las letras en una cédula en vez de callarlas. */
+        if ($revisaDocumento) {
+            $errores = Documento::validar(
+                $datos['tipo'],
+                (string)($datos['identificacion_cruda'] ?? $datos['identificacion']),
+                $etiqueta
+            );
         }
 
         if ($datos['nombres'] === '')   { $errores[] = 'Ingrese los nombres' . $de . '.'; }

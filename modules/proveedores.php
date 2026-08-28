@@ -97,6 +97,8 @@ include __DIR__ . '/../includes/layout_top.php';
                             . 'se reutiliza su ficha.',
                 'registro' => $registroEditar,
                 'correo'   => 'opcional',
+                // Su documento se copia además a proveedor.Ruc, más corta
+                'documento' => 'proveedor',
             ]);
             ?>
 

@@ -137,6 +137,7 @@ final class ApiClient
                 'meta'        => [],
                 'error'       => 'No se pudo contactar con la API: ' . $errorRed,
                 'errores'     => [],
+                'campos'      => [],
                 'json_valido' => false,
             ];
         }
@@ -154,6 +155,7 @@ final class ApiClient
                     ? 'Ruta de la API no encontrada: ' . $ruta
                     : 'Respuesta inesperada de la API (HTTP ' . $estado . ').',
                 'errores'     => [],
+                'campos'      => [],
                 'json_valido' => false,
             ];
         }
@@ -165,6 +167,8 @@ final class ApiClient
             'meta'        => $json['meta'] ?? [],
             'error'       => $json['error'] ?? '',
             'errores'     => $json['errores'] ?? [],
+            // Campos rechazados, cuando el endpoint los informa (ver apiCampos)
+            'campos'      => $json['campos'] ?? [],
             'json_valido' => true,
         ];
     }
@@ -362,6 +366,22 @@ function apiMeta(array $respuesta, string $clave = null, $porDefecto = null)
         return $meta;
     }
     return $meta[$clave] ?? $porDefecto;
+}
+
+/**
+ * Campos del formulario que la API rechazó, para poder señalarlos.
+ *
+ * Devuelve un mapa `['username' => true, ...]`, listo para consultar con
+ * `isset()`. Los endpoints que no informan campos devuelven un arreglo vacío:
+ * la pantalla se limita entonces a mostrar los mensajes.
+ */
+function apiCampos(array $respuesta): array
+{
+    if ($respuesta['ok'] || empty($respuesta['campos'])) {
+        return [];
+    }
+
+    return array_fill_keys((array)$respuesta['campos'], true);
 }
 
 /** Lista de mensajes de error lista para pintar en la vista. */

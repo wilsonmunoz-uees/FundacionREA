@@ -527,7 +527,7 @@ $spec['components'] = [
                 'PersonaId'              => ['type' => 'integer', 'nullable' => true],
                 'CodigoEstudiante'       => ['type' => 'string', 'example' => 'EST-2026-014'],
                 'RepresentanteId'        => ['type' => 'integer', 'nullable' => true],
-                'RepresentanteRelacion'  => ['type' => 'string', 'nullable' => true, 'enum' => ['MADRE', 'PADRE', 'ABUELO', 'ABUELA', 'TIO', 'TIA', 'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO', null]],
+                'RepresentanteRelacion'  => ['type' => 'string', 'nullable' => true, 'enum' => ['MADRE', 'PADRE', 'ABUELO/A', 'HERMANO/A', 'TIO/A', 'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO', null]],
                 'Estado'                 => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO']],
                 'Nombres'                => ['type' => 'string'],
                 'Apellidos'              => ['type' => 'string'],
@@ -544,7 +544,7 @@ $spec['components'] = [
                 'persona_id'             => ['type' => 'integer', 'example' => 9],
                 'codigo_estudiante'      => ['type' => 'string', 'maxLength' => 20, 'example' => 'EST-2026-014'],
                 'representante_id'       => ['type' => 'integer', 'nullable' => true, 'description' => 'No puede ser la misma persona que el estudiante.'],
-                'representante_relacion' => ['type' => 'string', 'enum' => ['MADRE', 'PADRE', 'ABUELO', 'ABUELA', 'TIO', 'TIA', 'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO']],
+                'representante_relacion' => ['type' => 'string', 'enum' => ['MADRE', 'PADRE', 'ABUELO/A', 'HERMANO/A', 'TIO/A', 'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO']],
                 'estado'                 => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO'], 'default' => 'ACTIVO'],
             ],
         ],
@@ -1089,6 +1089,33 @@ $spec['paths']['/personas'] = [
     ],
 ];
 
+$spec['paths']['/documento/reglas'] = [
+    'get' => [
+        'tags' => ['Catálogos'], 'summary' => 'Reglas del documento de identidad',
+        'description' => "Qué caracteres admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos; `PASAPORTE` admite además letras. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nLo consumen los formularios para adaptar el campo mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
+        'operationId' => 'reglasDocumento',
+        'parameters'  => [[
+            'name' => 'contexto', 'in' => 'query',
+            'description' => 'persona (por defecto) o proveedor.',
+            'schema' => ['type' => 'string', 'enum' => ['persona', 'proveedor']],
+        ]],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Reglas por tipo de documento.', $sobre([
+                'type' => 'object',
+                'additionalProperties' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'patron'   => ['type' => 'string', 'example' => '[^0-9]', 'description' => 'Lo que hay que quitar de lo escrito.'],
+                        'maximo'   => ['type' => 'integer', 'example' => 50],
+                        'etiqueta' => ['type' => 'string', 'example' => 'Cédula'],
+                        'ayuda'    => ['type' => 'string'],
+                    ],
+                ],
+            ])),
+        ]),
+    ],
+];
+
 $spec['paths']['/personas/opciones'] = [
     'get' => [
         'tags' => ['Personas'], 'summary' => 'Personas activas para un desplegable',
@@ -1319,6 +1346,27 @@ $spec['paths']['/usuarios/buscar'] = [
         ],
         'responses' => $erroresComunes([
             '200' => $respuesta('Usuarios encontrados.', $sobreLista('UsuarioBusqueda')),
+        ]),
+    ],
+];
+
+$spec['paths']['/usuarios/politica-clave'] = [
+    'get' => [
+        'tags' => ['Usuarios'], 'summary' => 'Condiciones que debe cumplir una contraseña',
+        'description' => "Las reglas de `api/core/Password.php`, para que la pantalla las muestre y las vaya marcando mientras se escribe: mínimo 8 caracteres, al menos una mayúscula, una minúscula y un número, y solo letras, números y los signos `*!-_` (estos últimos opcionales).\n\nCada regla trae su expresión regular, de modo que si la política cambia en el servidor la pantalla la sigue sin tocarse. **Quien valida sigue siendo el servidor** al guardar el usuario.\n\n**Acceso:** SuperAdmin o permiso `SEG_USUARIOS`.",
+        'operationId' => 'politicaClave',
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Reglas de la contraseña.', $sobre([
+                'type'  => 'array',
+                'items' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'clave'  => ['type' => 'string', 'example' => 'mayuscula'],
+                        'texto'  => ['type' => 'string', 'example' => 'Una letra mayúscula'],
+                        'patron' => ['type' => 'string', 'example' => '[A-Z]'],
+                    ],
+                ],
+            ])),
         ]),
     ],
 ];
@@ -2038,7 +2086,7 @@ $precargaEntrada = [
 $spec['paths']['/precarga/previsualizar'] = [
     'post' => [
         'tags' => ['PreCarga'], 'summary' => 'Validar la plantilla sin tocar la base',
-        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nLa plantilla no pide el estado: **todo lo que se carga entra ACTIVO**. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga entra ACTIVO**. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
         'operationId' => 'previsualizarPreCarga',
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $precargaEntrada]]],
         'responses' => $erroresComunes([
@@ -2071,6 +2119,7 @@ $spec['paths']['/precarga/previsualizar'] = [
                             'historial'            => ['type' => 'integer'],
                             'personas'             => ['type' => 'integer'],
                             'personas_con_usuario' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque tienen cuenta de usuario.'],
+                            'personas_en_otra_institucion' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque otra institución todavía las tiene vinculadas (empleado, estudiante, representante, proveedor o consentimiento). Solo aparecen en bases que vienen de cuando el padrón era global.'],
                         ],
                     ],
                 ],

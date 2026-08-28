@@ -49,9 +49,27 @@ final class Response
         self::json($carga, $estado);
     }
 
-    public static function validacion(array $errores): void
+    /**
+     * Datos rechazados por validación.
+     *
+     * @param string[] $errores Mensajes para mostrar, en orden
+     * @param array<string, true> $campos Qué campos del formulario están mal, para
+     *        que la pantalla pueda señalarlos sin adivinar leyendo los mensajes.
+     *        Es opcional: quien no lo envíe se comporta como antes.
+     */
+    public static function validacion(array $errores, array $campos = []): void
     {
-        self::error('Los datos enviados no son válidos.', 422, $errores);
+        $carga = [
+            'ok'      => false,
+            'error'   => 'Los datos enviados no son válidos.',
+            'errores' => array_values($errores),
+        ];
+
+        if ($campos) {
+            $carga['campos'] = array_values(array_unique(array_keys($campos)));
+        }
+
+        self::json($carga, 422);
     }
 
     public static function noAutenticado(string $mensaje = 'No autenticado o token expirado.'): void

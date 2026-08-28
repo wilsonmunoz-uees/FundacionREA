@@ -128,6 +128,23 @@ final class UsuariosController extends Controller
     }
 
     /**
+     * GET /api/usuarios/politica-clave
+     *
+     * Las condiciones que debe cumplir una contraseña, para que la pantalla las
+     * muestre y las vaya marcando mientras se escribe. Quien decide sigue siendo
+     * el servidor, en `api/core/Password.php`, al guardar.
+     */
+    public function politicaClave(array $ruta = []): void
+    {
+        $this->requiereAcceso(self::MODULO);
+
+        Response::exito(Password::reglas(), [
+            'largo_minimo' => Password::LARGO_MINIMO,
+            'especiales'   => Password::ESPECIALES,
+        ]);
+    }
+
+    /**
      * GET /api/usuarios/personas-disponibles
      * Personas activas que todavía no tienen cuenta en esta institución.
      */
@@ -332,22 +349,45 @@ final class UsuariosController extends Controller
         $password  = (string)$this->peticion->dato('password', '');
         $confirmar = (string)$this->peticion->dato('password_confirm', $password);
 
+        /* Se anota qué campo falla, no solo el mensaje: así la pantalla puede
+           marcarlo en rojo sin tener que adivinar leyendo el texto. */
+        $campos = [];
+        $falla  = static function (string $campo, string $mensaje) use (&$errores, &$campos): void {
+            $errores[]      = $mensaje;
+            $campos[$campo] = true;
+        };
+
         if ($esNuevo && $personaId <= 0) {
-            $errores[] = 'Debe seleccionar una persona.';
+            $falla('persona_id', 'Debe seleccionar una persona.');
         } elseif ($personaId > 0
                   && !Padron::perteneceA($this->db, $personaId, $this->institucion())) {
-            $errores[] = 'La persona seleccionada no pertenece a esta institución.';
+            $falla('persona_id', 'La persona seleccionada no pertenece a esta institución.');
         }
-        if ($username === '')            $errores[] = 'El nombre de usuario es obligatorio.';
+
+        if ($username === '') {
+            $falla('username', 'El nombre de usuario es obligatorio.');
+        }
+
         if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errores[] = 'El correo electrónico no es válido.';
+            $falla('email', 'El correo electrónico no es válido.');
         }
-        if ($esNuevo && $password === '')          $errores[] = 'La contraseña es obligatoria para un nuevo usuario.';
-        if ($password !== '' && strlen($password) < 8) $errores[] = 'La contraseña debe tener al menos 8 caracteres.';
-        if ($password !== $confirmar)              $errores[] = 'Las contraseñas no coinciden.';
+
+        /* Contraseña. Al editar puede dejarse en blanco: significa «no la
+           cambies». Si viene con algo, se le exige toda la política. */
+        if ($esNuevo && $password === '') {
+            $falla('password', 'La contraseña es obligatoria para un nuevo usuario.');
+        } elseif ($password !== '') {
+            foreach (Password::validar($password) as $mensaje) {
+                $falla('password', $mensaje);
+            }
+        }
+
+        if ($password !== $confirmar) {
+            $falla('password_confirm', 'Las contraseñas no coinciden.');
+        }
 
         if ($errores) {
-            Response::validacion($errores);
+            Response::validacion($errores, $campos);
         }
 
         return [
