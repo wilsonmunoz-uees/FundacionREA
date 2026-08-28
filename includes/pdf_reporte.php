@@ -191,6 +191,127 @@ final class PdfReporte
         $this->celda($this->margen, $this->y, $texto, $this->anchoUtil(), $tamano, $estilo, 'L', $color);
     }
 
+    /** Verifica si hay espacio suficiente en la página actual; si no, salta a una nueva. */
+    public function verificarEspacio(float $alto): void
+    {
+        if ($this->numPagina === 0) {
+            $this->nuevaPagina();
+            return;
+        }
+        if ($this->y + $alto > $this->alto - $this->margen - 30) {
+            $this->nuevaPagina();
+        }
+    }
+
+    /**
+     * Título visual de sección estructurada con indicador corporativo lateral.
+     */
+    public function seccionTitulo(string $titulo, string $subtitulo = ''): void
+    {
+        $this->verificarEspacio(26 + ($subtitulo !== '' ? 12 : 0));
+        $this->y += 10;
+        // Indicador rojo a la izquierda
+        $this->rectangulo($this->margen, $this->y + 2, 3.5, 12, [200, 16, 46]);
+        $this->celda($this->margen + 8, $this->y + 11, $titulo, $this->anchoUtil() - 8, 10, 'B', 'L', [28, 31, 39]);
+        $this->y += 15;
+
+        if ($subtitulo !== '') {
+            $this->celda($this->margen + 8, $this->y + 7, $subtitulo, $this->anchoUtil() - 8, 7.8, '', 'L', [100, 108, 122]);
+            $this->y += 11;
+        }
+    }
+
+    /**
+     * Dibuja una fila de tarjetas de KPI ejecutivas con estilo idéntico al panel web.
+     */
+    public function tarjetasKpi(array $tarjetas): void
+    {
+        $cant = count($tarjetas);
+        if ($cant === 0) {
+            return;
+        }
+
+        $this->verificarEspacio(44);
+        $this->y += 4;
+        $gap = 8.0;
+        $anchoTotal = $this->anchoUtil();
+        $anchoTarjeta = ($anchoTotal - ($gap * ($cant - 1))) / $cant;
+        $altoTarjeta = 36.0;
+
+        $x = $this->margen;
+        foreach ($tarjetas as $t) {
+            $valor   = (string)($t['valor'] ?? '0');
+            $label   = (string)($t['label'] ?? '');
+            $colorV  = $t['color'] ?? [28, 31, 39];
+            $colorBg = $t['bg'] ?? [248, 249, 251];
+            $borde   = $t['borde'] ?? [225, 230, 240];
+
+            // Fondo de la tarjeta
+            $this->rectangulo($x, $this->y, $anchoTarjeta, $altoTarjeta, $colorBg);
+            // Borde sutil
+            $this->linea($x, $this->y, $x + $anchoTarjeta, $this->y, $borde, 0.5);
+            $this->linea($x, $this->y + $altoTarjeta, $x + $anchoTarjeta, $this->y + $altoTarjeta, $borde, 0.5);
+            $this->linea($x, $this->y, $x, $this->y + $altoTarjeta, $borde, 0.5);
+            $this->linea($x + $anchoTarjeta, $this->y, $x + $anchoTarjeta, $this->y + $altoTarjeta, $borde, 0.5);
+
+            // Borde indicador izquierdo si existe
+            if (!empty($t['borde_izq'])) {
+                $this->rectangulo($x, $this->y, 3.0, $altoTarjeta, $t['borde_izq']);
+            }
+
+            // Valor principal
+            $this->celda($x + 8, $this->y + 17, $valor, $anchoTarjeta - 16, 12.5, 'B', 'L', $colorV);
+            // Label descriptivo
+            $this->celda($x + 8, $this->y + 29, $label, $anchoTarjeta - 16, 7.5, '', 'L', [102, 112, 133]);
+
+            $x += $anchoTarjeta + $gap;
+        }
+
+        $this->y += $altoTarjeta + 10;
+    }
+
+    /**
+     * Dibuja una barra de progreso visual (ej. Nivel de Cobertura Global).
+     */
+    public function barraProgreso(string $titulo, array $segmentos): void
+    {
+        $this->verificarEspacio(26);
+
+        $etiquetas = [];
+        foreach ($segmentos as $s) {
+            if (!empty($s['label'])) {
+                $etiquetas[] = $s['label'];
+            }
+        }
+        if ($titulo !== '') {
+            $this->celda($this->margen, $this->y + 7, $titulo, $this->anchoUtil() * 0.45, 8.5, 'B', 'L', [40, 44, 52]);
+        }
+        if (!empty($etiquetas)) {
+            $this->celda($this->margen + $this->anchoUtil() * 0.45, $this->y + 7, implode('   ·   ', $etiquetas),
+                $this->anchoUtil() * 0.55, 8, '', 'R', [76, 84, 98]);
+        }
+
+        $this->y += 10;
+        $altoBarra = 6.0;
+        $anchoTotal = $this->anchoUtil();
+
+        // Fondo gris de la barra
+        $this->rectangulo($this->margen, $this->y, $anchoTotal, $altoBarra, [230, 233, 240]);
+
+        $x = $this->margen;
+        $maxRight = $this->margen + $anchoTotal;
+        foreach ($segmentos as $s) {
+            $pct = max(0, min(100, (float)($s['pct'] ?? 0)));
+            if ($pct > 0 && $x < $maxRight) {
+                $anchoSeg = min(($pct / 100) * $anchoTotal, $maxRight - $x);
+                $this->rectangulo($x, $this->y, $anchoSeg, $altoBarra, $s['color'] ?? [18, 115, 74]);
+                $x += $anchoSeg;
+            }
+        }
+
+        $this->y += $altoBarra + 10;
+    }
+
     /* ------------------------------------------------------------------ */
     /* Páginas                                                             */
     /* ------------------------------------------------------------------ */
@@ -443,18 +564,18 @@ final class PdfReporte
             return ['datos' => (string)file_get_contents($ruta), 'ancho' => $info[0], 'alto' => $info[1]];
         }
 
-        if (!function_exists('imagecreatefrompng') || ($info['mime'] ?? '') !== 'image/png') {
-            return null;
-        }
-
-        // Caché junto al original: logo.png -> logo.pdf.jpg
+        // Caché junto al original: logo.png -> logo.pdf.jpg (permite incrustar JPEG aun sin extensión GD)
         $cache = preg_replace('/\.png$/i', '', $ruta) . '.pdf.jpg';
-        if (is_file($cache) && filemtime($cache) >= filemtime($ruta)) {
-            $datos = (string)file_get_contents($cache);
-            $tam   = @getimagesize($cache);
-            if ($tam) {
+        if (is_file($cache)) {
+            $tam = @getimagesize($cache);
+            if ($tam && ($tam['mime'] ?? '') === 'image/jpeg') {
+                $datos = (string)file_get_contents($cache);
                 return ['datos' => $datos, 'ancho' => $tam[0], 'alto' => $tam[1]];
             }
+        }
+
+        if (!function_exists('imagecreatefrompng') || ($info['mime'] ?? '') !== 'image/png') {
+            return null;
         }
 
         $origen = @imagecreatefrompng($ruta);

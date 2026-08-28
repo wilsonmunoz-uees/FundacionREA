@@ -663,7 +663,7 @@ $spec['components'] = [
 
         'MovimientoAuditoria' => [
             'type'        => 'object',
-            'description' => 'Fila de la bitácora de auditoría: un campo afectado de un registro. Anota QUÉ se tocó, nunca el contenido del dato.',
+            'description' => 'Fila de la bitácora de auditoría: un campo modificado de un registro.',
             'properties'  => [
                 'AuditoriaId'    => ['type' => 'integer'],
                 'FechaHora'      => ['type' => 'string', 'example' => '2026-08-20 10:30:00'],
@@ -673,7 +673,9 @@ $spec['components'] = [
                 'RegistroId'     => ['type' => 'string', 'nullable' => true, 'description' => 'Identificador del registro afectado.'],
                 'Operacion'      => ['type' => 'string', 'enum' => ['INSERT', 'UPDATE', 'DELETE']],
                 'OperacionTexto' => ['type' => 'string', 'enum' => ['ALTA', 'CAMBIO', 'BAJA']],
-                'Campo'          => ['type' => 'string', 'nullable' => true, 'description' => 'Qué dato se tocó. La bitácora **no guarda el contenido**: ni el valor anterior ni el nuevo.'],
+                'Campo'          => ['type' => 'string', 'nullable' => true, 'description' => 'Columna modificada.'],
+                'ValorAnterior'  => ['type' => 'string', 'nullable' => true, 'description' => 'Valor antes del cambio. Las contraseñas se registran enmascaradas.'],
+                'ValorNuevo'     => ['type' => 'string', 'nullable' => true, 'description' => 'Valor después del cambio.'],
             ],
         ],
 
@@ -1089,33 +1091,6 @@ $spec['paths']['/personas'] = [
     ],
 ];
 
-$spec['paths']['/documento/reglas'] = [
-    'get' => [
-        'tags' => ['Catálogos'], 'summary' => 'Reglas del documento de identidad',
-        'description' => "Qué caracteres admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos; `PASAPORTE` admite además letras. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nLo consumen los formularios para adaptar el campo mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
-        'operationId' => 'reglasDocumento',
-        'parameters'  => [[
-            'name' => 'contexto', 'in' => 'query',
-            'description' => 'persona (por defecto) o proveedor.',
-            'schema' => ['type' => 'string', 'enum' => ['persona', 'proveedor']],
-        ]],
-        'responses' => $erroresComunes([
-            '200' => $respuesta('Reglas por tipo de documento.', $sobre([
-                'type' => 'object',
-                'additionalProperties' => [
-                    'type'       => 'object',
-                    'properties' => [
-                        'patron'   => ['type' => 'string', 'example' => '[^0-9]', 'description' => 'Lo que hay que quitar de lo escrito.'],
-                        'maximo'   => ['type' => 'integer', 'example' => 50],
-                        'etiqueta' => ['type' => 'string', 'example' => 'Cédula'],
-                        'ayuda'    => ['type' => 'string'],
-                    ],
-                ],
-            ])),
-        ]),
-    ],
-];
-
 $spec['paths']['/personas/opciones'] = [
     'get' => [
         'tags' => ['Personas'], 'summary' => 'Personas activas para un desplegable',
@@ -1350,27 +1325,6 @@ $spec['paths']['/usuarios/buscar'] = [
     ],
 ];
 
-$spec['paths']['/usuarios/politica-clave'] = [
-    'get' => [
-        'tags' => ['Usuarios'], 'summary' => 'Condiciones que debe cumplir una contraseña',
-        'description' => "Las reglas de `api/core/Password.php`, para que la pantalla las muestre y las vaya marcando mientras se escribe: mínimo 8 caracteres, al menos una mayúscula, una minúscula y un número, y solo letras, números y los signos `*!-_` (estos últimos opcionales).\n\nCada regla trae su expresión regular, de modo que si la política cambia en el servidor la pantalla la sigue sin tocarse. **Quien valida sigue siendo el servidor** al guardar el usuario.\n\n**Acceso:** SuperAdmin o permiso `SEG_USUARIOS`.",
-        'operationId' => 'politicaClave',
-        'responses' => $erroresComunes([
-            '200' => $respuesta('Reglas de la contraseña.', $sobre([
-                'type'  => 'array',
-                'items' => [
-                    'type'       => 'object',
-                    'properties' => [
-                        'clave'  => ['type' => 'string', 'example' => 'mayuscula'],
-                        'texto'  => ['type' => 'string', 'example' => 'Una letra mayúscula'],
-                        'patron' => ['type' => 'string', 'example' => '[A-Z]'],
-                    ],
-                ],
-            ])),
-        ]),
-    ],
-];
-
 $spec['paths']['/usuarios/personas-disponibles'] = [
     'get' => [
         'tags'        => ['Usuarios'],
@@ -1561,6 +1515,41 @@ $spec['paths']['/reportes/dashboard'] = [
 
 $accesoReportes = 'SuperAdmin o permiso `REPORTES_EXPORTACION`';
 
+$spec['paths']['/reportes/cobertura'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Reporte de cobertura y pendientes de consentimiento',
+        'description' => "Auditoría de cumplimiento LOPDP: calcula tasas de cobertura (% consentidos, % pendientes, % revocados) y lista a los titulares activos con sus canales de contacto.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteCobertura',
+        'parameters'  => [
+            ['name' => 'tipo', 'in' => 'query', 'description' => 'todos (por defecto), estudiantes, empleados, proveedores.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'estudiantes', 'empleados', 'proveedores']]],
+            ['name' => 'estado_cobertura', 'in' => 'query', 'description' => 'TODOS (por defecto), PENDIENTE, CONSENTIDO, REVOCADO.', 'schema' => ['type' => 'string', 'enum' => ['TODOS', 'PENDIENTE', 'CONSENTIDO', 'REVOCADO']]],
+            ['name' => 'con_correo', 'in' => 'query', 'description' => 'todos (por defecto), si, no.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'si', 'no']]],
+            ['name' => 'q', 'in' => 'query', 'description' => 'Búsqueda libre por nombre, identificación o código.', 'schema' => ['type' => 'string']],
+            ['$ref' => '#/components/parameters/Pagina'],
+            ['$ref' => '#/components/parameters/PorPagina'],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado de cobertura con KPIs.', $sobreLista('Persona', [
+                'kpis' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'total'          => ['type' => 'integer'],
+                        'consentidos'    => ['type' => 'integer'],
+                        'pendientes'     => ['type' => 'integer'],
+                        'revocados'      => ['type' => 'integer'],
+                        'con_correo'     => ['type' => 'integer'],
+                        'sin_correo'     => ['type' => 'integer'],
+                        'pct_cobertura'  => ['type' => 'number', 'format' => 'float'],
+                        'pct_pendientes' => ['type' => 'number', 'format' => 'float'],
+                        'pct_revocados'  => ['type' => 'number', 'format' => 'float'],
+                    ],
+                ],
+            ])),
+        ]),
+    ],
+];
+
 $spec['paths']['/reportes/consentimientos'] = [
     'get' => [
         'tags'        => ['Reportes'],
@@ -1620,57 +1609,6 @@ $spec['paths']['/reportes/consentimientos'] = [
                             'mes'       => ['type' => 'integer'],
                         ],
                     ],
-                ],
-            ])),
-        ]),
-    ],
-];
-
-$spec['paths']['/reportes/datos-sensibles'] = [
-    'get' => [
-        'tags'        => ['Reportes'],
-        'summary'     => 'Tratamiento de datos sensibles',
-        'description' => "Resumen por tipo de dato sensible y detalle de titulares con autorización vigente (máximo 200 filas).\n\n**Acceso:** " . $accesoReportes,
-        'operationId' => 'reporteDatosSensibles',
-        'parameters'  => [[
-            'name'        => 'tipo_dato_id',
-            'in'          => 'query',
-            'description' => 'Limita el detalle a un tipo de dato sensible.',
-            'schema'      => ['type' => 'integer'],
-        ]],
-        'responses' => $erroresComunes([
-            '200' => $respuesta('Datos del reporte.', $sobre([
-                'type'       => 'object',
-                'properties' => [
-                    'resumen' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'TipoDatoId'           => ['type' => 'integer'],
-                                'Nombre'               => ['type' => 'string'],
-                                'Categoria'            => ['type' => 'string', 'nullable' => true],
-                                'autorizados_vigentes' => ['type' => 'integer'],
-                                'autorizados_total'    => ['type' => 'integer'],
-                            ],
-                        ],
-                    ],
-                    'detalle' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'PersonaId'           => ['type' => 'integer'],
-                                'Nombres'             => ['type' => 'string'],
-                                'Apellidos'           => ['type' => 'string'],
-                                'TipoDatoNombre'      => ['type' => 'string'],
-                                'FinalidadNombre'     => ['type' => 'string', 'nullable' => true],
-                                'FechaConsentimiento' => ['type' => 'string'],
-                            ],
-                        ],
-                    ],
-                    'tipos_sensibles' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TipoDato']],
-                    'tipo_dato_id'    => ['type' => 'integer'],
                 ],
             ])),
         ]),
@@ -1737,7 +1675,7 @@ $spec['paths']['/reportes/auditoria'] = [
     'get' => [
         'tags'        => ['Reportes'],
         'summary'     => 'Bitácora de auditoría de la base de datos',
-        'description' => "Movimientos registrados automáticamente por la API en la institución del token: alta, cambio o baja, con el usuario, la fecha y hora, la IP de origen, la tabla y el registro afectados, y **qué campo** se tocó.\n\nSe genera una fila por cada campo que cambió. La bitácora anota el QUÉ, no el DATO: **no guarda el valor anterior ni el nuevo**, de modo que no se convierte en una segunda copia de los datos personales que el sistema custodia.\n\nEl bloque `meta.totales` trae los conteos del conjunto filtrado completo, y `meta.tablas` la lista de tablas presentes en la bitácora.\n\nRequiere que se haya ejecutado el script `BaseDatos/01_DDL_estructura.sql`; si la tabla no existe se devuelve `503`.\n\n**Acceso:** SuperAdmin o permiso `REP_AUDITORIA`",
+        'description' => "Movimientos registrados automáticamente por la API en la institución del token: alta, cambio o baja, con el usuario, la fecha y hora, la IP de origen, la tabla y el registro afectados, y el valor original y el nuevo de cada campo modificado.\n\nSe genera una fila por cada campo que cambió. Los campos sensibles (contraseñas) se registran enmascarados.\n\nEl bloque `meta.totales` trae los conteos del conjunto filtrado completo, y `meta.tablas` la lista de tablas presentes en la bitácora.\n\nRequiere que se haya ejecutado el script `BaseDatos/01_DDL_estructura.sql`; si la tabla no existe se devuelve `503`.\n\n**Acceso:** SuperAdmin o permiso `REP_AUDITORIA`",
         'operationId' => 'reporteAuditoria',
         'parameters'  => [
             [
@@ -1773,7 +1711,7 @@ $spec['paths']['/reportes/auditoria'] = [
             [
                 'name'        => 'q',
                 'in'          => 'query',
-                'description' => 'Busca por el nombre del campo afectado o por el identificador del registro.',
+                'description' => 'Busca en el campo modificado, el valor original, el valor nuevo o el identificador del registro.',
                 'schema'      => ['type' => 'string'],
             ],
             ['$ref' => '#/components/parameters/Pagina'],
@@ -1799,6 +1737,108 @@ $spec['paths']['/reportes/auditoria'] = [
                 'filtros' => ['type' => 'object', 'description' => 'Filtros efectivamente aplicados.'],
             ])),
             '503' => $respuesta('La bitácora todavía no está instalada (falta ejecutar 01_DDL_estructura.sql).', ['$ref' => '#/components/schemas/Error']),
+        ]),
+    ],
+];
+
+$spec['paths']['/reportes/envios-masivos'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Efectividad de campañas y envíos masivos',
+        'description' => "Métricas de invitaciones digitales enviadas, uso de enlaces verificados y conversión a consentimientos firmados.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteEnviosMasivos',
+        'parameters'  => [
+            [
+                'name'        => 'tipo',
+                'in'          => 'query',
+                'description' => 'Tipo de destinatario (todos, estudiante, empleado, proveedor).',
+                'schema'      => ['type' => 'string', 'enum' => ['todos', 'estudiante', 'empleado', 'proveedor']],
+            ],
+            [
+                'name'        => 'estado',
+                'in'          => 'query',
+                'description' => 'Estado del enlace/código de verificación.',
+                'schema'      => ['type' => 'string', 'enum' => ['TODOS', 'USADO', 'PENDIENTE', 'EXPIRADO', 'ANULADO']],
+            ],
+            [
+                'name'        => 'desde',
+                'in'          => 'query',
+                'description' => 'Fecha inicial de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'hasta',
+                'in'          => 'query',
+                'description' => 'Fecha final de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'q',
+                'in'          => 'query',
+                'description' => 'Búsqueda por nombre, identificación o correo destinatario.',
+                'schema'      => ['type' => 'string'],
+            ],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado paginado de envíos con KPIs de conversión.', $sobreLista([
+                'type'       => 'object',
+                'properties' => [
+                    'VerificacionId' => ['type' => 'integer'],
+                    'TipoPersona'    => ['type' => 'string'],
+                    'Identificacion' => ['type' => 'string'],
+                    'Destinatario'   => ['type' => 'string'],
+                    'Titular'        => ['type' => 'string'],
+                    'FechaEmision'   => ['type' => 'string'],
+                    'EstadoCodigo'   => ['type' => 'string'],
+                ],
+            ], [
+                'kpis'     => ['type' => 'object'],
+                'por_tipo' => ['type' => 'array'],
+                'filtros'  => ['type' => 'object'],
+            ])),
+        ]),
+    ],
+];
+
+$spec['paths']['/reportes/red-educativa'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Tablero comparativo multi-sede (Red Educativa)',
+        'description' => "Tablero ejecutivo consolidado con indicadores de cobertura LOPDP de todas las sedes de la red educativa. Exclusivo para SuperAdmin.\n\n**Acceso:** SuperAdmin",
+        'operationId' => 'reporteRedEducativa',
+        'responses'   => $erroresComunes([
+            '200' => $respuesta('Consolidado de todas las sedes.', $sobre([
+                'type'       => 'object',
+                'properties' => [
+                    'kpis_globales' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'total_sedes'           => ['type' => 'integer'],
+                            'poblacion_total'       => ['type' => 'integer'],
+                            'consentimientos_total' => ['type' => 'integer'],
+                            'cumplimiento_promedio' => ['type' => 'number'],
+                        ],
+                    ],
+                    'sedes' => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'ranking'          => ['type' => 'integer'],
+                                'nombre'           => ['type' => 'string'],
+                                'estudiantes'      => ['type' => 'integer'],
+                                'empleados'        => ['type' => 'integer'],
+                                'proveedores'      => ['type' => 'integer'],
+                                'poblacion'        => ['type' => 'integer'],
+                                'consentidos'      => ['type' => 'integer'],
+                                'pendientes'       => ['type' => 'integer'],
+                                'pct_cumplimiento' => ['type' => 'number'],
+                                'diagnostico'      => ['type' => 'string', 'enum' => ['AL_DIA', 'EN_PROGRESO', 'REZAGADA']],
+                            ],
+                        ],
+                    ],
+                ],
+            ])),
         ]),
     ],
 ];
@@ -2086,7 +2126,7 @@ $precargaEntrada = [
 $spec['paths']['/precarga/previsualizar'] = [
     'post' => [
         'tags' => ['PreCarga'], 'summary' => 'Validar la plantilla sin tocar la base',
-        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga entra ACTIVO**. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\n**Acceso:** solo el rol SuperAdmin.",
         'operationId' => 'previsualizarPreCarga',
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $precargaEntrada]]],
         'responses' => $erroresComunes([
@@ -2119,7 +2159,6 @@ $spec['paths']['/precarga/previsualizar'] = [
                             'historial'            => ['type' => 'integer'],
                             'personas'             => ['type' => 'integer'],
                             'personas_con_usuario' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque tienen cuenta de usuario.'],
-                            'personas_en_otra_institucion' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque otra institución todavía las tiene vinculadas (empleado, estudiante, representante, proveedor o consentimiento). Solo aparecen en bases que vienen de cuando el padrón era global.'],
                         ],
                     ],
                 ],
@@ -2441,7 +2480,7 @@ $spec['paths']['/verificacion-publica/validar-codigo'] = [
 $spec['paths']['/reportes/cobertura-correo'] = [
     'get' => [
         'tags' => ['Reportes'], 'summary' => 'Cuántas personas tienen correo para el código',
-        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Enlaces de Consentimiento para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
+        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Links de Consentimiento con Verificación para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
         'operationId' => 'coberturaCorreo',
         'responses' => $erroresComunes(['200' => $respuesta('Cobertura por tipo de persona.', $sobre([
             'type'       => 'object',
