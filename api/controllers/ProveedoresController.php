@@ -181,9 +181,19 @@ final class ProveedoresController extends Controller
     {
         $razonSocial = $this->peticion->texto('razon_social');
 
-        // Datos de la persona de contacto del proveedor
+        /* Datos de la persona de contacto del proveedor.
+           El documento se valida contra el contexto 'proveedor' porque además de
+           `persona`.`Identificacion` se copia a `proveedor`.`Ruc`, que es más
+           corta: manda la columna que recortaría primero. */
         $persona = Padron::normalizar($this->peticion->cuerpo);
-        $errores = Padron::validar($persona, 'el contacto del proveedor');
+        $errores = Documento::validar(
+            $persona['tipo'],
+            (string)($persona['identificacion_cruda'] ?? $persona['identificacion']),
+            'el contacto del proveedor',
+            $this->db,
+            'proveedor'
+        );
+        $errores = array_merge($errores, Padron::validar($persona, 'el contacto del proveedor', false, false));
 
         if ($razonSocial === '') $errores[] = 'La razón social es obligatoria.';
 

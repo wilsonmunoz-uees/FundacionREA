@@ -25,8 +25,25 @@ final class EstudiantesController extends Controller
      * pregunta a la propia base qué acepta.
      */
     public const RELACIONES = [
-        'MADRE', 'PADRE', 'ABUELO', 'ABUELA', 'TIO', 'TIA',
+        'MADRE', 'PADRE', 'ABUELO/A', 'HERMANO/A', 'TIO/A',
         'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO',
+    ];
+
+    /**
+     * Parentescos que la lista nueva agrupó, con su reemplazo.
+     *
+     * Sirven para un solo fin: darse cuenta de que la base todavía está en la
+     * lista anterior. Como el desplegable se arma con lo que la base acepta, sin
+     * esto la pantalla mostraría `ABUELO` y `ABUELA` por separado sin decir por
+     * qué, y parecería que el cambio no se aplicó al código.
+     *
+     * Se resuelve con `08_ALTER_relacion_representante.sql`.
+     */
+    public const RELACIONES_RETIRADAS = [
+        'ABUELO' => 'ABUELO/A',
+        'ABUELA' => 'ABUELO/A',
+        'TIO'    => 'TIO/A',
+        'TIA'    => 'TIO/A',
     ];
 
     /** @var string[]|null Se lee una sola vez por petición. */
@@ -78,6 +95,26 @@ final class EstudiantesController extends Controller
         return self::$relacionesCache = self::RELACIONES;
     }
 
+    /**
+     * Parentescos retirados que la base TODAVÍA acepta, es decir, los que
+     * delatan que falta ejecutar la migración.
+     *
+     * Devuelve un mapa `['ABUELO' => 'ABUELO/A', ...]` con solo los que siguen
+     * en el enum. Vacío = la base está al día.
+     *
+     * @return array<string, string>
+     */
+    public static function relacionesRetiradas(PDO $db): array
+    {
+        $enLaBase = self::relacionesDisponibles($db);
+
+        return array_filter(
+            self::RELACIONES_RETIRADAS,
+            static fn(string $viejo): bool => in_array($viejo, $enLaBase, true),
+            ARRAY_FILTER_USE_KEY
+        );
+    }
+
     /** GET /api/estudiantes?q=&pagina= */
     public function index(array $ruta = []): void
     {
@@ -109,7 +146,8 @@ final class EstudiantesController extends Controller
 
         Response::lista($datos, $total, $pagina, $porPagina, [
             // La pantalla arma su desplegable con esto, no con una lista fija
-            'relaciones' => self::relacionesDisponibles($this->db),
+            'relaciones'          => self::relacionesDisponibles($this->db),
+            'relaciones_retiradas'=> self::relacionesRetiradas($this->db),
         ]);
     }
 

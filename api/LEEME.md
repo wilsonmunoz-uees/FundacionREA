@@ -157,6 +157,40 @@ Las escrituras se ejecutan dentro de una transacción y registran automáticamen
 | PATCH | `/api/usuarios/{id}/estado` |
 | GET·POST·PUT·PATCH | `/api/roles`, `/api/roles/{id}`, `/api/roles/{id}/estado` (sincroniza `rolpermiso`) |
 | GET·POST·PUT·PATCH | `/api/permisos`, `/api/permisos/{id}`, `/api/permisos/{id}/estado` |
+| GET | `/api/usuarios/politica-clave` |
+
+**Contraseñas.** La política vive en `api/core/Password.php`: mínimo 8
+caracteres, al menos una mayúscula, una minúscula y un número, y solo letras,
+números y los signos `*!-_` —estos últimos opcionales—. El juego es cerrado a
+propósito: estas claves se dictan por teléfono y se copian de un papel, y un
+acento o una comilla curva de Word se convierten en un «no me funciona» difícil
+de rastrear.
+
+Cuando falla, se devuelven **todos** los incumplimientos a la vez, no solo el
+primero. Al editar un usuario, dejar la contraseña en blanco significa «no la
+cambies» y no dispara ninguna validación.
+
+`politica-clave` devuelve esas reglas con su expresión regular para que la
+pantalla las marque mientras se escribe y para el botón que genera una
+contraseña que las cumple. Si la política cambia aquí, la pantalla la sigue sin
+tocarse.
+
+> Esto valida la contraseña que se va a **grabar**. No tiene relación con
+> `Auth::VALIDAR_PASSWORD`, que decide si al iniciar sesión se comprueba el hash
+> y que sigue en `false`.
+
+**Errores por campo.** Las validaciones de usuarios devuelven, además de
+`errores`, un arreglo `campos` con los nombres de los que fallaron:
+
+```json
+{ "ok": false, "error": "Los datos enviados no son válidos.",
+  "errores": ["El correo electrónico no es válido."],
+  "campos":  ["email"] }
+```
+
+Así la pantalla los señala sin tener que adivinar leyendo los mensajes, y puede
+volver a pintar el formulario con lo que la persona ya había escrito en vez de
+vaciarlo. Es opcional: los endpoints que no lo envían siguen funcionando igual.
 
 ### Catálogos
 | Método | Ruta | Acceso |
@@ -241,6 +275,36 @@ reciben los datos personales en el mismo cuerpo —`identificacion`,
 con prefijo `rep_` para el representante de un estudiante— en vez de un
 `persona_id`.
 
+### Documento de identidad
+
+| Método | Ruta | Acceso |
+|---|---|---|
+| GET | `/api/documento/reglas?contexto=persona\|proveedor` | autenticado |
+
+Las reglas viven en `api/core/Documento.php` y valen para **todos** los módulos
+que piden un documento:
+
+| Tipo | Admite |
+|---|---|
+| `CEDULA` | solo dígitos |
+| `RUC` | solo dígitos |
+| `PASAPORTE` | letras y dígitos |
+
+El largo máximo **no está escrito en el código**: se lee de la columna donde el
+valor va a terminar guardado —`persona`.`Identificacion`—, de modo que el
+formulario nunca deje escribir algo que la base vaya a recortar en silencio, y
+que ampliar la columna baste para ampliar el campo. En proveedores manda la más
+estrecha entre esa columna y `proveedor`.`Ruc`, que es la que recortaría primero.
+
+La validación ocurre sobre el valor **tal como se escribió**: si alguien pone
+letras en una cédula, el sistema lo dice en vez de borrarlas sin avisar. Los
+espacios, puntos y guiones sí se admiten al escribir y se quitan al guardar,
+porque es como vienen los documentos copiados de otro sitio.
+
+El endpoint solo sirve para que los formularios adapten el campo mientras se
+escribe (`js/documento.js`). **Quien decide es el servidor:** una petición hecha
+por fuera del navegador se rechaza igual.
+
 ### Verificación pública por código (SIN token)
 | Método | Ruta |
 |---|---|
@@ -297,9 +361,76 @@ columna `Estado` —de una plantilla anterior— se ignora, y si alguna fila la 
 en algo distinto de ACTIVO se avisa en las advertencias, para que nadie dé por
 hecho que se respetó.
 
+**Una persona en varias hojas.** La identificación es la llave: quien aparece en
+Empleados y también en Proveedores —o como representante— se carga con **una sola
+ficha**, no con dos. Para confirmar que de verdad es la misma persona se comparan
+los nombres, pero **por palabras, no por orden**:
+
+| Hoja | Cómo viene |
+|---|---|
+| Empleados | `NELLY PATRICIA` \| `BOURNE SOLIS` |
+| Proveedores | `BOURNE SOLIS NELLY PATRICIA` (de la razón social) |
+
+Es la misma señora. Media hoja de cálculo del país escribe «apellidos nombres» y
+la otra media «nombres apellidos», y la hoja de Proveedores no tiene columnas de
+nombre: el sistema lo toma de la razón social, que casi siempre viene con los
+apellidos primero. Exigir el mismo orden rechazaba cargas correctas.
+
+También se acepta que un nombre esté más completo que el otro —`JUAN PEREZ`
+frente a `JUAN PEREZ GOMEZ`—, que es lo que pasa cuando en una hoja se omitió el
+segundo apellido, y se ignoran las partículas (`de`, `la`, `y`) y las formas
+societarias (`S.A.`, `Cía.`, `Ltda.`), que aparecen en unas hojas sí y en otras
+no.
+
+**Con Proveedores no hay error posible.** Esa hoja no tiene columnas de nombre:
+lo que se compara de ese lado es la **razón social**, que a menudo no se parece
+en nada al nombre de la persona —un empleado que además presta servicios a través
+de su compañía—. Comparar un nombre contra una razón social no dice nada, así que
+ahí no se reporta error: la persona es una sola, su ficha conserva el nombre bien
+separado que trae su hoja propia, y la razón social se guarda donde corresponde.
+Queda una advertencia informativa, **una sola para todo el archivo**, porque en
+uno grande son cientos y taparían lo que sí importa:
+
+> 12 persona(s) constan en dos hojas con nombre y razón social distintos; se
+> cargan como una sola. Por ejemplo, 0704336254: «CARLOS RUIZ MERA» y
+> «DISTRIBUIDORA EL SOL S.A.».
+
+Entre hojas que sí traen nombres de persona —Empleados, Estudiantes,
+Representantes— dos nombres **sin relación** bajo la misma cédula siguen siendo
+un error: casi siempre es un dígito mal tecleado en el número. El mensaje muestra
+los dos nombres para poder decidir de un vistazo.
+
+En la ficha unificada mandan los nombres y apellidos **ya separados** de
+Empleados, Estudiantes o Representantes; la razón social se guarda donde
+corresponde, en `proveedor`.`RazonSocial`.
+
 Lo que se elimina queda acotado a la institución del token: consentimientos con
 su historial y detalle, empleados, estudiantes, proveedores y las personas que
-queden sin ningún vínculo. **No se tocan** usuarios, roles, permisos, catálogos,
+queden sin ningún vínculo.
+
+**Dos clases de persona se conservan aunque estén en el padrón de la institución
+que se encera**, y ambas se informan en `se_eliminara`:
+
+| Clave | Por qué se conserva |
+|---|---|
+| `personas_con_usuario` | Tiene cuenta de acceso; borrarla dejaría a alguien sin entrar (`usuario.PersonaId` es `ON DELETE CASCADE`) |
+| `personas_en_otra_institucion` | Otra institución todavía la tiene vinculada como empleado, estudiante, representante, proveedor o titular de un consentimiento |
+
+La segunda no debería existir —desde que el padrón es por institución, cada una
+tiene su propia ficha—, pero sí aparece en bases que vienen de la versión
+anterior: cuando las personas eran globales, una misma ficha podía estar
+vinculada a varias instituciones, y el script que repartió el padrón (`05`)
+asignó cada ficha a una sola **sin mover los vínculos de las demás**.
+
+Intentar borrarlas rompía la carga entera:
+
+> SQLSTATE[23000]: Cannot delete or update a parent row: a foreign key
+> constraint fails (`proveedor`, CONSTRAINT `fk_proveedor_persona` …)
+
+`proveedor` es el único de los cuatro que declara `RESTRICT`, así que era el que
+saltaba; en `empleado`, `estudiante` y `consentimiento`, que declaran
+`SET NULL`, el efecto habría sido peor: el vínculo de la otra institución se
+quedaba sin persona, en silencio y sin que nadie se enterara. **No se tocan** usuarios, roles, permisos, catálogos,
 disclaimers, la configuración de correo, las personas con cuenta de usuario ni
 los datos de las demás instituciones de la red. La operación deja una anotación
 de balance en la bitácora de auditoría.

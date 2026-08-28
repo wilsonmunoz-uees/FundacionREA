@@ -34,6 +34,13 @@ $resumen      = null;      // resultado de la validación
 $resultado    = null;      // resultado del procesamiento
 $institucion  = $_SESSION['institucion_nombre'] ?? ('institución #' . institucionActual());
 
+/* Parentescos que la plantilla ya trae agrupados pero que la base todavía tiene
+   sueltos. Conviene decirlo ANTES de subir el archivo: con la base sin migrar,
+   toda fila de la hoja Estudiantes que diga ABUELO/A o TIO/A sería rechazada, y
+   descubrirlo al validar tres mil filas es una pérdida de tiempo evitable. */
+$relacionesRetiradas = apiMeta(apiGet('estudiantes', ['por_pagina' => 1]), 'relaciones_retiradas', []);
+$faltaMigrar = is_array($relacionesRetiradas) && $relacionesRetiradas !== [];
+
 /* ---------------------------------------------------------------------------
    Descarga de la plantilla
    --------------------------------------------------------------------------- */
@@ -161,6 +168,20 @@ include __DIR__ . '/../includes/layout_top.php';
         <a href="precarga_inicial.php?accion=plantilla" class="btn btn-secundario">⬇️ Descargar plantilla</a>
     </div>
 </div>
+
+<?php if ($faltaMigrar): ?>
+    <div class="alerta alerta-advertencia">
+        <strong>Ejecute la migración de parentescos antes de cargar.</strong>
+        La plantilla ya trae la lista agrupada —<strong>ABUELO/A</strong>, <strong>TIO/A</strong>,
+        <strong>HERMANO/A</strong>—, pero la base todavía acepta
+        <?= e(implode(', ', array_keys($relacionesRetiradas))) ?> por separado, de modo que
+        rechazaría esas filas.
+        <div class="form-ayuda" style="margin-top:6px;">
+            Ejecute <code>08_ALTER_relacion_representante.sql</code> sobre la base y vuelva a
+            esta pantalla. Convierte también los registros ya grabados.
+        </div>
+    </div>
+<?php endif; ?>
 
 <!-- ==================== Disclaimer de advertencia ==================== -->
 <div class="card precarga-aviso">
@@ -350,6 +371,16 @@ include __DIR__ . '/../includes/layout_top.php';
                             <td class="texto-mutado">Personas con cuenta de usuario (se conservan)</td>
                             <td style="text-align:right;" class="texto-mutado">
                                 <?= (int)$inventario['personas_con_usuario'] ?>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                    <?php if (!empty($inventario['personas_en_otra_institucion'])): ?>
+                        <tr>
+                            <td class="texto-mutado">
+                                Personas que otra institución todavía usa (se conservan)
+                            </td>
+                            <td style="text-align:right;" class="texto-mutado">
+                                <?= (int)$inventario['personas_en_otra_institucion'] ?>
                             </td>
                         </tr>
                     <?php endif; ?>

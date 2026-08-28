@@ -36,7 +36,7 @@ final class ConsentimientoPublicoController extends Controller
     ];
 
     public const RELACIONES = [
-        'MADRE', 'PADRE', 'ABUELO', 'ABUELA', 'TIO', 'TIA',
+        'MADRE', 'PADRE', 'ABUELO/A', 'HERMANO/A', 'TIO/A',
         'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO',
     ];
 

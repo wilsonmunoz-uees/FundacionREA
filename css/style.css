@@ -1152,3 +1152,106 @@ input[type="file"]:hover { border-color: var(--rea-rojo); background: #fff; }
     padding: 0 8px;
 }
 .bloque-persona-ayuda { margin: 0 0 12px; }
+
+
+/* ===========================================================================
+   Validación de campos y política de contraseñas
+   ---------------------------------------------------------------------------
+   Se usan en el formulario de usuarios (modules/usuarios.php) y en cualquier
+   campo que la API haya rechazado.
+   =========================================================================== */
+
+/* Campo que la API rechazó. El color no es la única señal: el mensaje concreto
+   aparece siempre arriba del formulario, para quien no distingue los colores. */
+.campo-error,
+.campo-error-vivo,
+input.campo-error,
+input.campo-error-vivo,
+select.campo-error {
+    border-color: var(--color-peligro);
+    background: var(--color-peligro-bg);
+}
+.campo-error:focus,
+.campo-error-vivo:focus {
+    outline: 2px solid var(--color-peligro);
+    outline-offset: 1px;
+}
+
+.campo-aviso {
+    color: var(--color-peligro);
+    font-weight: 600;
+}
+
+/* --- Bloque de contraseña --- */
+.bloque-clave {
+    border: 1px solid var(--rea-gris-200);
+    border-radius: 10px;
+    padding: 14px 16px 16px;
+    margin: 0 0 18px;
+    background: var(--rea-gris-50);
+}
+.bloque-clave > legend {
+    font-weight: 700;
+    color: var(--rea-gris-800);
+    font-size: .9rem;
+    padding: 0 8px;
+}
+
+/* --- Lista de condiciones --- */
+.lista-reglas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+}
+.regla-clave {
+    font-size: .8rem;
+    color: var(--rea-gris-600);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.regla-clave .regla-marca {
+    font-weight: 700;
+    width: 1em;
+    text-align: center;
+}
+.regla-clave.cumple { color: var(--color-exito); }
+.regla-clave.falta  { color: var(--color-peligro); }
+
+/* --- Contraseña recién generada --- */
+.clave-generada {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 12px 14px;
+    border: 1px solid #cfe0f2;
+    border-radius: 8px;
+    background: var(--color-info-bg);
+}
+.clave-generada-etiqueta { font-size: .82rem; color: var(--rea-gris-700); font-weight: 600; }
+.clave-generada-valor {
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: 1.02rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--rea-tinta);
+    background: var(--rea-blanco);
+    border: 1px solid var(--rea-gris-300);
+    border-radius: 6px;
+    padding: 4px 10px;
+    user-select: all;
+}
+.clave-generada .form-ayuda { flex-basis: 100%; margin: 0; }
+
+/* `display:flex` de arriba gana al display:none que el navegador aplica por el
+   atributo hidden; sin esto el recuadro se vería vacío desde el primer momento. */
+.clave-generada[hidden] { display: none; }
+.campo-aviso[hidden]    { display: none; }
+
+.lista-errores { margin: 6px 0 0; padding-left: 20px; }
+.lista-errores li { margin: 2px 0; }

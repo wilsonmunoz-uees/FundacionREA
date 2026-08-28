@@ -79,6 +79,13 @@ if (is_array($relacionesApi) && $relacionesApi) {
     $relaciones = $relacionesApi;
 }
 
+/* Parentescos que ya se agruparon pero que la base todavía acepta por separado.
+   El desplegable se arma con lo que la base admite —ofrecer algo que no se puede
+   guardar sería peor—, así que si aparecen ABUELO y ABUELA sueltos no es que el
+   sistema esté sin actualizar: es que falta correr la migración. Se dice. */
+$relacionesRetiradas = apiMeta($listado, 'relaciones_retiradas', []);
+$faltaMigrar = is_array($relacionesRetiradas) && $relacionesRetiradas !== [];
+
 if (!$listado['ok']) {
     flashSet('error', apiError($listado));
 }
@@ -97,6 +104,21 @@ include __DIR__ . '/../includes/layout_top.php';
         <a class="btn btn-primario" href="estudiantes.php?accion=crear">+ Matricular Estudiante</a>
     </div>
 </div>
+
+<?php if ($faltaMigrar): ?>
+    <div class="alerta alerta-advertencia">
+        <strong>La base de datos todavía tiene la lista anterior de parentescos.</strong>
+        Por eso el desplegable sigue mostrando
+        <?= e(implode(', ', array_keys($relacionesRetiradas))) ?> por separado: se ofrece
+        únicamente lo que la base puede guardar hoy.
+        <div class="form-ayuda" style="margin-top:6px;">
+            Para agruparlos en <strong>ABUELO/A</strong> y <strong>TIO/A</strong> y habilitar
+            <strong>HERMANO/A</strong>, ejecute el script
+            <code>08_ALTER_relacion_representante.sql</code> sobre la base. Convierte los
+            registros ya grabados; no hay que tocar ninguna pantalla.
+        </div>
+    </div>
+<?php endif; ?>
 
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">

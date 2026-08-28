@@ -217,6 +217,9 @@ final class PreCargaController extends Controller
         $errores      = [];
         $advertencias = [];
 
+        /** Quienes constan en dos hojas con nombre y razón social distintos. */
+        $dobleRol = [];
+
         /** @var array<string, array> identificación => persona unificada */
         $personas = [];
         $filas = [
@@ -232,7 +235,7 @@ final class PreCargaController extends Controller
             if ($r === null) {
                 continue;
             }
-            $this->acumularPersona($personas, $r, 'Representantes', $errores);
+            $this->acumularPersona($personas, $r, 'Representantes', $errores, $dobleRol);
             $filas['representantes'][$r['identificacion']] = $r;
         }
 
@@ -247,7 +250,7 @@ final class PreCargaController extends Controller
                     . 'la identificación ' . $r['identificacion'] . ' aparece dos veces en la hoja.';
                 continue;
             }
-            $this->acumularPersona($personas, $r, 'Empleados', $errores);
+            $this->acumularPersona($personas, $r, 'Empleados', $errores, $dobleRol);
             $filas['empleados'][$r['identificacion']] = $r;
         }
 
@@ -289,9 +292,9 @@ final class PreCargaController extends Controller
                 $errores[] = $donde . 'el representante ' . $r['rep_id'] . ' no está en la hoja Representantes.';
                 continue;
             }
-            if ($r['rep_relacion'] !== '' && !in_array($r['rep_relacion'], self::relaciones(), true)) {
+            if ($r['rep_relacion'] !== '' && !in_array($r['rep_relacion'], $this->relaciones(), true)) {
                 $errores[] = $donde . 'la relación «' . $r['rep_relacion'] . '» no es válida. Use: '
-                    . implode(', ', self::relaciones()) . '.';
+                    . implode(', ', $this->relaciones()) . '.';
                 continue;
             }
             if ($r['rep_relacion'] === '') {
@@ -299,7 +302,7 @@ final class PreCargaController extends Controller
                 $advertencias[] = $donde . 'no se indicó la relación del representante; quedará en blanco.';
             }
 
-            $this->acumularPersona($personas, $r, 'Estudiantes', $errores);
+            $this->acumularPersona($personas, $r, 'Estudiantes', $errores, $dobleRol);
             $filas['estudiantes'][$r['identificacion']] = $r;
         }
 
@@ -329,11 +332,21 @@ final class PreCargaController extends Controller
                 $r['apellidos'] = '';
             }
 
-            $this->acumularPersona($personas, $r, 'Proveedores', $errores);
+            $this->acumularPersona($personas, $r, 'Proveedores', $errores, $dobleRol);
             $filas['proveedores'][$r['identificacion']] = $r;
         }
 
         /* ---------------- Avisos de contexto ------------------------------------ */
+        /* Empleados que además son proveedores bajo otra razón social. Es una
+           situación normal y no impide cargar; se informa una sola vez, con un
+           ejemplo, para que quede constancia de que se unificaron. */
+        if ($dobleRol) {
+            $ejemplo = reset($dobleRol);
+            $advertencias[] = count($dobleRol) . ' persona(s) constan en dos hojas con nombre y razón '
+                . 'social distintos; se cargan como una sola. Por ejemplo, ' . $ejemplo['identificacion']
+                . ': «' . $ejemplo['persona'] . '» y «' . $ejemplo['razon'] . '».';
+        }
+
         /* Plantilla anterior: traía una columna Estado que ya no se usa. Se avisa
            una sola vez por hoja para que nadie dé por hecho que se respetó. */
         foreach (array_keys(self::HOJAS) as $hoja) {
@@ -471,9 +484,18 @@ final class PreCargaController extends Controller
      * Una misma persona puede estar en varias hojas (por ejemplo, empleado y
      * representante). Se unifica en un solo registro y se avisa si los datos
      * no coinciden entre hojas.
+     *
+     * @param array $dobleRol Se van anotando aquí quienes son empleado —o
+     *                        representante, o estudiante— y además proveedor
+     *                        bajo otro nombre. No es un error; ver abajo.
      */
-    private function acumularPersona(array &$personas, array $fila, string $hoja, array &$errores): void
-    {
+    private function acumularPersona(
+        array &$personas,
+        array $fila,
+        string $hoja,
+        array &$errores,
+        array &$dobleRol = []
+    ): void {
         $clave = $fila['identificacion'];
 
         if (!isset($personas[$clave])) {
@@ -501,13 +523,97 @@ final class PreCargaController extends Controller
         }
 
         // Un nombre distinto para la misma cédula casi siempre es un error de captura
-        $nombreA = LectorXlsx::normalizar($previa['nombres'] . ' ' . $previa['apellidos']);
-        $nombreB = LectorXlsx::normalizar($fila['nombres'] . ' ' . $fila['apellidos']);
-        if ($nombreB !== '' && $nombreA !== '' && $nombreA !== $nombreB) {
-            $errores[] = $this->ubicacion($hoja, $fila['_fila'])
-                . 'la identificación ' . $clave . ' ya aparece en '
-                . $previa['hojas'][0] . ' con otro nombre. Debe ser la misma persona.';
+        $nombreA = trim($previa['nombres'] . ' ' . $previa['apellidos']);
+        $nombreB = trim($fila['nombres'] . ' ' . $fila['apellidos']);
+
+        if (self::mismoNombre($nombreA, $nombreB)) {
+            return;
         }
+
+        /* La hoja de Proveedores no tiene columnas de nombre: lo que se compara
+           de ese lado es la RAZÓN SOCIAL, que a menudo no se parece en nada al
+           nombre de la persona —un empleado que además presta servicios a través
+           de su compañía—. Comparar un nombre contra una razón social no dice
+           nada, así que aquí no hay error que reportar: la persona es una sola,
+           su ficha conserva el nombre bien separado que trae su hoja propia, y
+           la razón social se guarda donde corresponde, en proveedor.RazonSocial.
+
+           Queda anotado para informarlo de una sola vez al final, no fila por
+           fila: en un archivo grande son cientos y taparían lo que sí importa. */
+        if ($hoja === 'Proveedores' || $previa['hojas'][0] === 'Proveedores') {
+            $dobleRol[$clave] = [
+                'identificacion' => $clave,
+                'persona'        => $hoja === 'Proveedores' ? $nombreA : $nombreB,
+                'razon'          => $hoja === 'Proveedores' ? $nombreB : $nombreA,
+            ];
+            return;
+        }
+
+        /* Entre hojas que sí traen nombres de persona —Empleados, Estudiantes,
+           Representantes— dos nombres sin relación bajo la misma cédula siguen
+           siendo un error: casi siempre es un dígito mal tecleado en el número. */
+        $errores[] = $this->ubicacion($hoja, $fila['_fila'])
+            . 'la identificación ' . $clave . ' ya aparece en '
+            . $previa['hojas'][0] . ' con otro nombre: «' . $nombreA . '» frente a «'
+            . $nombreB . '». Debe ser la misma persona.';
+    }
+
+    /**
+     * ¿Los dos textos nombran a la misma persona?
+     *
+     * Se comparan las PALABRAS, no el orden en que están escritas. Media hoja de
+     * cálculo del país escribe «apellidos nombres» y la otra media «nombres
+     * apellidos», y en la hoja de Proveedores el nombre sale de la razón social,
+     * que casi siempre viene con los apellidos primero:
+     *
+     *     Empleados   NELLY PATRICIA | BOURNE SOLIS
+     *     Proveedores BOURNE SOLIS NELLY PATRICIA   (razón social)
+     *
+     * Es la misma señora, y exigir el mismo orden la rechazaba.
+     *
+     * También se acepta que un nombre sea más completo que el otro —«JUAN PEREZ»
+     * frente a «JUAN PEREZ GOMEZ»—, que es lo que ocurre cuando en una hoja se
+     * omitió el segundo apellido. Se exigen al menos dos palabras en común para
+     * que un nombre de una sola palabra no coincida con cualquier cosa.
+     *
+     * Lo que sí se sigue rechazando es lo que de verdad importa: dos nombres sin
+     * relación bajo la misma cédula, que casi siempre es un error de digitación
+     * en el número.
+     */
+    private static function mismoNombre(string $a, string $b): bool
+    {
+        $palabras = static function (string $texto): array {
+            $texto = LectorXlsx::normalizar($texto);
+            if ($texto === '') {
+                return [];
+            }
+            // Se descartan las partículas y las formas societarias: no distinguen
+            // a nadie y aparecen en unas hojas sí y en otras no.
+            $ruido = ['de', 'del', 'la', 'las', 'los', 'y', 'sa', 's.a', 's.a.',
+                      'cia', 'ltda', 'cia.', 'ltda.', 'srl', 'ep', 'eirl'];
+
+            $partes = array_filter(
+                preg_split('/[\s,.]+/u', $texto) ?: [],
+                static fn(string $p): bool => $p !== '' && !in_array($p, $ruido, true)
+            );
+
+            return array_values(array_unique($partes));
+        };
+
+        $unos = $palabras($a);
+        $otros = $palabras($b);
+
+        // Si de alguno de los dos lados no hay nombre, no hay nada que comparar
+        if (!$unos || !$otros) {
+            return true;
+        }
+
+        $comunes = array_intersect($unos, $otros);
+
+        // El más corto debe estar contenido en el más largo
+        $menor = min(count($unos), count($otros));
+
+        return count($comunes) === $menor && $menor >= min(2, max(count($unos), count($otros)));
     }
 
     /* ================================================================== */
@@ -542,18 +648,37 @@ final class PreCargaController extends Controller
                     AND EXISTS (SELECT 1 FROM usuario u WHERE u.PersonaId = p.PersonaId)',
                 [$institucionId]
             ),
+            // Personas que otra institución todavía usa: tampoco se tocan
+            'personas_en_otra_institucion' => $this->contar(
+                'SELECT COUNT(*) total
+                   FROM persona p
+                  WHERE p.InstitucionEducativaId = ?
+                    AND (' . self::CONDICION_EN_OTRA_INSTITUCION . ')',
+                [$institucionId]
+            ),
         ];
     }
 
     /**
      * Condición SQL de «persona que puede borrarse».
      *
-     * Desde que el padrón es por institución, la regla es simple: toda persona
-     * de esta institución se va, salvo las que tienen cuenta de usuario —su
-     * cuenta depende de ellas y borrarlas dejaría a alguien sin acceso—.
+     * Se conservan dos clases de personas de esta institución:
      *
-     * Ya no hace falta comprobar si la persona pertenece a otra institución:
-     * las fichas no se comparten, cada institución tiene la suya.
+     *   1. Las que tienen CUENTA DE USUARIO: su cuenta depende de ellas y
+     *      borrarlas dejaría a alguien sin acceso.
+     *
+     *   2. Las que TODAVÍA ESTÁN EN USO POR OTRA INSTITUCIÓN. En teoría no
+     *      debería haberlas —desde que el padrón es por institución cada una
+     *      tiene su propia ficha—, pero en una base que viene de la versión
+     *      anterior sí las hay: cuando las personas eran globales, una misma
+     *      ficha podía estar vinculada a varias instituciones, y el script que
+     *      repartió el padrón (05) asignó cada ficha a una sola sin mover los
+     *      vínculos de las demás.
+     *
+     *      Intentar borrarlas rompe la carga entera con un error de integridad
+     *      —`proveedor` la referencia con RESTRICT—, y en las tablas que
+     *      declaran SET NULL sería aún peor: el vínculo de la otra institución
+     *      se quedaría sin persona, en silencio. Se dejan donde están.
      *
      * La institución se interpola porque ya viene tipada como int desde el
      * token; no hay entrada del usuario en esta cadena.
@@ -564,8 +689,22 @@ final class PreCargaController extends Controller
 
         return "
               p.InstitucionEducativaId = $i
-          AND NOT EXISTS (SELECT 1 FROM usuario u WHERE u.PersonaId = p.PersonaId)";
+          AND NOT EXISTS (SELECT 1 FROM usuario u WHERE u.PersonaId = p.PersonaId)
+          AND NOT (" . self::CONDICION_EN_OTRA_INSTITUCION . ")";
     }
+
+    /**
+     * ¿Esta persona («p») sigue vinculada a una institución distinta de la suya?
+     *
+     * Se comprueban las cuatro tablas que apuntan a `persona`, incluidas las dos
+     * columnas de representante.
+     */
+    private const CONDICION_EN_OTRA_INSTITUCION = "
+        EXISTS (SELECT 1 FROM proveedor  x WHERE x.PersonaId       = p.PersonaId AND x.InstitucionEducativaId <> p.InstitucionEducativaId)
+     OR EXISTS (SELECT 1 FROM empleado   x WHERE x.PersonaId       = p.PersonaId AND x.InstitucionEducativaId <> p.InstitucionEducativaId)
+     OR EXISTS (SELECT 1 FROM estudiante x WHERE x.PersonaId       = p.PersonaId AND x.InstitucionEducativaId <> p.InstitucionEducativaId)
+     OR EXISTS (SELECT 1 FROM estudiante x WHERE x.RepresentanteId = p.PersonaId AND x.InstitucionEducativaId <> p.InstitucionEducativaId)
+     OR EXISTS (SELECT 1 FROM consentimiento x WHERE x.PersonaId   = p.PersonaId AND x.InstitucionEducativaId <> p.InstitucionEducativaId)";
 
     /**
      * Borra los datos de la institución. El orden respeta las claves foráneas:
@@ -717,10 +856,17 @@ final class PreCargaController extends Controller
     /* Utilidades                                                          */
     /* ================================================================== */
 
-    /** Relaciones aceptadas para el representante; las mismas que el enum. */
-    private static function relaciones(): array
+    /**
+     * Relaciones aceptadas para el representante.
+     *
+     * Se preguntan a la base, no a una lista escrita aquí: si el enum de
+     * `estudiante`.`RepresentanteRelacion` está un paso atrás —o un paso
+     * adelante—, la PreCarga acepta exactamente lo que se puede guardar, en vez
+     * de dejar pasar un valor que MySQL truncaría después.
+     */
+    private function relaciones(): array
     {
-        return EstudiantesController::RELACIONES;
+        return EstudiantesController::relacionesDisponibles($this->db);
     }
 
     private function campo(array $fila, string $clave, int $largo): string
