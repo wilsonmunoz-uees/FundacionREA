@@ -22,13 +22,12 @@ $archivosRegistro = [
     'instituciones.php', 'empleados.php', 'estudiantes.php',
     'proveedores.php', 'finalidades.php', 'tipos_dato.php', 'consentimientos.php',
     'usuarios.php', 'roles.php', 'permisos.php',
-    'disclaimers.php', 'correo_configuracion.php', 'enlaces_consentimiento.php',
+    'disclaimers.php', 'correo_configuracion.php',
     'enlaces_verificados.php', 'envio_masivo.php', 'precarga_inicial.php',
 ];
 $archivosConsultas = ['buscar_persona.php', 'historial_consentimientos.php', 'consentimientos_vigentes.php'];
-$archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
-                      'reporte_consentimientos.php', 'reporte_titulares.php',
-                      'reporte_auditoria.php', 'reporte_envios_masivos.php', 'exportar_csv.php'];
+$archivosReportes  = ['reporte_consentimientos.php', 'reporte_datos_sensibles.php', 'reporte_titulares.php',
+                      'reporte_auditoria.php', 'exportar_csv.php'];
 ?>
 <aside class="sidebar" id="sidebarApp">
     <div class="sidebar-logo">
@@ -112,16 +111,13 @@ $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('correo_configuracion')): ?>
-                    <a class="nav-link<?= esActivo('enlaces_consentimiento.php') ?>" href="<?= e(APP_ROOT) ?>modules/enlaces_consentimiento.php">
-                        <span class="icono">🔗</span> Enlaces de Consentimiento
-                    </a>
                     <a class="nav-link<?= esActivo('correo_configuracion.php') ?>" href="<?= e(APP_ROOT) ?>modules/correo_configuracion.php">
                         <span class="icono">⚙️</span> Configuración de Correo
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('enlaces_verificados')): ?>
                     <a class="nav-link<?= esActivo('enlaces_verificados.php') ?>" href="<?= e(APP_ROOT) ?>modules/enlaces_verificados.php">
-                        <span class="icono">🔐</span> Links con Verificación
+                        <span class="icono">🔗</span> Enlaces de Consentimiento
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('envio_masivo')): ?>
@@ -175,19 +171,14 @@ $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
                     <span class="icono">📊</span> Reportes <span class="flecha">▶</span>
                 </summary>
                 <div class="nav-sub">
-                    <?php if (puedeAcceder('reporte_cobertura')): ?>
-                    <a class="nav-link<?= esActivo('reporte_cobertura.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_cobertura.php">
-                        <span class="icono">🎯</span> Cobertura y Pendientes
-                    </a>
-                    <?php endif; ?>
-                    <?php if (esSuperAdmin()): ?>
-                    <a class="nav-link<?= esActivo('reporte_red_educativa.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_red_educativa.php">
-                        <span class="icono">🏫</span> Red Educativa (Multi-Sede)
-                    </a>
-                    <?php endif; ?>
                     <?php if (puedeAcceder('reporte_consentimientos')): ?>
                     <a class="nav-link<?= esActivo('reporte_consentimientos.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_consentimientos.php">
                         <span class="icono">📈</span> Consentimientos por Finalidad
+                    </a>
+                    <?php endif; ?>
+                    <?php if (puedeAcceder('reporte_datos_sensibles')): ?>
+                    <a class="nav-link<?= esActivo('reporte_datos_sensibles.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_datos_sensibles.php">
+                        <span class="icono">⚠️</span> Datos Sensibles
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('reporte_titulares')): ?>
@@ -198,11 +189,6 @@ $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
                     <?php if (puedeAcceder('reporte_auditoria')): ?>
                     <a class="nav-link<?= esActivo('reporte_auditoria.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_auditoria.php">
                         <span class="icono">🗂️</span> Bitácora de Auditoría
-                    </a>
-                    <?php endif; ?>
-                    <?php if (puedeAcceder('reporte_envios_masivos')): ?>
-                    <a class="nav-link<?= esActivo('reporte_envios_masivos.php') ?>" href="<?= e(APP_ROOT) ?>reportes/reporte_envios_masivos.php">
-                        <span class="icono">📬</span> Efectividad de Envíos
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('exportar_csv')): ?>

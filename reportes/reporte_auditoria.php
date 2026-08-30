@@ -87,11 +87,6 @@ if ($consultado && $formato === 'pdf') {
     $filasPdf   = apiDatos($respuestaPdf, []);
     $totalesPdf = apiMeta($respuestaPdf, 'totales', []);
 
-    if (empty($filasPdf)) {
-        flashSet('advertencia', 'No se encontraron registros para exportar con los filtros seleccionados.');
-        redirigir('reporte_auditoria.php?' . http_build_query($parametros + ['consultar' => 1]));
-    }
-
     $pdf = new PdfReporte('H');
 
     $pdf->cabecera([
@@ -146,17 +141,19 @@ if ($consultado && $formato === 'pdf') {
     }
 
     $pdf->tabla($columnas, $filasFormateadas);
-
-    // Línea de totales al pie de la tabla
-    $totalesTexto = sprintf(
-        'Movimientos encontrados: %d   ·   Altas: %d   ·   Cambios: %d   ·   Bajas: %d   ·   Usuarios involucrados: %d',
+    $pdf->parrafo(sprintf(
+        'Total de movimientos: %d   ·   Altas: %d   ·   Cambios: %d   ·   Bajas: %d   ·   Usuarios distintos: %d',
         (int)($totalesPdf['registros'] ?? 0),
         (int)($totalesPdf['altas'] ?? 0),
         (int)($totalesPdf['cambios'] ?? 0),
         (int)($totalesPdf['bajas'] ?? 0),
         (int)($totalesPdf['usuarios'] ?? 0)
-    );
-    $pdf->parrafo($totalesTexto, 8.5, 'B', [40, 44, 52]);
+    ), 8.5, 'B', [40, 44, 52]);
+
+    if (count($filasPdf) < (int)($totalesPdf['registros'] ?? 0)) {
+        $pdf->parrafo('Nota: el reporte muestra los primeros ' . count($filasPdf)
+            . ' movimientos. Acote el rango de fechas para obtener un detalle completo.', 7.5);
+    }
 
     $pdf->salida('rea_auditoria_' . date('Ymd_His') . '.pdf');
     exit;
@@ -165,39 +162,44 @@ if ($consultado && $formato === 'pdf') {
 /* ---------------------------------------------------------------------------
    Consulta en pantalla
    --------------------------------------------------------------------------- */
-$tablas     = [];
-$registros  = [];
-$totales    = [];
-$numPagina  = 1;
+$registros    = [];
+$totales      = ['registros' => 0, 'altas' => 0, 'cambios' => 0, 'bajas' => 0, 'usuarios' => 0];
+$tablas       = [];
+$numPagina    = 1;
 $totalPaginas = 1;
 
-if ($consultado && $errorFechas === '') {
-    $respuesta = apiGet('reportes/auditoria', $parametros + [
+if ($consultado) {
+    $listado = apiGet('reportes/auditoria', $parametros + [
         'pagina'     => max(1, (int)($_GET['pagina'] ?? 1)),
         'por_pagina' => 15,
     ]);
 
-    $tablas     = apiMeta($respuesta, 'tablas', []);
-    $totales    = apiMeta($respuesta, 'totales', []);
-    $registros  = apiDatos($respuesta, []);
-    [$numPagina, $totalPaginas] = paginacionDesdeMeta(apiMeta($respuesta));
+    $registros = apiDatos($listado, []);
+    $totales   = apiMeta($listado, 'totales', $totales);
+    $tablas    = apiMeta($listado, 'tablas', []);
+    [$numPagina, $totalPaginas] = paginacionDesdeMeta(apiMeta($listado));
 
-    if (!$respuesta['ok']) {
-        flashSet('error', apiError($respuesta));
+    if (!$listado['ok']) {
+        flashSet('error', apiError($listado));
+        $consultado = false;
     }
-} else {
-    // Si todavía no se consulta, pedimos solo el catálogo de tablas
-    $tablas = apiMeta(apiGet('reportes/auditoria', ['pagina' => 1, 'por_pagina' => 1]), 'tablas', []);
 }
+
+// La tabla filtrada debe seguir apareciendo en el desplegable aunque la página
+// actual no la incluya entre sus resultados.
+if ($filtroTabla !== '' && !in_array($filtroTabla, $tablas, true)) {
+    $tablas[] = $filtroTabla;
+    sort($tablas);
+}
+
+$hayResultados = $consultado && !empty($registros);
+$urlPdf = 'reporte_auditoria.php?' . http_build_query($parametros + ['consultar' => 1, 'formato' => 'pdf']);
 
 $badgePorOperacion = [
     'INSERT' => 'badge-activo',
-    'UPDATE' => 'badge-info',
+    'UPDATE' => 'badge-neutro',
     'DELETE' => 'badge-inactivo',
 ];
-
-$urlPdf = 'reporte_auditoria.php?' . http_build_query($parametros + ['formato' => 'pdf', 'consultar' => 1]);
-$hayResultados = $consultado && !empty($registros);
 
 $pageTitle = 'Bitácora de Auditoría';
 $breadcrumb = [['label' => 'Reportes', 'url' => null], ['label' => 'Bitácora de Auditoría', 'url' => null]];
@@ -212,10 +214,10 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
-            <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
+            <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">📄 Exportar a PDF</a>
         <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
-                Exportar a PDF
+            <button type="button" class="btn btn-primario" disabled title="Ejecute una consulta para habilitar la exportación">
+                📄 Exportar a PDF
             </button>
         <?php endif; ?>
     </div>
@@ -238,6 +240,7 @@ include __DIR__ . '/../includes/layout_top.php';
                 <input type="date" name="hasta" id="hasta" value="<?= e($filtroHasta) ?>">
             </div>
             <?php
+            // Usuario: etiqueta + botón que abre la subpantalla de búsqueda con pagineo
             selectorUsuario([
                 'nombre'    => 'username',
                 'id'        => 'username',

@@ -33,11 +33,6 @@ if ($entidad !== '' && isset($entidadesPermitidas[$entidad]) && isset($_GET['des
     $encabezados = $datos['encabezados'] ?? [];
     $filas       = $datos['filas'] ?? [];
 
-    if (empty($filas)) {
-        flashSet('advertencia', 'No se encontraron datos para exportar en la entidad seleccionada.');
-        redirigir('exportar_csv.php');
-    }
-
     $nombreArchivo = 'rea_' . $entidad . '_' . date('Ymd_His') . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
@@ -67,6 +62,7 @@ include __DIR__ . '/../includes/layout_top.php';
 <div class="menu-grid">
     <?php foreach ($entidadesPermitidas as $clave => $etiqueta): ?>
         <div class="card-modulo">
+            <div class="icono-modulo">📄</div>
             <h3><?= e($etiqueta) ?></h3>
             <p>Exportar el listado completo de <?= mb_strtolower(e($etiqueta)) ?> de la institución activa.</p>
             <a class="btn btn-primario btn-sm" href="exportar_csv.php?entidad=<?= e($clave) ?>&descargar=1">Descargar CSV</a>
