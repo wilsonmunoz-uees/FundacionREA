@@ -1561,6 +1561,41 @@ $spec['paths']['/reportes/dashboard'] = [
 
 $accesoReportes = 'SuperAdmin o permiso `REPORTES_EXPORTACION`';
 
+$spec['paths']['/reportes/cobertura'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Reporte de cobertura y pendientes de consentimiento',
+        'description' => "Auditoría de cumplimiento LOPDP: calcula tasas de cobertura (% consentidos, % pendientes, % revocados) y lista a los titulares activos con sus canales de contacto.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteCobertura',
+        'parameters'  => [
+            ['name' => 'tipo', 'in' => 'query', 'description' => 'todos (por defecto), estudiantes, empleados, proveedores.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'estudiantes', 'empleados', 'proveedores']]],
+            ['name' => 'estado_cobertura', 'in' => 'query', 'description' => 'TODOS (por defecto), PENDIENTE, CONSENTIDO, REVOCADO.', 'schema' => ['type' => 'string', 'enum' => ['TODOS', 'PENDIENTE', 'CONSENTIDO', 'REVOCADO']]],
+            ['name' => 'con_correo', 'in' => 'query', 'description' => 'todos (por defecto), si, no.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'si', 'no']]],
+            ['name' => 'q', 'in' => 'query', 'description' => 'Búsqueda libre por nombre, identificación o código.', 'schema' => ['type' => 'string']],
+            ['$ref' => '#/components/parameters/Pagina'],
+            ['$ref' => '#/components/parameters/PorPagina'],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado de cobertura con KPIs.', $sobreLista('Persona', [
+                'kpis' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'total'          => ['type' => 'integer'],
+                        'consentidos'    => ['type' => 'integer'],
+                        'pendientes'     => ['type' => 'integer'],
+                        'revocados'      => ['type' => 'integer'],
+                        'con_correo'     => ['type' => 'integer'],
+                        'sin_correo'     => ['type' => 'integer'],
+                        'pct_cobertura'  => ['type' => 'number', 'format' => 'float'],
+                        'pct_pendientes' => ['type' => 'number', 'format' => 'float'],
+                        'pct_revocados'  => ['type' => 'number', 'format' => 'float'],
+                    ],
+                ],
+            ])),
+        ]),
+    ],
+];
+
 $spec['paths']['/reportes/consentimientos'] = [
     'get' => [
         'tags'        => ['Reportes'],
@@ -1620,57 +1655,6 @@ $spec['paths']['/reportes/consentimientos'] = [
                             'mes'       => ['type' => 'integer'],
                         ],
                     ],
-                ],
-            ])),
-        ]),
-    ],
-];
-
-$spec['paths']['/reportes/datos-sensibles'] = [
-    'get' => [
-        'tags'        => ['Reportes'],
-        'summary'     => 'Tratamiento de datos sensibles',
-        'description' => "Resumen por tipo de dato sensible y detalle de titulares con autorización vigente (máximo 200 filas).\n\n**Acceso:** " . $accesoReportes,
-        'operationId' => 'reporteDatosSensibles',
-        'parameters'  => [[
-            'name'        => 'tipo_dato_id',
-            'in'          => 'query',
-            'description' => 'Limita el detalle a un tipo de dato sensible.',
-            'schema'      => ['type' => 'integer'],
-        ]],
-        'responses' => $erroresComunes([
-            '200' => $respuesta('Datos del reporte.', $sobre([
-                'type'       => 'object',
-                'properties' => [
-                    'resumen' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'TipoDatoId'           => ['type' => 'integer'],
-                                'Nombre'               => ['type' => 'string'],
-                                'Categoria'            => ['type' => 'string', 'nullable' => true],
-                                'autorizados_vigentes' => ['type' => 'integer'],
-                                'autorizados_total'    => ['type' => 'integer'],
-                            ],
-                        ],
-                    ],
-                    'detalle' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'PersonaId'           => ['type' => 'integer'],
-                                'Nombres'             => ['type' => 'string'],
-                                'Apellidos'           => ['type' => 'string'],
-                                'TipoDatoNombre'      => ['type' => 'string'],
-                                'FinalidadNombre'     => ['type' => 'string', 'nullable' => true],
-                                'FechaConsentimiento' => ['type' => 'string'],
-                            ],
-                        ],
-                    ],
-                    'tipos_sensibles' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TipoDato']],
-                    'tipo_dato_id'    => ['type' => 'integer'],
                 ],
             ])),
         ]),
@@ -1799,6 +1783,108 @@ $spec['paths']['/reportes/auditoria'] = [
                 'filtros' => ['type' => 'object', 'description' => 'Filtros efectivamente aplicados.'],
             ])),
             '503' => $respuesta('La bitácora todavía no está instalada (falta ejecutar 01_DDL_estructura.sql).', ['$ref' => '#/components/schemas/Error']),
+        ]),
+    ],
+];
+
+$spec['paths']['/reportes/envios-masivos'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Efectividad de campañas y envíos masivos',
+        'description' => "Métricas de invitaciones digitales enviadas, uso de enlaces verificados y conversión a consentimientos firmados.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteEnviosMasivos',
+        'parameters'  => [
+            [
+                'name'        => 'tipo',
+                'in'          => 'query',
+                'description' => 'Tipo de destinatario (todos, estudiante, empleado, proveedor).',
+                'schema'      => ['type' => 'string', 'enum' => ['todos', 'estudiante', 'empleado', 'proveedor']],
+            ],
+            [
+                'name'        => 'estado',
+                'in'          => 'query',
+                'description' => 'Estado del enlace/código de verificación.',
+                'schema'      => ['type' => 'string', 'enum' => ['TODOS', 'USADO', 'PENDIENTE', 'EXPIRADO', 'ANULADO']],
+            ],
+            [
+                'name'        => 'desde',
+                'in'          => 'query',
+                'description' => 'Fecha inicial de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'hasta',
+                'in'          => 'query',
+                'description' => 'Fecha final de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'q',
+                'in'          => 'query',
+                'description' => 'Búsqueda por nombre, identificación o correo destinatario.',
+                'schema'      => ['type' => 'string'],
+            ],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado paginado de envíos con KPIs de conversión.', $sobreLista([
+                'type'       => 'object',
+                'properties' => [
+                    'VerificacionId' => ['type' => 'integer'],
+                    'TipoPersona'    => ['type' => 'string'],
+                    'Identificacion' => ['type' => 'string'],
+                    'Destinatario'   => ['type' => 'string'],
+                    'Titular'        => ['type' => 'string'],
+                    'FechaEmision'   => ['type' => 'string'],
+                    'EstadoCodigo'   => ['type' => 'string'],
+                ],
+            ], [
+                'kpis'     => ['type' => 'object'],
+                'por_tipo' => ['type' => 'array'],
+                'filtros'  => ['type' => 'object'],
+            ])),
+        ]),
+    ],
+];
+
+$spec['paths']['/reportes/red-educativa'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Tablero comparativo multi-sede (Red Educativa)',
+        'description' => "Tablero ejecutivo consolidado con indicadores de cobertura LOPDP de todas las sedes de la red educativa. Exclusivo para SuperAdmin.\n\n**Acceso:** SuperAdmin",
+        'operationId' => 'reporteRedEducativa',
+        'responses'   => $erroresComunes([
+            '200' => $respuesta('Consolidado de todas las sedes.', $sobre([
+                'type'       => 'object',
+                'properties' => [
+                    'kpis_globales' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'total_sedes'           => ['type' => 'integer'],
+                            'poblacion_total'       => ['type' => 'integer'],
+                            'consentimientos_total' => ['type' => 'integer'],
+                            'cumplimiento_promedio' => ['type' => 'number'],
+                        ],
+                    ],
+                    'sedes' => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'ranking'          => ['type' => 'integer'],
+                                'nombre'           => ['type' => 'string'],
+                                'estudiantes'      => ['type' => 'integer'],
+                                'empleados'        => ['type' => 'integer'],
+                                'proveedores'      => ['type' => 'integer'],
+                                'poblacion'        => ['type' => 'integer'],
+                                'consentidos'      => ['type' => 'integer'],
+                                'pendientes'       => ['type' => 'integer'],
+                                'pct_cumplimiento' => ['type' => 'number'],
+                                'diagnostico'      => ['type' => 'string', 'enum' => ['AL_DIA', 'EN_PROGRESO', 'REZAGADA']],
+                            ],
+                        ],
+                    ],
+                ],
+            ])),
         ]),
     ],
 ];

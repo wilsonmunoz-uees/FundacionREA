@@ -2,7 +2,6 @@
 // reportes/reporte_auditoria.php
 // Bitácora de auditoría: todos los movimientos registrados en la base de datos
 // para la institución educativa con la que se inició sesión.
-// Anota QUÉ dato se tocó, nunca su contenido: ni el valor anterior ni el nuevo.
 // Filtros: rango de fechas, usuario (elegido en una subpantalla con pagineo),
 // tabla, tipo de movimiento y texto libre. Los datos vienen de la API REST
 // (/api/reportes/auditoria) y el PDF se arma con includes/pdf_reporte.php.
@@ -87,6 +86,11 @@ if ($consultado && $formato === 'pdf') {
     $filasPdf   = apiDatos($respuestaPdf, []);
     $totalesPdf = apiMeta($respuestaPdf, 'totales', []);
 
+    if (empty($filasPdf)) {
+        flashSet('advertencia', 'No se encontraron registros para exportar con los filtros seleccionados.');
+        redirigir('reporte_auditoria.php?' . http_build_query($parametros + ['consultar' => 1]));
+    }
+
     $pdf = new PdfReporte('H');
 
     $pdf->cabecera([
@@ -150,11 +154,6 @@ if ($consultado && $formato === 'pdf') {
         (int)($totalesPdf['usuarios'] ?? 0)
     ), 8.5, 'B', [40, 44, 52]);
 
-    if (count($filasPdf) < (int)($totalesPdf['registros'] ?? 0)) {
-        $pdf->parrafo('Nota: el reporte muestra los primeros ' . count($filasPdf)
-            . ' movimientos. Acote el rango de fechas para obtener un detalle completo.', 7.5);
-    }
-
     $pdf->salida('rea_auditoria_' . date('Ymd_His') . '.pdf');
     exit;
 }
@@ -214,10 +213,10 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
-            <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">📄 Exportar a PDF</a>
+            <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
         <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="Ejecute una consulta para habilitar la exportación">
-                📄 Exportar a PDF
+            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
+                Exportar a PDF
             </button>
         <?php endif; ?>
     </div>
