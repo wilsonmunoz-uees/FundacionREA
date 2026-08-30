@@ -1,12 +1,15 @@
 <?php
 // api/controllers/EstudiantesController.php
-// CRUD de estudiantes matriculados y su representante legal.
+// Mantenimiento de estudiantes matriculados y su representante legal.
 //
-// `persona` es la entidad padre y no tiene mantenimiento propio: los datos del
-// estudiante y los de su representante se capturan aquí mismo. Al guardar, cada
-// ficha se crea o se reutiliza si ese documento ya consta en el padrón de la
-// institución (ver api/core/Padron.php). Por eso un representante que ya sea
-// empleado, o que represente a otro hermano, no se duplica.
+// Las MATRÍCULAS ya no ocurren aquí. Los estudiantes entran por «Carga de
+// Información» (CargaInformacionController), que valida el archivo completo
+// —incluido que el representante conste en su hoja— antes de escribir nada.
+//
+// Este módulo solo consulta y permite corregir lo que cambia con el tiempo: del
+// estudiante, correo, teléfono y estado; de su representante, correo, teléfono y
+// parentesco. El documento, los nombres, el código de matrícula y la identidad
+// del representante se leen de la base y no de la petición (Padron::contacto).
 
 final class EstudiantesController extends Controller
 {
@@ -175,71 +178,38 @@ final class EstudiantesController extends Controller
         Response::exito($registro);
     }
 
-    /** POST /api/estudiantes */
+    /**
+     * POST /api/estudiantes
+     *
+     * La matrícula individual está retirada: los estudiantes entran por Carga
+     * de Información, que valida el archivo completo —incluida la existencia
+     * del representante— antes de escribir nada. La ruta se conserva para poder
+     * responder con un motivo en vez de un 404.
+     */
     public function store(array $ruta = []): void
     {
         $this->requiereAcceso(self::MODULO);
-        $institucionId = $this->institucion();
-        $datos = $this->validar();
 
-        $yaEsEstudiante = $this->consultarUna(
-            'SELECT es.EstudianteId FROM estudiante es
-       INNER JOIN persona p ON p.PersonaId = es.PersonaId
-            WHERE es.InstitucionEducativaId = ? AND p.Identificacion = ?',
-            [$institucionId, $datos['persona']['identificacion']]
-        );
-        if ($yaEsEstudiante) {
-            Response::error('Ya existe un estudiante matriculado con esa identificación.', 409);
-        }
-
-        try {
-            $this->db->beginTransaction();
-
-            $personaId       = Padron::crearOActualizar($this->db, $institucionId, $datos['persona']);
-            $representanteId = $datos['representante'] !== null
-                ? Padron::crearOActualizar($this->db, $institucionId, $datos['representante'])
-                : null;
-
-            $this->ejecutar(
-                'INSERT INTO estudiante
-                    (InstitucionEducativaId, PersonaId, CodigoEstudiante, RepresentanteId, RepresentanteRelacion, Estado)
-                 VALUES (?,?,?,?,?,?)',
-                [
-                    $institucionId, $personaId, $datos['codigo'],
-                    $representanteId, $datos['relacion'], $datos['estado'],
-                ]
-            );
-            $id = (int)$this->db->lastInsertId();
-
-            $this->db->commit();
-        } catch (PDOException $ex) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            $this->errorBaseDatos($ex, 'Ya existe un estudiante con ese código.');
-            return;
-        }
-
-        $this->auditarInsercion('persona', 'PersonaId', $personaId, $institucionId);
-        if ($representanteId !== null) {
-            $this->auditarInsercion('persona', 'PersonaId', $representanteId, $institucionId);
-        }
-        $this->auditarInsercion('estudiante', 'EstudianteId', $id, $institucionId);
-
-        Response::exito(
-            ['EstudianteId' => $id, 'mensaje' => 'Estudiante matriculado correctamente.'],
-            [],
-            201
+        Response::error(
+            'La matrícula de estudiantes se realiza desde la opción «Carga de Información». '
+            . 'Desde esta pantalla solo puede actualizar los datos de contacto y el estado.',
+            403
         );
     }
 
-    /** PUT /api/estudiantes/{id} */
+    /**
+     * PUT /api/estudiantes/{id}
+     *
+     * Edición restringida. Del estudiante solo se aceptan correo, teléfono y
+     * estado; de su representante, correo, teléfono y parentesco. Todo lo demás
+     * —documento, nombres, código de matrícula y quién es el representante— es
+     * lo que trajo la carga, y se lee de la base, no de la petición.
+     */
     public function update(array $ruta): void
     {
         $this->requiereAcceso(self::MODULO);
         $institucionId = $this->institucion();
-        $id    = (int)$ruta['id'];
-        $datos = $this->validar();
+        $id = (int)$ruta['id'];
 
         $antes = $this->filaAuditable('estudiante', 'EstudianteId', $id, $institucionId);
         if (!$antes) {
@@ -248,34 +218,75 @@ final class EstudiantesController extends Controller
 
         $personaId    = (int)$antes['PersonaId'];
         $antesPersona = $this->filaAuditable('persona', 'PersonaId', $personaId, $institucionId);
+        $ficha        = Padron::porId($this->db, $institucionId, $personaId);
 
-        if (Padron::documentoOcupado($this->db, $institucionId, $datos['persona']['identificacion'], $personaId)) {
-            Response::error('Otra persona de esta institución ya tiene esa identificación.', 409);
+        if (!$ficha) {
+            Response::noEncontrado();
         }
+
+        $cuerpo  = $this->peticion->cuerpo;
+        $persona = Padron::contacto($ficha, $cuerpo);
+        $errores = Padron::validarContacto($persona, 'el estudiante');
+
+        /* El representante ya está asignado por la carga: aquí solo se corrigen
+           sus datos de contacto y el parentesco. Si el estudiante todavía no
+           tiene representante, no hay nada que editar desde esta pantalla. */
+        $representanteId = $antes['RepresentanteId'] !== null ? (int)$antes['RepresentanteId'] : null;
+        $fichaRep        = $representanteId !== null
+            ? Padron::porId($this->db, $institucionId, $representanteId)
+            : null;
+        $representante   = $fichaRep !== null ? Padron::contacto($fichaRep, $cuerpo, 'rep_') : null;
+
+        if ($representante !== null) {
+            $errores = array_merge(
+                $errores,
+                Padron::validarContacto($representante, 'el representante', true)
+            );
+        }
+
+        /* El parentesco sí se puede cambiar. Se avisa con claridad en lugar de
+           dejar que MySQL rechace el valor con un error de truncamiento, que no
+           le dice nada a quien está usando el sistema. */
+        $relacion    = $this->peticion->texto('representante_relacion');
+        $disponibles = self::relacionesDisponibles($this->db);
+
+        if ($relacion !== '' && !in_array($relacion, $disponibles, true)) {
+            $errores[] = in_array($relacion, self::RELACIONES, true)
+                ? 'La relación «' . $relacion . '» todavía no está habilitada en la base de datos. '
+                  . 'Ejecute el script de actualización de estructura, o elija una de estas: '
+                  . implode(', ', $disponibles) . '.'
+                : 'La relación del representante no es válida. Elija una de estas: '
+                  . implode(', ', $disponibles) . '.';
+        }
+        if ($relacion !== '' && $representante === null) {
+            $errores[] = 'Este estudiante no tiene representante asignado. '
+                       . 'Asígnelo desde la opción «Carga de Información».';
+        }
+
+        if ($errores) {
+            Response::validacion($errores);
+        }
+
+        $estado = $this->estado($this->peticion->texto('estado', (string)$antes['Estado']));
+        $persona['estado'] = $estado;
 
         try {
             $this->db->beginTransaction();
 
-            // Datos del estudiante: se editan sobre su propia ficha
-            Padron::actualizar($this->db, $institucionId, $personaId, $datos['persona']);
+            // Datos de contacto del estudiante, sobre su propia ficha
+            Padron::actualizar($this->db, $institucionId, $personaId, $persona);
 
-            /* El representante puede cambiar de persona: si el documento que
-               llega es otro, se enlaza (o se crea) esa ficha en vez de pisar la
-               del representante anterior, que puede representar a otro alumno. */
-            $representanteId = null;
-            if ($datos['representante'] !== null) {
-                $representanteId = Padron::crearOActualizar($this->db, $institucionId, $datos['representante']);
+            /* El representante conserva su propio estado: puede seguir activo
+               aunque el estudiante se inactive. */
+            if ($representante !== null && $representanteId !== null) {
+                Padron::actualizar($this->db, $institucionId, $representanteId, $representante);
             }
 
             $this->ejecutar(
                 'UPDATE estudiante
-                    SET CodigoEstudiante = ?,
-                        RepresentanteId = ?, RepresentanteRelacion = ?, Estado = ?
+                    SET RepresentanteRelacion = ?, Estado = ?
                   WHERE EstudianteId = ? AND InstitucionEducativaId = ?',
-                [
-                    $datos['codigo'],
-                    $representanteId, $datos['relacion'], $datos['estado'], $id, $institucionId,
-                ]
+                [$relacion !== '' ? $relacion : null, $estado, $id, $institucionId]
             );
 
             $this->db->commit();
@@ -283,7 +294,7 @@ final class EstudiantesController extends Controller
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
             }
-            $this->errorBaseDatos($ex, 'Ya existe un estudiante con ese código.');
+            $this->errorBaseDatos($ex, 'No se pudo actualizar el estudiante.');
             return;
         }
 
@@ -321,69 +332,4 @@ final class EstudiantesController extends Controller
         Response::exito(['EstudianteId' => $id, 'estado' => $nuevo, 'mensaje' => 'Estado actualizado.']);
     }
 
-    /* ------------------------------------------------------------------ */
-
-    private function validar(): array
-    {
-        $codigo   = $this->peticion->texto('codigo_estudiante');
-        $relacion = $this->peticion->texto('representante_relacion');
-        $cuerpo   = $this->peticion->cuerpo;
-
-        // Datos del estudiante y de su representante, en el mismo formulario
-        $persona       = Padron::normalizar($cuerpo);
-        $representante = Padron::normalizar($cuerpo, 'rep_');
-
-        $errores = Padron::validar($persona, 'el estudiante');
-
-        if ($codigo === '') $errores[] = 'El código de estudiante es obligatorio.';
-
-        /* El representante es opcional: solo se valida si se escribió algo de
-           él. Si viene, su correo SÍ es obligatorio, porque es la dirección a
-           la que llegan los avisos de consentimiento del estudiante. */
-        $hayRepresentante = $representante['identificacion'] !== ''
-            || $representante['nombres'] !== ''
-            || $representante['apellidos'] !== ''
-            || $representante['email'] !== '';
-
-        if ($hayRepresentante) {
-            $errores = array_merge($errores, Padron::validar($representante, 'el representante', true));
-
-            if ($representante['identificacion'] !== ''
-                && $representante['identificacion'] === $persona['identificacion']) {
-                $errores[] = 'El representante no puede ser la misma persona que el estudiante.';
-            }
-        } elseif ($relacion !== '') {
-            $errores[] = 'Indicó una relación de representante, pero no sus datos.';
-        }
-
-        /* Se avisa con claridad en lugar de dejar que MySQL rechace el valor con
-           un error de truncamiento, que no le dice nada a quien está usando el
-           sistema. Ocurre cuando la base todavía no tiene las relaciones nuevas. */
-        $disponibles = self::relacionesDisponibles($this->db);
-        if ($relacion !== '' && !in_array($relacion, $disponibles, true)) {
-            $errores[] = in_array($relacion, self::RELACIONES, true)
-                ? 'La relación «' . $relacion . '» todavía no está habilitada en la base de datos. '
-                  . 'Ejecute el script de actualización de estructura, o elija una de estas: '
-                  . implode(', ', $disponibles) . '.'
-                : 'La relación del representante no es válida. Elija una de estas: '
-                  . implode(', ', $disponibles) . '.';
-        }
-
-        if ($errores) {
-            Response::validacion($errores);
-        }
-
-        $estado = $this->estado($this->peticion->texto('estado', 'ACTIVO'));
-        $persona['estado'] = $estado;
-
-        return [
-            'persona'       => $persona,
-            // El representante conserva su propio estado: puede seguir activo
-            // aunque el estudiante se inactive.
-            'representante' => $hayRepresentante ? $representante : null,
-            'codigo'        => $codigo,
-            'relacion'      => $relacion !== '' ? $relacion : null,
-            'estado'        => $estado,
-        ];
-    }
 }

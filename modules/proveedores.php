@@ -12,27 +12,26 @@ $institucionId = institucionActual();
 $accion = $_GET['accion'] ?? 'listar';
 $errores = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar'], true)) {
+/* El alta se hace por Carga de Información: aquí solo se edita, y solo el
+   correo, el teléfono y el estado. */
+if ($accion === 'crear') {
+    flashSet('error', 'El alta de proveedores se realiza desde la opción «Carga de Información».');
+    redirigir('proveedores.php');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
     if (!csrfValido()) {
         $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
     } else {
-        $datos = datosPersonaDelFormulario() + [
-            'ruc'          => trim($_POST['ruc'] ?? ''),
-            'razon_social' => trim($_POST['razon_social'] ?? ''),
-            'estado'       => $_POST['estado'] ?? 'ACTIVO',
-        ];
-
-        if ($accion === 'crear') {
-            $respuesta = apiPost('proveedores', $datos);
-            $mensajeOk = 'Proveedor registrado correctamente.';
-        } else {
-            $id = (int)($_POST['proveedor_id'] ?? 0);
-            $respuesta = apiPut('proveedores/' . $id, $datos);
-            $mensajeOk = 'Proveedor actualizado correctamente.';
-        }
+        $id = (int)($_POST['proveedor_id'] ?? 0);
+        $respuesta = apiPut('proveedores/' . $id, [
+            'email'    => trim($_POST['email'] ?? ''),
+            'telefono' => trim($_POST['telefono'] ?? ''),
+            'estado'   => $_POST['estado'] ?? 'ACTIVO',
+        ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', $mensajeOk);
+            flashSet('exito', 'Proveedor actualizado correctamente.');
             redirigir('proveedores.php');
         }
         $errores = apiErrores($respuesta);
@@ -78,27 +77,45 @@ include __DIR__ . '/../includes/layout_top.php';
         <h1>📦 Gestión de Proveedores</h1>
         <p>Control de proveedores de bienes, servicios e infraestructura.</p>
     </div>
-    <div class="flex-gap">
-        <a class="btn btn-primario" href="proveedores.php?accion=crear">+ Alta de Proveedor</a>
-    </div>
 </div>
 
-<?php if ($accion === 'crear' || $accion === 'editar'): ?>
+<div class="alerta alerta-info">
+    Las altas de proveedores se realizan desde la opción
+    <strong><a href="carga_informacion.php">Carga de Información</a></strong>.
+    Aquí puede corregir el <strong>correo</strong>, el <strong>teléfono</strong> y el
+    <strong>estado</strong>.
+</div>
+
+<?php if ($accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Proveedor' : 'Editar Proveedor' ?></h3>
+        <h3>Editar Proveedor</h3>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
-        <form method="POST" action="proveedores.php?accion=<?= e($accion) ?>">
+        <form method="POST" action="proveedores.php?accion=editar">
             <?= csrfCampo() ?>
-            <?php if ($accion === 'editar'): ?><input type="hidden" name="proveedor_id" value="<?= e((string)$registroEditar['ProveedorId']) ?>"><?php endif; ?>
+            <input type="hidden" name="proveedor_id" value="<?= e((string)$registroEditar['ProveedorId']) ?>">
+
+            <fieldset class="bloque-persona bloque-persona-bloqueado">
+                <legend>Datos del proveedor</legend>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Razón Social</label>
+                        <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                               value="<?= e($registroEditar['RazonSocial'] ?? '') ?>">
+                    </div>
+                    <div class="form-group" style="flex:0 1 220px;">
+                        <label>RUC</label>
+                        <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                               value="<?= e($registroEditar['Ruc'] ?? '') ?>">
+                    </div>
+                </div>
+            </fieldset>
+
             <?php
             camposPersona([
-                'titulo'   => 'Persona de contacto',
-                'ayuda'    => 'Quien atiende la relación con la institución. Si ya consta registrada, '
-                            . 'se reutiliza su ficha.',
-                'registro' => $registroEditar,
-                'correo'   => 'opcional',
-                // Su documento se copia además a proveedor.Ruc, más corta
-                'documento' => 'proveedor',
+                'titulo'    => 'Persona de contacto',
+                'registro'  => $registroEditar,
+                'correo'    => 'opcional',
+                'bloqueado' => true,
             ]);
             ?>
 
@@ -109,16 +126,6 @@ include __DIR__ . '/../includes/layout_top.php';
                         <option value="ACTIVO" <?= (($registroEditar['Estado'] ?? 'ACTIVO') === 'ACTIVO') ? 'selected' : '' ?>>ACTIVO</option>
                         <option value="INACTIVO" <?= (($registroEditar['Estado'] ?? '') === 'INACTIVO') ? 'selected' : '' ?>>INACTIVO</option>
                     </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="campo-requerido">Razón Social</label>
-                    <input type="text" name="razon_social" maxlength="150" required value="<?= e($registroEditar['RazonSocial'] ?? '') ?>">
-                </div>
-                <div class="form-group">
-                    <label>RUC</label>
-                    <input type="text" name="ruc" maxlength="20" value="<?= e($registroEditar['Ruc'] ?? '') ?>">
                 </div>
             </div>
             <div class="flex-gap">

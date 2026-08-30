@@ -730,14 +730,33 @@ table.tabla-datos tbody tr:last-child td { border-bottom: none; }
 .filtros-bar .form-group { margin-bottom: 0; min-width: 190px; }
 
 /* ---------- Paginación ---------- */
-.paginacion { display: flex; gap: 6px; justify-content: center; margin: 22px 0; flex-wrap: wrap; }
+/* Una sola línea: la ventana de números cabe siempre, y si la lista continúa se
+   dice con los puntos suspensivos, el número del final y el resumen. */
+.paginacion { display: flex; gap: 6px; justify-content: center; align-items: center; margin: 22px 0; flex-wrap: nowrap; }
 .paginacion a, .paginacion span {
     padding: 7px 13px; border-radius: 8px; font-size: .82rem; font-weight: 600;
     border: 1px solid var(--rea-gris-200); color: var(--rea-gris-700);
     background: var(--rea-blanco);
+    white-space: nowrap;
 }
 .paginacion a:hover { background: var(--rea-gris-50); border-color: var(--rea-gris-300); text-decoration: none; }
 .paginacion .pagina-actual { background: var(--gradiente-rojo); color: #fff; border-color: transparent; }
+/* Corte de la serie: no es un botón, solo el aviso de que faltan páginas. */
+.paginacion .pagina-corte {
+    border-color: transparent; background: none; color: var(--rea-gris-500);
+    padding-left: 2px; padding-right: 2px; letter-spacing: 1px;
+}
+/* Flecha del extremo: se ve, pero no lleva a ninguna parte. */
+.paginacion .pagina-inerte { color: var(--rea-gris-300); background: var(--rea-gris-50); }
+.paginacion .pagina-resumen {
+    border-color: transparent; background: none; color: var(--rea-gris-600);
+    font-weight: 500; margin-left: 4px;
+}
+@media (max-width: 640px) {
+    /* En pantalla estrecha manda el resumen: los números se recortan solos. */
+    .paginacion { overflow-x: auto; justify-content: flex-start; }
+    .paginacion .pagina-resumen { position: sticky; right: 0; background: var(--rea-blanco); }
+}
 
 /* ---------- Pestañas ---------- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--rea-gris-200); margin-bottom: 20px; flex-wrap: wrap; }

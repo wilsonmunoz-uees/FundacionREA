@@ -12,27 +12,27 @@ $institucionId = institucionActual();
 $accion = $_GET['accion'] ?? 'listar';
 $errores = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar'], true)) {
+/* El alta se hace por Carga de Información: aquí solo se edita, y solo el
+   correo, el teléfono y el estado. Si alguien llega con ?accion=crear escrito a
+   mano, se le lleva al listado con la explicación. */
+if ($accion === 'crear') {
+    flashSet('error', 'El alta de empleados se realiza desde la opción «Carga de Información».');
+    redirigir('empleados.php');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
     if (!csrfValido()) {
         $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
     } else {
-        // Los datos personales viajan junto con los del vínculo: la ficha de
-        // la persona se crea o se reutiliza en la API (api/core/Padron.php).
-        $datos = datosPersonaDelFormulario() + [
-            'estado' => $_POST['estado'] ?? 'ACTIVO',
-        ];
-
-        if ($accion === 'crear') {
-            $respuesta = apiPost('empleados', $datos);
-            $mensajeOk = 'Empleado registrado correctamente.';
-        } else {
-            $id = (int)($_POST['empleado_id'] ?? 0);
-            $respuesta = apiPut('empleados/' . $id, $datos);
-            $mensajeOk = 'Empleado actualizado correctamente.';
-        }
+        $id = (int)($_POST['empleado_id'] ?? 0);
+        $respuesta = apiPut('empleados/' . $id, [
+            'email'    => trim($_POST['email'] ?? ''),
+            'telefono' => trim($_POST['telefono'] ?? ''),
+            'estado'   => $_POST['estado'] ?? 'ACTIVO',
+        ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', $mensajeOk);
+            flashSet('exito', 'Empleado actualizado correctamente.');
             redirigir('empleados.php');
         }
         $errores = apiErrores($respuesta);
@@ -78,25 +78,28 @@ include __DIR__ . '/../includes/layout_top.php';
         <h1>👥 Gestión de Empleados</h1>
         <p>Mantenimiento del personal vinculado a la institución.</p>
     </div>
-    <div class="flex-gap">
-        <a class="btn btn-primario" href="empleados.php?accion=crear">+ Nuevo Empleado</a>
-    </div>
 </div>
 
-<?php if ($accion === 'crear' || $accion === 'editar'): ?>
+<div class="alerta alerta-info">
+    Las altas de empleados se realizan desde la opción
+    <strong><a href="carga_informacion.php">Carga de Información</a></strong>.
+    Aquí puede corregir el <strong>correo</strong>, el <strong>teléfono</strong> y el
+    <strong>estado</strong>.
+</div>
+
+<?php if ($accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Empleado' : 'Editar Empleado' ?></h3>
+        <h3>Editar Empleado</h3>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
-        <form method="POST" action="empleados.php?accion=<?= e($accion) ?>">
+        <form method="POST" action="empleados.php?accion=editar">
             <?= csrfCampo() ?>
-            <?php if ($accion === 'editar'): ?><input type="hidden" name="empleado_id" value="<?= e((string)$registroEditar['EmpleadoId']) ?>"><?php endif; ?>
+            <input type="hidden" name="empleado_id" value="<?= e((string)$registroEditar['EmpleadoId']) ?>">
             <?php
             camposPersona([
-                'titulo'   => 'Datos del empleado',
-                'ayuda'    => 'Si esta persona ya consta en la institución —por ejemplo, como '
-                            . 'representante de un estudiante—, se reutiliza su ficha en lugar de duplicarla.',
-                'registro' => $registroEditar,
-                'correo'   => 'opcional',
+                'titulo'    => 'Datos del empleado',
+                'registro'  => $registroEditar,
+                'correo'    => 'opcional',
+                'bloqueado' => true,
             ]);
             ?>
 

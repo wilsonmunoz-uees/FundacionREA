@@ -6,10 +6,10 @@
  *
  * `persona` es la entidad PADRE de empleados, estudiantes, representantes y
  * proveedores, y no tiene mantenimiento propio: sus fichas nacen siempre desde
- * uno de esos módulos, desde los enlaces públicos o desde la PreCarga Inicial.
+ * uno de esos módulos, desde los enlaces públicos o desde la Carga de Información.
  *
  * Este archivo es el único lugar donde se escribe en `persona`. Antes la misma
- * lógica estaba repetida en el flujo público y en la PreCarga; tenerla aquí
+ * lógica estaba repetida en el flujo público y en la carga masiva; tenerla aquí
  * evita que las reglas se separen con el tiempo.
  *
  * Reglas que aplica:
@@ -114,6 +114,67 @@ final class Padron
             'telefono'       => mb_substr($campo('telefono'), 0, 20),
             'estado'         => in_array($estado, ['ACTIVO', 'INACTIVO'], true) ? $estado : 'ACTIVO',
         ];
+    }
+
+    /**
+     * Datos de la persona para una edición RESTRINGIDA.
+     *
+     * Desde que las altas se hacen únicamente por Carga de Información, los
+     * módulos de empleados, estudiantes y proveedores no editan la identidad de
+     * nadie: el documento, el tipo y el nombre son los que constan en la ficha,
+     * y del formulario solo se aceptan el correo y el teléfono.
+     *
+     * Se toma de la ficha grabada y no de lo que llegue en la petición, para que
+     * baste con quitar el `readonly` del navegador para cambiar un nombre.
+     *
+     * @param array  $ficha   Fila de `persona` tal como está en la base
+     * @param array  $entrada Cuerpo de la petición
+     * @param string $prefijo 'rep_' para los campos del representante
+     */
+    public static function contacto(array $ficha, array $entrada, string $prefijo = ''): array
+    {
+        $campo = static function (string $clave) use ($entrada, $prefijo): string {
+            return trim((string)($entrada[$prefijo . $clave] ?? ''));
+        };
+
+        return [
+            'identificacion'       => (string)($ficha['Identificacion'] ?? ''),
+            'identificacion_cruda' => (string)($ficha['Identificacion'] ?? ''),
+            'tipo'                 => (string)($ficha['TipoIdentificacion'] ?? 'CEDULA'),
+            'nombres'              => (string)($ficha['Nombres'] ?? ''),
+            'apellidos'            => (string)($ficha['Apellidos'] ?? ''),
+            'email'                => mb_substr($campo('email'), 0, 150),
+            'telefono'             => mb_substr($campo('telefono'), 0, 20),
+            'estado'               => (string)($ficha['Estado'] ?? 'ACTIVO'),
+        ];
+    }
+
+    /**
+     * Comprueba los únicos campos que una edición restringida puede tocar.
+     *
+     * No revisa el documento ni los nombres: no vienen del formulario, vienen de
+     * la ficha, y revisarlos solo serviría para bloquear la edición del correo
+     * de alguien que fue cargado con un dato imperfecto.
+     *
+     * @return string[]
+     */
+    public static function validarContacto(
+        array $datos,
+        string $etiqueta = 'la persona',
+        bool $exigeCorreo = false
+    ): array {
+        $errores = [];
+        $de      = ' ' . Documento::contraer($etiqueta);   // «de el» -> «del»
+
+        if ($datos['email'] === '') {
+            if ($exigeCorreo) {
+                $errores[] = 'Ingrese el correo electrónico' . $de . '.';
+            }
+        } elseif (!filter_var($datos['email'], FILTER_VALIDATE_EMAIL)) {
+            $errores[] = 'El correo electrónico' . $de . ' no es válido.';
+        }
+
+        return $errores;
     }
 
     /**

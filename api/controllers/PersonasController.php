@@ -5,7 +5,7 @@
 // `persona` es la entidad PADRE de empleados, estudiantes, representantes y
 // proveedores, y NO tiene mantenimiento propio: no se crea, edita ni da de baja
 // desde aquí. Sus fichas nacen desde esos módulos, desde los enlaces públicos o
-// desde la PreCarga Inicial, y la escritura vive en api/core/Padron.php.
+// desde la Carga de Información, y la escritura vive en api/core/Padron.php.
 //
 // Este controlador solo lee: listados para elegir persona, la ficha 360° y el
 // combo de opciones.

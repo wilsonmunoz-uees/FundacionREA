@@ -179,7 +179,7 @@ include __DIR__ . '/../includes/layout_top.php';
     <p class="texto-mutado">
         Como no dan de alta a nadie, el padrón debe estar cargado antes de difundirlos: quien no conste
         —o no tenga correo registrado— no puede usarlos. Para poblarlo de una vez está la
-        <strong>PreCarga Inicial</strong>.
+        <strong>Carga de Información</strong>.
     </p>
 
     <p class="texto-mutado">
