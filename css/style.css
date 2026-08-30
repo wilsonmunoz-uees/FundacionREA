@@ -669,27 +669,28 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
     border: 1px solid var(--rea-gris-200);
     box-shadow: var(--sombra-sm);
 }
-table.tabla-datos { width: 100%; border-collapse: collapse; font-size: .87rem; }
+table.tabla-datos { width: 100%; border-collapse: collapse; font-size: .84rem; }
 table.tabla-datos th {
     background: var(--rea-gris-50);
     color: var(--rea-gris-700);
     text-align: left;
-    padding: 12px 16px;
+    padding: 9px 8px;
     font-weight: 700;
-    font-size: .72rem;
+    font-size: .70rem;
     text-transform: uppercase;
-    letter-spacing: .07em;
+    letter-spacing: .03em;
     border-bottom: 1px solid var(--rea-gris-200);
-    white-space: nowrap;
     position: sticky;
     top: 0;
 }
 table.tabla-datos td {
-    padding: 12px 16px;
+    padding: 9px 8px;
     border-bottom: 1px solid var(--rea-gris-100);
     color: var(--rea-gris-800);
     vertical-align: middle;
 }
+table.tabla-datos th:first-child, table.tabla-datos td:first-child { padding-left: 14px; }
+table.tabla-datos th:last-child, table.tabla-datos td:last-child { padding-right: 14px; }
 table.tabla-datos tbody tr { transition: var(--transicion); }
 table.tabla-datos tbody tr:hover { background: var(--rea-gris-50); }
 table.tabla-datos tbody tr:last-child td { border-bottom: none; }

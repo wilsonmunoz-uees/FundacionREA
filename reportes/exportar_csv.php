@@ -33,6 +33,11 @@ if ($entidad !== '' && isset($entidadesPermitidas[$entidad]) && isset($_GET['des
     $encabezados = $datos['encabezados'] ?? [];
     $filas       = $datos['filas'] ?? [];
 
+    if (empty($filas)) {
+        flashSet('advertencia', 'No se encontraron datos para exportar en la entidad seleccionada.');
+        redirigir('exportar_csv.php');
+    }
+
     $nombreArchivo = 'rea_' . $entidad . '_' . date('Ymd_His') . '.csv';
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');

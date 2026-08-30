@@ -46,7 +46,10 @@ function accesosSistema(): array
             'roles'    => ['SuperAdmin'],
             'permisos' => ['ADM_DISCLAIMERS'],
         ],
-        /** Servidor de correo saliente de la institución. */
+        /**
+         * Configuración del correo saliente y enlaces públicos de
+         * consentimiento. Ambas pantallas comparten el mismo permiso.
+         */
         'correo_configuracion' => [
             'etiqueta' => 'Configuración de Correo',
             'roles'    => ['SuperAdmin'],
@@ -54,21 +57,14 @@ function accesosSistema(): array
         ],
 
         /**
-         * Enlaces de Consentimiento: los enlaces públicos que se difunden a
-         * estudiantes, empleados y proveedores. Confirman la identidad con un
-         * código enviado al correo registrado antes de mostrar nada, y no
-         * modifican datos: muestran lo que consta y recogen la decisión.
-         *
-         * Es una opción administrativa: la abren el SuperAdmin y quien tenga el
-         * permiso, que de fábrica lleva el rol administrativo del sistema.
-         *
-         * La clave conserva el nombre `enlaces_verificados` —y el permiso su
-         * código `ADM_ENLACES_VERIF`— porque son identificadores internos ya
-         * repartidos: renombrarlos rompería las asignaciones de rol existentes
-         * sin cambiar nada de lo que el usuario ve.
+         * Links de consentimiento con verificación: los enlaces públicos de
+         * solo consulta que confirman la identidad con un código enviado al
+         * correo registrado. Es una opción administrativa: la abren el
+         * SuperAdmin y quien tenga el permiso, que de fábrica lleva el rol
+         * administrativo del sistema.
          */
         'enlaces_verificados' => [
-            'etiqueta' => 'Enlaces de Consentimiento',
+            'etiqueta' => 'Links de Consentimiento con Verificación',
             'roles'    => ['SuperAdmin', 'Seguridades'],
             'permisos' => ['ADM_ENLACES_VERIF'],
         ],
@@ -175,15 +171,15 @@ function accesosSistema(): array
 
         /* ---------- Reportes ---------- */
         /* REPORTES_EXPORTACION se conserva por compatibilidad. */
+        'reporte_cobertura' => [
+            'etiqueta' => 'Cobertura y Pendientes',
+            'roles'    => ['SuperAdmin'],
+            'permisos' => ['REP_COBERTURA', 'REPORTES_EXPORTACION'],
+        ],
         'reporte_consentimientos' => [
             'etiqueta' => 'Consentimientos por Finalidad',
             'roles'    => ['SuperAdmin'],
             'permisos' => ['REP_CONSENTIMIENTOS', 'REPORTES_EXPORTACION'],
-        ],
-        'reporte_datos_sensibles' => [
-            'etiqueta' => 'Datos Sensibles',
-            'roles'    => ['SuperAdmin'],
-            'permisos' => ['REP_DATOS_SENSIBLES', 'REPORTES_EXPORTACION'],
         ],
         'reporte_titulares' => [
             'etiqueta' => 'Consentimientos por Titular',
@@ -194,6 +190,16 @@ function accesosSistema(): array
             'etiqueta' => 'Bitácora de Auditoría',
             'roles'    => ['SuperAdmin'],
             'permisos' => ['REP_AUDITORIA'],
+        ],
+        'reporte_red_educativa' => [
+            'etiqueta' => 'Red Educativa Multi-Sede',
+            'roles'    => ['SuperAdmin'],
+            'permisos' => ['REP_RED_EDUCATIVA', 'REPORTES_EXPORTACION'],
+        ],
+        'reporte_envios_masivos' => [
+            'etiqueta' => 'Efectividad de Envíos Masivos',
+            'roles'    => ['SuperAdmin'],
+            'permisos' => ['REP_CONSENTIMIENTOS', 'REPORTES_EXPORTACION'],
         ],
         'exportar_csv' => [
             'etiqueta' => 'Exportar CSV',
@@ -239,8 +245,8 @@ function accesosDeSeccion(string $seccion): array
                         'disclaimers', 'correo_configuracion', 'enlaces_verificados',
                         'envio_masivo', 'precarga'],
         'consultas' => ['consulta_buscar_persona', 'consulta_historial', 'consulta_vigentes'],
-        'reportes'  => ['reporte_consentimientos', 'reporte_datos_sensibles', 'reporte_titulares',
-                        'reporte_auditoria', 'exportar_csv'],
+        'reportes'  => ['reporte_cobertura', 'reporte_red_educativa', 'reporte_consentimientos', 'reporte_titulares',
+                        'reporte_auditoria', 'reporte_envios_masivos', 'exportar_csv'],
     ];
     return $secciones[$seccion] ?? [];
 }
