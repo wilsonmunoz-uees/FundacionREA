@@ -123,7 +123,7 @@ $router->get('documento/reglas',       [DocumentoController::class, 'reglas']);
 // --- Personas -----------------------------------------------------------------
 // `persona` es la entidad padre de empleados, estudiantes, representantes y
 // proveedores: NO tiene mantenimiento propio. Solo se lee. Sus fichas se crean
-// desde esos módulos, desde los enlaces públicos o desde la PreCarga Inicial.
+// desde esos módulos, desde los enlaces públicos o desde la Carga de Información.
 $router->get('personas/opciones',      [PersonasController::class, 'opciones']);
 $router->get('personas',               [PersonasController::class, 'index']);
 $router->get('personas/{id}/ficha',    [PersonasController::class, 'ficha']);
@@ -235,9 +235,9 @@ $router->get('envio-masivo/resumen',       [EnvioMasivoController::class, 'resum
 $router->get('envio-masivo/destinatarios', [EnvioMasivoController::class, 'destinatarios']);
 $router->post('envio-masivo/enviar',       [EnvioMasivoController::class, 'enviar']);
 
-// --- PreCarga inicial (solo SuperAdmin) ---------------------------------------------
-$router->post('precarga/previsualizar', [PreCargaController::class, 'previsualizar']);
-$router->post('precarga/procesar',      [PreCargaController::class, 'procesar']);
+// --- Carga de Información (solo SuperAdmin) ------------------------------------------
+$router->post('carga-informacion/previsualizar', [CargaInformacionController::class, 'previsualizar']);
+$router->post('carga-informacion/procesar',      [CargaInformacionController::class, 'procesar']);
 
 // --- Consentimiento público (SIN token: son los enlaces abiertos al titular) ---------
 $router->get('consentimiento-publico/inicio',      [ConsentimientoPublicoController::class, 'inicio']);

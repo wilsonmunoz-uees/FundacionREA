@@ -84,12 +84,14 @@ function accesosSistema(): array
         ],
 
         /**
-         * PreCarga Inicial: encera el padrón de la institución activa y lo
-         * vuelve a poblar desde la plantilla Excel. Por lo delicado de la
-         * operación no tiene permiso asignable: la abre únicamente SuperAdmin.
+         * Carga de Información: incorpora al padrón de la institución activa lo
+         * que trae la plantilla Excel, dando de alta lo que no está y
+         * actualizando lo que sí. Es la única vía de alta de empleados,
+         * estudiantes y proveedores, y por su alcance no tiene permiso
+         * asignable: la abre únicamente SuperAdmin.
          */
-        'precarga' => [
-            'etiqueta' => 'PreCarga Inicial',
+        'carga_informacion' => [
+            'etiqueta' => 'Carga de Información',
             'roles'    => ['SuperAdmin'],
             'permisos' => [],
         ],
@@ -243,7 +245,7 @@ function accesosDeSeccion(string $seccion): array
         'registro'  => ['instituciones', 'empleados', 'estudiantes', 'proveedores',
                         'consentimientos', 'finalidades', 'tipos_dato', 'usuarios', 'roles', 'permisos',
                         'disclaimers', 'correo_configuracion', 'enlaces_verificados',
-                        'envio_masivo', 'precarga'],
+                        'envio_masivo', 'carga_informacion'],
         'consultas' => ['consulta_buscar_persona', 'consulta_historial', 'consulta_vigentes'],
         'reportes'  => ['reporte_cobertura', 'reporte_red_educativa', 'reporte_consentimientos', 'reporte_titulares',
                         'reporte_auditoria', 'reporte_envios_masivos', 'exportar_csv'],

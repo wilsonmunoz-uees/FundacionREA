@@ -96,7 +96,7 @@ INSERT INTO `estudiante` (`InstitucionEducativaId`, `EstudianteId`, `PersonaId`,
 (1, 1, 9, '202598289', 10, 'PADRE', 'ACTIVO'),
 (1, 3, 20, '0921074860', 21, 'REPRESENTANTE LEGAL', 'ACTIVO'),
 (1, 4, 22, '0919127481', 23, 'PADRE', 'ACTIVO'),
-(1, 5, 17, '20260545', 24, 'TIO', 'ACTIVO'),
+(1, 5, 17, '20260545', 24, 'TIO/A', 'ACTIVO'),
 (2, 2, 17, 'EST-2012-001', 9, 'PADRE', 'ACTIVO');
 
 INSERT INTO `usuario` (`InstitucionEducativaId`, `PersonaId`, `UsuarioId`, `Username`, `PasswordHash`, `Email`, `UltimoAcceso`, `Estado`) VALUES

@@ -129,11 +129,11 @@ include __DIR__ . '/includes/layout_top.php';
     </div>
     <?php endif; ?>
 
-    <?php if (puedeAcceder('usuarios') || puedeAcceder('roles') || puedeAcceder('permisos') || puedeAcceder('instituciones') || puedeAcceder('disclaimers') || puedeAcceder('correo_configuracion') || puedeAcceder('enlaces_verificados') || puedeAcceder('envio_masivo') || puedeAcceder('precarga')): ?>
+    <?php if (puedeAcceder('usuarios') || puedeAcceder('roles') || puedeAcceder('permisos') || puedeAcceder('instituciones') || puedeAcceder('disclaimers') || puedeAcceder('correo_configuracion') || puedeAcceder('enlaces_verificados') || puedeAcceder('envio_masivo') || puedeAcceder('carga_informacion')): ?>
     <div class="card-modulo">
         <div class="icono-modulo">🔑</div>
         <h3>Administración</h3>
-        <p>Usuarios, roles, permisos, instituciones, disclaimers, correo, envíos y precarga.</p>
+        <p>Usuarios, roles, permisos, instituciones, disclaimers, correo, envíos y carga de información.</p>
         <ul>
             <?php if (puedeAcceder('usuarios')): ?><li><a href="modules/usuarios.php">Usuarios del Sistema</a></li><?php endif; ?>
             <?php if (puedeAcceder('roles')): ?><li><a href="modules/roles.php">Roles</a></li><?php endif; ?>
@@ -143,7 +143,7 @@ include __DIR__ . '/includes/layout_top.php';
             <?php if (puedeAcceder('correo_configuracion')): ?><li><a href="modules/enlaces_consentimiento.php">Enlaces de Consentimiento</a></li><?php endif; ?>
             <?php if (puedeAcceder('enlaces_verificados')): ?><li><a href="modules/enlaces_verificados.php">Links de Consentimiento con Verificación</a></li><?php endif; ?>
             <?php if (puedeAcceder('envio_masivo')): ?><li><a href="modules/envio_masivo.php">Envío Masivo de Invitaciones</a></li><?php endif; ?>
-            <?php if (puedeAcceder('precarga')): ?><li><a href="modules/precarga_inicial.php">PreCarga Inicial</a></li><?php endif; ?>
+            <?php if (puedeAcceder('carga_informacion')): ?><li><a href="modules/carga_informacion.php">Carga de Información</a></li><?php endif; ?>
         </ul>
     </div>
     <?php endif; ?>

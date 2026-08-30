@@ -95,6 +95,15 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                 <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
             </div>
 
+            <!-- El buscador viene oculto y lo muestra js/buscador_institucion.js:
+                 sin JavaScript el desplegable sigue funcionando por sí solo. -->
+            <div class="form-group" hidden>
+                <label for="buscar_institucion">Buscar institución</label>
+                <input type="text" id="buscar_institucion" hidden autocomplete="off"
+                       placeholder="Escriba parte del nombre…">
+                <div class="form-ayuda" id="institucion_conteo"></div>
+            </div>
+
             <div class="form-group">
                 <label for="institucion_id" class="campo-requerido">Institución Educativa</label>
                 <select name="institucion_id" id="institucion_id" required>
@@ -109,6 +118,8 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
 
             <button type="submit" class="btn btn-submit">Ingresar</button>
         </form>
+
+        <script src="js/buscador_institucion.js" defer></script>
     </div>
 
     <div class="login-footer-nota">
