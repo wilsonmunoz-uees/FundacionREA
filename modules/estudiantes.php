@@ -17,31 +17,29 @@ $relaciones = ['MADRE', 'PADRE', 'REPRESENTANTE LEGAL', 'OTRO'];
 $accion = $_GET['accion'] ?? 'listar';
 $errores = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar'], true)) {
+/* La matrícula se hace por Carga de Información: aquí solo se edita, y solo los
+   datos de contacto del estudiante, los de su representante y el parentesco. */
+if ($accion === 'crear') {
+    flashSet('error', 'La matrícula de estudiantes se realiza desde la opción «Carga de Información».');
+    redirigir('estudiantes.php');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
     if (!csrfValido()) {
         $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
     } else {
-        // Datos del estudiante y de su representante en la misma petición: la
-        // API crea o reutiliza cada ficha (api/core/Padron.php).
-        $datos = datosPersonaDelFormulario()
-               + datosPersonaDelFormulario('rep_')
-               + [
-                   'codigo_estudiante'      => trim($_POST['codigo_estudiante'] ?? ''),
-                   'representante_relacion' => $_POST['representante_relacion'] ?? '',
-                   'estado'                 => $_POST['estado'] ?? 'ACTIVO',
-               ];
-
-        if ($accion === 'crear') {
-            $respuesta = apiPost('estudiantes', $datos);
-            $mensajeOk = 'Estudiante matriculado correctamente.';
-        } else {
-            $id = (int)($_POST['estudiante_id'] ?? 0);
-            $respuesta = apiPut('estudiantes/' . $id, $datos);
-            $mensajeOk = 'Estudiante actualizado correctamente.';
-        }
+        $id = (int)($_POST['estudiante_id'] ?? 0);
+        $respuesta = apiPut('estudiantes/' . $id, [
+            'email'                  => trim($_POST['email'] ?? ''),
+            'telefono'               => trim($_POST['telefono'] ?? ''),
+            'rep_email'              => trim($_POST['rep_email'] ?? ''),
+            'rep_telefono'           => trim($_POST['rep_telefono'] ?? ''),
+            'representante_relacion' => $_POST['representante_relacion'] ?? '',
+            'estado'                 => $_POST['estado'] ?? 'ACTIVO',
+        ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', $mensajeOk);
+            flashSet('exito', 'Estudiante actualizado correctamente.');
             redirigir('estudiantes.php');
         }
         $errores = apiErrores($respuesta);
@@ -100,9 +98,13 @@ include __DIR__ . '/../includes/layout_top.php';
         <h1>🎓 Gestión de Estudiantes</h1>
         <p>Administración de alumnos matriculados y sus representantes legales.</p>
     </div>
-    <div class="flex-gap">
-        <a class="btn btn-primario" href="estudiantes.php?accion=crear">+ Matricular Estudiante</a>
-    </div>
+</div>
+
+<div class="alerta alerta-info">
+    Las matrículas se realizan desde la opción
+    <strong><a href="carga_informacion.php">Carga de Información</a></strong>.
+    Aquí puede corregir el <strong>correo</strong> y el <strong>teléfono</strong> del estudiante
+    y de su representante, el <strong>parentesco</strong> y el <strong>estado</strong>.
 </div>
 
 <?php if ($faltaMigrar): ?>
@@ -120,27 +122,29 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
 <?php endif; ?>
 
-<?php if ($accion === 'crear' || $accion === 'editar'): ?>
+<?php if ($accion === 'editar'): ?>
+    <?php $tieneRepresentante = !empty($registroEditar['RepresentanteId']); ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Matricular Estudiante' : 'Editar Estudiante' ?></h3>
+        <h3>Editar Estudiante</h3>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
-        <form method="POST" action="estudiantes.php?accion=<?= e($accion) ?>">
+        <form method="POST" action="estudiantes.php?accion=editar">
             <?= csrfCampo() ?>
-            <?php if ($accion === 'editar'): ?><input type="hidden" name="estudiante_id" value="<?= e((string)$registroEditar['EstudianteId']) ?>"><?php endif; ?>
+            <input type="hidden" name="estudiante_id" value="<?= e((string)$registroEditar['EstudianteId']) ?>">
 
             <?php
             camposPersona([
-                'titulo'   => 'Datos del estudiante',
-                'registro' => $registroEditar,
-                'correo'   => 'opcional',
+                'titulo'    => 'Datos del estudiante',
+                'registro'  => $registroEditar,
+                'correo'    => 'opcional',
+                'bloqueado' => true,
             ]);
             ?>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="campo-requerido">Código de Estudiante</label>
-                    <input type="text" name="codigo_estudiante" maxlength="20" required
-                           value="<?= e($_POST['codigo_estudiante'] ?? $registroEditar['CodigoEstudiante'] ?? '') ?>">
+                    <label>Código de Estudiante</label>
+                    <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                           value="<?= e($registroEditar['CodigoEstudiante'] ?? '') ?>">
                 </div>
                 <div class="form-group" style="flex:0 1 200px;">
                     <label>Estado</label>
@@ -151,32 +155,39 @@ include __DIR__ . '/../includes/layout_top.php';
                 </div>
             </div>
 
-            <?php
-            camposPersona([
-                'titulo'   => 'Representante legal',
-                'ayuda'    => 'Opcional, pero si lo registra su correo es obligatorio: es la dirección a la '
-                            . 'que llegan los avisos de consentimiento del estudiante. Si el representante ya '
-                            . 'consta en la institución —por representar a un hermano, o por ser empleado—, '
-                            . 'se reutiliza su ficha.',
-                'prefijo'  => 'rep_',
-                'registro' => $registroEditar,
-                'correo'   => 'obligatorio',
-            ]);
-            ?>
+            <?php if ($tieneRepresentante): ?>
+                <?php
+                camposPersona([
+                    'titulo'    => 'Representante legal',
+                    'ayuda'     => 'El correo es la dirección a la que llegan los avisos de consentimiento '
+                                 . 'del estudiante: mantenerlo al día es lo que hace que el consentimiento '
+                                 . 'se pueda recoger.',
+                    'prefijo'   => 'rep_',
+                    'registro'  => $registroEditar,
+                    'correo'    => 'obligatorio',
+                    'bloqueado' => true,
+                ]);
+                ?>
 
-            <div class="form-row">
-                <div class="form-group" style="flex:0 1 260px;">
-                    <label>Relación con el estudiante</label>
-                    <select name="representante_relacion">
-                        <option value="">-- Seleccione --</option>
-                        <?php
-                        $relacionActual = $_POST['representante_relacion'] ?? $registroEditar['RepresentanteRelacion'] ?? '';
-                        foreach ($relaciones as $rel): ?>
-                            <option value="<?= e($rel) ?>" <?= $relacionActual === $rel ? 'selected' : '' ?>><?= e($rel) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group" style="flex:0 1 260px;">
+                        <label>Relación con el estudiante</label>
+                        <select name="representante_relacion">
+                            <option value="">-- Seleccione --</option>
+                            <?php
+                            $relacionActual = $_POST['representante_relacion'] ?? $registroEditar['RepresentanteRelacion'] ?? '';
+                            foreach ($relaciones as $rel): ?>
+                                <option value="<?= e($rel) ?>" <?= $relacionActual === $rel ? 'selected' : '' ?>><?= e($rel) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                 </div>
-            </div>
+            <?php else: ?>
+                <div class="alerta alerta-advertencia">
+                    Este estudiante no tiene representante legal asignado. Asígnelo desde la opción
+                    <strong><a href="carga_informacion.php">Carga de Información</a></strong>.
+                </div>
+            <?php endif; ?>
 
             <div class="flex-gap">
                 <button type="submit" class="btn btn-primario">Guardar</button>

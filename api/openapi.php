@@ -28,8 +28,14 @@ $sobre = static function (array $datos): array {
     ];
 };
 
-/** Envoltura de listado paginado: { ok, datos: [...], meta } */
-$sobreLista = static function (string $ref, array $metaExtra = []): array {
+/**
+ * Envoltura de listado paginado: { ok, datos: [...], meta }
+ *
+ * @param string|array $ref Nombre de un esquema de components/schemas, o el
+ *                          esquema escrito en línea para los listados que no
+ *                          tienen una entidad propia (informes y consultas).
+ */
+$sobreLista = static function ($ref, array $metaExtra = []): array {
     $meta = [
         'type'       => 'object',
         'properties' => array_merge([
@@ -44,7 +50,10 @@ $sobreLista = static function (string $ref, array $metaExtra = []): array {
         'type'       => 'object',
         'properties' => [
             'ok'    => ['type' => 'boolean', 'example' => true],
-            'datos' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/' . $ref]],
+            'datos' => [
+                'type'  => 'array',
+                'items' => is_array($ref) ? $ref : ['$ref' => '#/components/schemas/' . $ref],
+            ],
             'meta'  => $meta,
         ],
     ];
@@ -294,7 +303,7 @@ TXT,
         ['name' => 'Disclaimers',     'description' => 'Textos de política de datos: versión, vigencia y tipo de persona'],
         ['name' => 'Consentimiento Público', 'description' => 'Rutas SIN token de los tres enlaces abiertos de autoservicio'],
         ['name' => 'Verificación Pública', 'description' => 'Rutas SIN token de los enlaces de consentimiento con verificación de identidad'],
-        ['name' => 'PreCarga',        'description' => 'Carga masiva del padrón de la institución desde la plantilla Excel'],
+        ['name' => 'Carga de Información', 'description' => 'Alta y actualización del padrón de la institución desde la plantilla Excel'],
         ['name' => 'Envío Masivo',    'description' => 'Invitaciones por correo al consentimiento con verificación'],
         ['name' => 'Instalación',     'description' => 'Puesta en marcha inicial'],
     ],
@@ -1070,7 +1079,7 @@ $spec['paths'] += $crud([
 /* `persona` es la entidad PADRE de empleados, estudiantes, representantes y
    proveedores, y no tiene mantenimiento propio: no se crea, edita ni da de baja
    por su cuenta. Sus fichas nacen desde esos módulos, desde los enlaces
-   públicos o desde la PreCarga Inicial. Por eso aquí solo hay GET. */
+   públicos o desde la Carga de Información. Por eso aquí solo hay GET. */
 
 $spec['paths']['/personas'] = [
     'get' => [
@@ -1206,6 +1215,35 @@ $spec['paths'] += $crud([
     'acceso'   => 'SuperAdmin',
     'busqueda' => 'Busca por razón social o RUC.',
 ]);
+
+/* Las altas de estos tres módulos están retiradas: ahora entran por «Carga de
+   Información», que valida el archivo completo contra el padrón antes de
+   escribir nada. La ruta POST se conserva para devolver el motivo en vez de un
+   404, y el PUT quedó restringido a los datos que sí cambian con el tiempo. */
+$soloContacto = [
+    'empleados'   => ['El alta de empleados', 'correo, teléfono y estado'],
+    'estudiantes' => ['La matrícula de estudiantes', 'correo y teléfono del estudiante y de su representante, parentesco y estado'],
+    'proveedores' => ['El alta de proveedores', 'correo, teléfono y estado'],
+];
+
+foreach ($soloContacto as $rutaSolo => $detalleSolo) {
+    [$queAlta, $queEdita] = $detalleSolo;
+
+    $spec['paths']['/' . $rutaSolo]['post']['summary']     = 'Alta retirada';
+    $spec['paths']['/' . $rutaSolo]['post']['description'] =
+        "**Retirado.** {$queAlta} se realiza desde `POST /carga-informacion/procesar`. "
+        . "Esta ruta responde siempre **403** con el motivo, para que un cliente antiguo "
+        . "reciba una explicación y no un 404.";
+    unset($spec['paths']['/' . $rutaSolo]['post']['responses']['201']);
+    unset($spec['paths']['/' . $rutaSolo]['post']['responses']['409']);
+
+    $spec['paths']['/' . $rutaSolo . '/{id}']['put']['summary']      = 'Actualizar datos de contacto';
+    $spec['paths']['/' . $rutaSolo . '/{id}']['put']['description'] .=
+        "\n\n**Edición restringida.** Solo se aceptan {$queEdita}. La identificación, el tipo de "
+        . "documento y los nombres se leen de la ficha grabada y se ignora lo que venga en el "
+        . "cuerpo: son los datos que trajo la Carga de Información.";
+}
+
 
 /* ---------- Consentimientos ---------- */
 
@@ -2149,17 +2187,17 @@ $spec['paths']['/setup/admin'] = [
 
 
 /* --------------------------------------------------------------------------
-   PreCarga inicial (solo SuperAdmin)
+   Carga de Información (solo SuperAdmin)
    -------------------------------------------------------------------------- */
 
-$precargaEntrada = [
+$cargaEntrada = [
     'required'   => ['archivo_base64'],
     'type'       => 'object',
     'properties' => [
         'nombre_archivo' => [
             'type'        => 'string',
             'description' => 'Nombre original del archivo, solo para mostrarlo y registrarlo en la bitácora.',
-            'example'     => 'precarga_inicial_rea.xlsx',
+            'example'     => 'carga_informacion_rea.xlsx',
         ],
         'archivo_base64' => [
             'type'        => 'string',
@@ -2169,12 +2207,21 @@ $precargaEntrada = [
     ],
 ];
 
-$spec['paths']['/precarga/previsualizar'] = [
+/** Altas y actualizaciones de una de las cuatro tablas del padrón. */
+$cargaDesglose = [
+    'type'       => 'object',
+    'properties' => [
+        'altas'           => ['type' => 'integer'],
+        'actualizaciones' => ['type' => 'integer'],
+    ],
+];
+
+$spec['paths']['/carga-informacion/previsualizar'] = [
     'post' => [
-        'tags' => ['PreCarga'], 'summary' => 'Validar la plantilla sin tocar la base',
-        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga entra ACTIVO**. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
-        'operationId' => 'previsualizarPreCarga',
-        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $precargaEntrada]]],
+        'tags' => ['Carga de Información'], 'summary' => 'Validar la plantilla sin tocar la base',
+        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el desglose de cuántas filas serían altas y cuántas actualizaciones.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga queda ACTIVO**, incluso lo que estuviera inactivo y vuelva a venir en el archivo. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'operationId' => 'previsualizarCargaInformacion',
+        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $cargaEntrada]]],
         'responses' => $erroresComunes([
             '200' => $respuesta('Resultado de la validación.', $sobre([
                 'type'       => 'object',
@@ -2194,18 +2241,24 @@ $spec['paths']['/precarga/previsualizar'] = [
                     'errores'        => ['type' => 'array', 'items' => ['type' => 'string'], 'example' => ['Hoja Empleados, fila 5: faltan los nombres o los apellidos.']],
                     'advertencias'   => ['type' => 'array', 'items' => ['type' => 'string']],
                     'puede_procesar' => ['type' => 'boolean', 'description' => 'true solo si no hay errores y hay al menos una fila.'],
-                    'se_eliminara'   => [
-                        'type'       => 'object',
-                        'description' => 'Registros que hoy tiene la institución y que la carga eliminaría.',
-                        'properties' => [
-                            'empleados'            => ['type' => 'integer'],
-                            'estudiantes'          => ['type' => 'integer'],
-                            'proveedores'          => ['type' => 'integer'],
-                            'consentimientos'      => ['type' => 'integer'],
-                            'historial'            => ['type' => 'integer'],
-                            'personas'             => ['type' => 'integer'],
-                            'personas_con_usuario' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque tienen cuenta de usuario.'],
-                            'personas_en_otra_institucion' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque otra institución todavía las tiene vinculadas (empleado, estudiante, representante, proveedor o consentimiento). Solo aparecen en bases que vienen de cuando el padrón era global.'],
+                    'impacto'        => [
+                        'type'        => 'object',
+                        'description' => 'Qué haría la carga con cada tabla del padrón: cuántas filas del archivo no constan todavía (altas) y cuántas sí (actualizaciones).',
+                        'properties'  => [
+                            'personas'    => $cargaDesglose,
+                            'empleados'   => $cargaDesglose,
+                            'estudiantes' => $cargaDesglose,
+                            'proveedores' => $cargaDesglose,
+                        ],
+                    ],
+                    'inventario'     => [
+                        'type'        => 'object',
+                        'description' => 'Lo que la institución tiene hoy, para poder comparar. Nada de esto se elimina.',
+                        'properties'  => [
+                            'personas'    => ['type' => 'integer'],
+                            'empleados'   => ['type' => 'integer'],
+                            'estudiantes' => ['type' => 'integer'],
+                            'proveedores' => ['type' => 'integer'],
                         ],
                     ],
                 ],
@@ -2215,18 +2268,18 @@ $spec['paths']['/precarga/previsualizar'] = [
     ],
 ];
 
-$spec['paths']['/precarga/procesar'] = [
+$spec['paths']['/carga-informacion/procesar'] = [
     'post' => [
-        'tags' => ['PreCarga'], 'summary' => 'Encerar la institución y cargar la plantilla',
-        'description' => "**Operación destructiva e irreversible.** Elimina los datos de la institución del token y los reemplaza por los del archivo, todo dentro de una sola transacción: o entra completo, o no entra nada.\n\nRepite la validación de `/precarga/previsualizar` y solo actúa si el archivo está limpio y el cuerpo trae `confirmacion` con el texto exacto `ENCERAR Y CARGAR`.\n\n**Se elimina** (solo de la institución activa): consentimientos con su historial y detalle, empleados, estudiantes, proveedores y las personas que queden sin ningún vínculo.\n\n**No se toca:** usuarios, roles, permisos, catálogos, disclaimers, configuración de correo, las personas con cuenta de usuario ni los datos de otras instituciones.\n\nDeja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** solo el rol SuperAdmin.",
-        'operationId' => 'procesarPreCarga',
+        'tags' => ['Carga de Información'], 'summary' => 'Aplicar la plantilla sobre el padrón',
+        'description' => "Carga **diferencial**: incorpora el archivo al padrón de la institución del token sin eliminar nada. Lo que no consta se da de alta; lo que ya consta se actualiza. Todo dentro de una sola transacción: o entra completo, o no entra nada.\n\nRepite la validación de `/carga-informacion/previsualizar` y solo actúa si el archivo está limpio y el cuerpo trae `confirmacion` con el texto exacto `CARGAR INFORMACION`.\n\n**Se escribe** (solo en la institución activa): `persona`, `empleado`, `estudiante` y `proveedor`. Una celda vacía nunca borra lo ya grabado, y quien no aparezca en el archivo queda como está.\n\n**No se toca:** consentimientos ni su historial —siguen siendo válidos, la persona es la misma—, usuarios, roles, permisos, catálogos, disclaimers, configuración de correo ni los datos de otras instituciones.\n\nDeja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'operationId' => 'procesarCargaInformacion',
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
             'required'   => ['archivo_base64', 'confirmacion'],
             'type'       => 'object',
-            'properties' => $precargaEntrada['properties'] + [
+            'properties' => $cargaEntrada['properties'] + [
                 'confirmacion' => [
                     'type'        => 'string',
-                    'enum'        => ['ENCERAR Y CARGAR'],
+                    'enum'        => ['CARGAR INFORMACION'],
                     'description' => 'Confirmación explícita del usuario. Sin ella la operación se rechaza.',
                 ],
             ],
@@ -2235,27 +2288,15 @@ $spec['paths']['/precarga/procesar'] = [
             '200' => $respuesta('Carga ejecutada.', $sobre([
                 'type'       => 'object',
                 'properties' => [
-                    'mensaje'   => ['type' => 'string', 'example' => 'PreCarga ejecutada correctamente.'],
-                    'archivo'   => ['type' => 'string'],
-                    'eliminado' => [
+                    'mensaje'  => ['type' => 'string', 'example' => 'Carga de Información ejecutada correctamente.'],
+                    'archivo'  => ['type' => 'string'],
+                    'aplicado' => [
                         'type'       => 'object',
                         'properties' => [
-                            'historial'            => ['type' => 'integer'],
-                            'consentimiento_datos' => ['type' => 'integer'],
-                            'consentimientos'      => ['type' => 'integer'],
-                            'estudiantes'          => ['type' => 'integer'],
-                            'empleados'            => ['type' => 'integer'],
-                            'proveedores'          => ['type' => 'integer'],
-                            'personas'             => ['type' => 'integer'],
-                        ],
-                    ],
-                    'cargado' => [
-                        'type'       => 'object',
-                        'properties' => [
-                            'personas'    => ['type' => 'integer'],
-                            'empleados'   => ['type' => 'integer'],
-                            'estudiantes' => ['type' => 'integer'],
-                            'proveedores' => ['type' => 'integer'],
+                            'personas'    => $cargaDesglose,
+                            'empleados'   => $cargaDesglose,
+                            'estudiantes' => $cargaDesglose,
+                            'proveedores' => $cargaDesglose,
                         ],
                     ],
                 ],

@@ -28,6 +28,13 @@
  *         'registro' => $registroEditar,
  *         'correo'   => 'obligatorio',
  *     ]);
+ *
+ * NOTA: desde que las altas se hacen por Carga de Información, los tres módulos
+ * que usan este bloque lo piden con `bloqueado => true`. El modo editable —y con
+ * él reglasDocumento(), scriptDocumento() y datosPersonaDelFormulario()— se
+ * conserva completo porque es la contraparte natural del bloqueado y porque el
+ * endpoint `documento/reglas` que lo alimenta sigue publicado; si alguna vez se
+ * vuelve a habilitar un alta individual, basta con omitir esa opción.
  * -----------------------------------------------------------------------------
  */
 
@@ -81,15 +88,27 @@ function scriptDocumento(): void
 }
 
 /**
- * @param array $opciones titulo, ayuda, prefijo, registro, correo, documento
+ * @param array $opciones titulo, ayuda, prefijo, registro, correo, documento,
+ *                        bloqueado
+ *
+ * `bloqueado` deja la identidad —tipo de documento, identificación, nombres y
+ * apellidos— en solo lectura, y mantiene editables únicamente el correo y el
+ * teléfono. Es el modo de los módulos cuyas altas se hacen por Carga de
+ * Información: allí esos datos son los del archivo, y corregirlos aquí, ficha a
+ * ficha, los dejaría fuera de sincronía con la próxima carga.
+ *
+ * Los campos bloqueados se dibujan SIN atributo `name`: no viajan en el POST.
+ * La API tampoco los acepta —los lee de la ficha grabada—, de modo que quitar el
+ * `readonly` desde el navegador no cambia nada.
  */
 function camposPersona(array $opciones): void
 {
-    $prefijo  = $opciones['prefijo'] ?? '';
-    $registro = $opciones['registro'] ?? null;
-    $titulo   = $opciones['titulo'] ?? 'Datos personales';
-    $ayuda    = $opciones['ayuda'] ?? '';
-    $correo   = ($opciones['correo'] ?? 'opcional') === 'obligatorio';
+    $prefijo   = $opciones['prefijo'] ?? '';
+    $registro  = $opciones['registro'] ?? null;
+    $titulo    = $opciones['titulo'] ?? 'Datos personales';
+    $ayuda     = $opciones['ayuda'] ?? '';
+    $correo    = ($opciones['correo'] ?? 'opcional') === 'obligatorio';
+    $bloqueado = !empty($opciones['bloqueado']);
 
     /* Los datos del representante llegan con las columnas prefijadas Rep* en la
        consulta de la API (RepNombres, RepEmail...), mientras que los del titular
@@ -108,17 +127,45 @@ function camposPersona(array $opciones): void
     $tipoActual = $valor('tipo_identificacion', 'TipoIdentificacion') ?: 'CEDULA';
 
     /* Reglas del documento —qué caracteres admite cada tipo y hasta dónde llega
-       la columna de la base—, pedidas a la API para no duplicarlas aquí. */
-    $reglas = reglasDocumento($opciones['documento'] ?? 'persona');
+       la columna de la base—, pedidas a la API para no duplicarlas aquí. Con la
+       identidad bloqueada no hacen falta: nada se escribe. */
+    $reglas  = $bloqueado ? [] : reglasDocumento($opciones['documento'] ?? 'persona');
     $idCampo = $prefijo . 'identificacion';
     ?>
-    <fieldset class="bloque-persona">
+    <fieldset class="bloque-persona<?= $bloqueado ? ' bloque-persona-bloqueado' : '' ?>">
         <legend><?= e($titulo) ?></legend>
 
         <?php if ($ayuda !== ''): ?>
             <p class="form-ayuda bloque-persona-ayuda"><?= e($ayuda) ?></p>
         <?php endif; ?>
 
+        <?php if ($bloqueado): ?>
+        <div class="form-row">
+            <div class="form-group" style="flex:0 1 170px;">
+                <label>Tipo de documento</label>
+                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                       value="<?= e($tipos[$tipoActual] ?? $tipoActual) ?>">
+            </div>
+            <div class="form-group" style="flex:1 1 200px;">
+                <label>Identificación</label>
+                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                       value="<?= e($valor('identificacion', 'Identificacion')) ?>">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nombres</label>
+                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                       value="<?= e($valor('nombres', 'Nombres')) ?>">
+            </div>
+            <div class="form-group">
+                <label>Apellidos</label>
+                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                       value="<?= e($valor('apellidos', 'Apellidos')) ?>">
+            </div>
+        </div>
+        <?php else: ?>
         <div class="form-row">
             <div class="form-group" style="flex:0 1 170px;">
                 <label for="<?= e($prefijo) ?>tipo_identificacion">Tipo de documento</label>
@@ -157,6 +204,7 @@ function camposPersona(array $opciones): void
                        maxlength="100" required value="<?= e($valor('apellidos', 'Apellidos')) ?>">
             </div>
         </div>
+        <?php endif; ?>
 
         <div class="form-row">
             <div class="form-group">
@@ -176,9 +224,46 @@ function camposPersona(array $opciones): void
                        maxlength="20" value="<?= e($valor('telefono', 'Telefono')) ?>">
             </div>
         </div>
+
+        <?php if ($bloqueado): ?>
+            <p class="form-ayuda">
+                🔒 La identificación y el nombre provienen de la
+                <strong>Carga de Información</strong> y no se editan aquí. Corríjalos en el archivo
+                y vuelva a cargarlo.
+            </p>
+        <?php endif; ?>
     </fieldset>
     <?php
-    scriptDocumento();
+    if (!$bloqueado) {
+        scriptDocumento();
+    }
+    estiloCamposBloqueados();
+}
+
+/** Estilo de los campos de solo lectura. Se imprime una sola vez por página. */
+function estiloCamposBloqueados(): void
+{
+    static $impreso = false;
+
+    if ($impreso) {
+        return;
+    }
+    $impreso = true;
+    ?>
+    <style>
+    .campo-bloqueado {
+        background: #f1f3f6;
+        color: #55606f;
+        border-style: dashed;
+        cursor: default;
+    }
+    .campo-bloqueado:focus { outline: none; box-shadow: none; }
+    .bloque-persona-bloqueado > legend::after {
+        content: ' 🔒';
+        font-size: .85em;
+    }
+    </style>
+    <?php
 }
 
 /**

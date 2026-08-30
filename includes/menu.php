@@ -23,7 +23,7 @@ $archivosRegistro = [
     'proveedores.php', 'finalidades.php', 'tipos_dato.php', 'consentimientos.php',
     'usuarios.php', 'roles.php', 'permisos.php',
     'disclaimers.php', 'correo_configuracion.php', 'enlaces_consentimiento.php',
-    'enlaces_verificados.php', 'envio_masivo.php', 'precarga_inicial.php',
+    'enlaces_verificados.php', 'envio_masivo.php', 'carga_informacion.php',
 ];
 $archivosConsultas = ['buscar_persona.php', 'historial_consentimientos.php', 'consentimientos_vigentes.php'];
 $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
@@ -129,9 +129,9 @@ $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
                         <span class="icono">📨</span> Envío Masivo
                     </a>
                     <?php endif; ?>
-                    <?php if (puedeAcceder('precarga')): ?>
-                    <a class="nav-link<?= esActivo('precarga_inicial.php') ?>" href="<?= e(APP_ROOT) ?>modules/precarga_inicial.php">
-                        <span class="icono">📥</span> PreCarga Inicial
+                    <?php if (puedeAcceder('carga_informacion')): ?>
+                    <a class="nav-link<?= esActivo('carga_informacion.php') ?>" href="<?= e(APP_ROOT) ?>modules/carga_informacion.php">
+                        <span class="icono">📥</span> Carga de Información
                     </a>
                     <?php endif; ?>
                 </div>
