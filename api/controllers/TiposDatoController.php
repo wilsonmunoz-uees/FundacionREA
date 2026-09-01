@@ -4,6 +4,18 @@
 
 final class TiposDatoController extends Controller
 {
+    /**
+     * Categorías admitidas, las mismas que declara el enum de la columna.
+     *
+     * PERSONAL  el dato identifica o describe a la persona
+     * PUBLICO   consta ya en una fuente de acceso público
+     * OPCIONAL  se recoge solo si el titular quiere entregarlo
+     */
+    public const CATEGORIAS = ['PERSONAL', 'PUBLICO', 'OPCIONAL'];
+
+    /** Con la que se queda un valor que no reconoce: la más protectora. */
+    public const CATEGORIA_POR_DEFECTO = 'PERSONAL';
+
     private const ROLES = ['SuperAdmin'];
     /** Clave en includes/accesos.php: define qué permisos abren este recurso. */
     private const MODULO = 'tipos_dato';
@@ -28,7 +40,7 @@ final class TiposDatoController extends Controller
 
         $datos = $this->consultar("SELECT * $where ORDER BY Nombre LIMIT $offset, $porPagina", $params);
 
-        Response::lista($datos, $total, $pagina, $porPagina);
+        Response::lista($datos, $total, $pagina, $porPagina, ['categorias' => self::CATEGORIAS]);
     }
 
     /** GET /api/tipos-dato/{id} */
@@ -134,8 +146,23 @@ final class TiposDatoController extends Controller
         return [
             'codigo'      => $codigo,
             'nombre'      => $nombre,
-            'categoria'   => $this->peticion->texto('categoria'),
+            'categoria'   => $this->categoria($this->peticion->texto('categoria')),
             'es_sensible' => strtoupper($this->peticion->texto('es_sensible', 'NO')) === 'SI' ? 'SI' : 'NO',
         ];
+    }
+
+    /**
+     * Deja la categoría en uno de los tres valores que admite la columna.
+     *
+     * Antes era texto libre y cada quien escribía lo suyo —«Contacto»,
+     * «contacto», «Datos de contacto»—, con lo que la clasificación no servía
+     * para agrupar nada. Ante algo que no reconoce se queda con PERSONAL: si no
+     * consta que un dato sea público, se trata como personal.
+     */
+    private function categoria(string $valor): string
+    {
+        $valor = mb_strtoupper(trim($valor));
+
+        return in_array($valor, self::CATEGORIAS, true) ? $valor : self::CATEGORIA_POR_DEFECTO;
     }
 }

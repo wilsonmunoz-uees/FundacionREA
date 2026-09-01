@@ -58,6 +58,7 @@ $flash = flashGet();
                     <?= e(implode(', ', $_SESSION['roles'] ?? [])) ?>
                 </div>
                 <div class="avatar-usuario"><?= e(iniciales($_SESSION['username'] ?? '?')) ?></div>
+                <a href="<?= e(APP_ROOT) ?>cambiar_clave.php" class="logout-btn" title="Cambiar mi contraseña">Contraseña</a>
                 <a href="<?= e(APP_ROOT) ?>logout.php" class="logout-btn" title="Cerrar sesión">Salir</a>
             </div>
         </header>

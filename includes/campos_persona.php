@@ -56,19 +56,47 @@ function reglasDocumento(string $contexto = 'persona'): array
         return $cache[$contexto];
     }
 
-    $reglas = apiDatos(apiGet('documento/reglas', ['contexto' => $contexto]), []);
+    $respuesta = apiGet('documento/reglas', ['contexto' => $contexto]);
+    $reglas    = apiDatos($respuesta, []);
 
-    /* Si la API no responde, el formulario sigue siendo usable: se cae al
-       criterio del DDL. El servidor valida igual al guardar. */
+    /* Si la API no responde, el formulario sigue siendo usable: se cae a las
+       reglas del país, que son las mismas que aplica el servidor al guardar. */
     if (!$reglas) {
         $reglas = [
-            'CEDULA'    => ['patron' => '[^0-9]',      'maximo' => 50, 'ayuda' => 'Solo números, sin guiones ni espacios.'],
-            'RUC'       => ['patron' => '[^0-9]',      'maximo' => 50, 'ayuda' => 'Solo números, sin guiones ni espacios.'],
-            'PASAPORTE' => ['patron' => '[^0-9A-Za-z]','maximo' => 50, 'ayuda' => 'Letras y números, sin guiones ni espacios.'],
+            'CEDULA'    => ['patron' => '[^0-9]',       'maximo' => 10, 'ayuda' => 'Solo números, sin guiones ni espacios. Máximo 10 dígitos.'],
+            'RUC'       => ['patron' => '[^0-9]',       'maximo' => 13, 'ayuda' => 'Solo números, sin guiones ni espacios. Máximo 13 dígitos.'],
+            'PASAPORTE' => ['patron' => '[^0-9A-Za-z]', 'maximo' => 50, 'ayuda' => 'Letras y números, sin guiones ni espacios.'],
         ];
     }
 
     return $cache[$contexto] = $reglas;
+}
+
+/**
+ * Reglas del teléfono, que la API publica junto con las del documento.
+ *
+ * @return array{patron:string, maximo:int, ayuda:string}
+ */
+function reglasTelefono(): array
+{
+    static $cache = null;
+
+    if ($cache !== null) {
+        return $cache;
+    }
+
+    $meta = apiMeta(apiGet('documento/reglas'), 'telefono', []);
+
+    if (!is_array($meta) || !isset($meta['patron'])) {
+        $meta = [
+            'patron' => '^\\+?[0-9]{7,15}$',
+            'maximo' => 16,
+            'ayuda'  => 'Solo números, con un + opcional al inicio para el prefijo internacional. '
+                      . 'Máximo 16 caracteres.',
+        ];
+    }
+
+    return $cache = $meta;
 }
 
 /**
@@ -130,7 +158,10 @@ function camposPersona(array $opciones): void
        la columna de la base—, pedidas a la API para no duplicarlas aquí. Con la
        identidad bloqueada no hacen falta: nada se escribe. */
     $reglas  = $bloqueado ? [] : reglasDocumento($opciones['documento'] ?? 'persona');
-    $idCampo = $prefijo . 'identificacion';
+    /* El teléfono se captura siempre, también con la identidad bloqueada: es de
+       los dos campos que estas pantallas sí pueden corregir. */
+    $reglasTel = reglasTelefono();
+    $idCampo   = $prefijo . 'identificacion';
     ?>
     <fieldset class="bloque-persona<?= $bloqueado ? ' bloque-persona-bloqueado' : '' ?>">
         <legend><?= e($titulo) ?></legend>
@@ -143,12 +174,12 @@ function camposPersona(array $opciones): void
         <div class="form-row">
             <div class="form-group" style="flex:0 1 170px;">
                 <label>Tipo de documento</label>
-                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                <input type="text" class="campo-bloqueado" disabled
                        value="<?= e($tipos[$tipoActual] ?? $tipoActual) ?>">
             </div>
             <div class="form-group" style="flex:1 1 200px;">
                 <label>Identificación</label>
-                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                <input type="text" class="campo-bloqueado" disabled
                        value="<?= e($valor('identificacion', 'Identificacion')) ?>">
             </div>
         </div>
@@ -156,12 +187,12 @@ function camposPersona(array $opciones): void
         <div class="form-row">
             <div class="form-group">
                 <label>Nombres</label>
-                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                <input type="text" class="campo-bloqueado" disabled
                        value="<?= e($valor('nombres', 'Nombres')) ?>">
             </div>
             <div class="form-group">
                 <label>Apellidos</label>
-                <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                <input type="text" class="campo-bloqueado" disabled
                        value="<?= e($valor('apellidos', 'Apellidos')) ?>">
             </div>
         </div>
@@ -213,15 +244,25 @@ function camposPersona(array $opciones): void
                 </label>
                 <input type="email" name="<?= e($prefijo) ?>email" id="<?= e($prefijo) ?>email"
                        maxlength="150" <?= $correo ? 'required' : '' ?>
+                       autocomplete="email" spellcheck="false"
+                       pattern="[^@\s]+@[^@\s]+\.[A-Za-z]{2,}"
+                       title="Escriba una dirección con la forma nombre@dominio"
                        value="<?= e($valor('email', 'Email')) ?>">
-                <?php if ($correo): ?>
-                    <div class="form-ayuda">Es la dirección a la que llegan los avisos de consentimiento.</div>
-                <?php endif; ?>
+                <div class="form-ayuda">
+                    <?= $correo
+                        ? 'Es la dirección a la que llegan los avisos de consentimiento.'
+                        : 'Con la forma nombre@dominio. Es la dirección a la que llega el aviso de consentimiento.' ?>
+                </div>
             </div>
             <div class="form-group">
                 <label for="<?= e($prefijo) ?>telefono">Teléfono</label>
-                <input type="text" name="<?= e($prefijo) ?>telefono" id="<?= e($prefijo) ?>telefono"
-                       maxlength="20" value="<?= e($valor('telefono', 'Telefono')) ?>">
+                <input type="tel" name="<?= e($prefijo) ?>telefono" id="<?= e($prefijo) ?>telefono"
+                       maxlength="<?= (int)$reglasTel['maximo'] ?>" inputmode="tel" autocomplete="tel"
+                       pattern="<?= e($reglasTel['patron']) ?>"
+                       title="<?= e($reglasTel['ayuda']) ?>"
+                       data-telefono="1"
+                       value="<?= e($valor('telefono', 'Telefono')) ?>">
+                <div class="form-ayuda"><?= e($reglasTel['ayuda']) ?></div>
             </div>
         </div>
 
@@ -237,33 +278,6 @@ function camposPersona(array $opciones): void
     if (!$bloqueado) {
         scriptDocumento();
     }
-    estiloCamposBloqueados();
-}
-
-/** Estilo de los campos de solo lectura. Se imprime una sola vez por página. */
-function estiloCamposBloqueados(): void
-{
-    static $impreso = false;
-
-    if ($impreso) {
-        return;
-    }
-    $impreso = true;
-    ?>
-    <style>
-    .campo-bloqueado {
-        background: #f1f3f6;
-        color: #55606f;
-        border-style: dashed;
-        cursor: default;
-    }
-    .campo-bloqueado:focus { outline: none; box-shadow: none; }
-    .bloque-persona-bloqueado > legend::after {
-        content: ' 🔒';
-        font-size: .85em;
-    }
-    </style>
-    <?php
 }
 
 /**

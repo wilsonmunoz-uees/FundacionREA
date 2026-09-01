@@ -438,7 +438,6 @@ $spec['components'] = [
                 'nombre'          => ['type' => 'string', 'example' => 'Unidad Educativa San José'],
                 'direccion'       => ['type' => 'string'],
                 'telefono'        => ['type' => 'string'],
-                'nombre_logotipo' => ['type' => 'string', 'nullable' => true],
                 'estado'          => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO']],
             ],
         ],
@@ -451,7 +450,6 @@ $spec['components'] = [
                 'nombre'          => ['type' => 'string', 'maxLength' => 50],
                 'direccion'       => ['type' => 'string', 'maxLength' => 100],
                 'telefono'        => ['type' => 'string', 'maxLength' => 20],
-                'nombre_logotipo' => ['type' => 'string', 'nullable' => true],
                 'estado'          => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO'], 'default' => 'ACTIVO'],
             ],
         ],
@@ -1267,14 +1265,10 @@ $spec['paths']['/consentimientos'] = [
     ],
     'post' => [
         'tags'        => ['Consentimientos'],
-        'summary'     => 'Registrar consentimiento',
-        'description' => "Crea el consentimiento, guarda el detalle de tipos de dato autorizados y registra la acción `CREACION` en la bitácora. Todo dentro de una transacción.\n\n**Acceso:** " . $accesoConsentimientos,
+        'summary'     => 'Alta retirada',
+        'description' => "**Retirado.** El consentimiento lo otorga el titular desde su enlace público, que confirma su identidad y deja constancia de fecha, hora, dirección de origen y versión de la política aceptada.\n\nRegistrarlo a mano dejaba en la base una autorización que el sistema no podía acreditar: si después se pregunta quién consintió y cómo, no hay respuesta. Esta ruta responde siempre **403** con el motivo.\n\n**Acceso:** " . $accesoConsentimientos,
         'operationId' => 'crearConsentimiento',
-        'requestBody' => $cuerpo('ConsentimientoEntrada'),
-        'responses'   => $erroresComunes([
-            '201' => $respuestaEscritura('Consentimiento registrado.', 'ConsentimientoId'),
-            '422' => ['$ref' => '#/components/responses/ErrorValidacion'],
-        ]),
+        'responses'   => $erroresComunes([]),
     ],
 ];
 
@@ -1304,28 +1298,29 @@ $spec['paths']['/consentimientos/{id}'] = [
     ],
     'put' => [
         'tags'        => ['Consentimientos'],
-        'summary'     => 'Actualizar consentimiento',
-        'description' => "Reescribe el detalle de tipos autorizados y registra `MODIFICACION` en la bitácora.\n\n**Acceso:** " . $accesoConsentimientos,
+        'summary'     => 'Edición retirada',
+        'description' => "**Retirado.** Un consentimiento otorgado es un hecho con fecha y constancia: no se edita. Si cambió lo que el titular autoriza, lo que corresponde es que vuelva a pronunciarse desde su enlace, no que alguien reescriba lo que dijo.\n\nLo único que puede hacerse sobre él es revocarlo, y eso queda en el historial. Esta ruta responde siempre **403** con el motivo.\n\n**Acceso:** " . $accesoConsentimientos,
         'operationId' => 'actualizarConsentimiento',
         'parameters'  => [['$ref' => '#/components/parameters/IdRuta']],
-        'requestBody' => $cuerpo('ConsentimientoEntrada'),
-        'responses'   => $erroresComunes([
-            '200' => $respuestaEscritura('Consentimiento actualizado.', 'ConsentimientoId'),
-            '404' => ['$ref' => '#/components/responses/NoEncontrado'],
-            '422' => ['$ref' => '#/components/responses/ErrorValidacion'],
-        ]),
+        'responses'   => $erroresComunes([]),
     ],
 ];
 
+/* Las dos únicas escrituras que quedan sobre un consentimiento, y ambas
+   reservadas al SuperAdmin: dejan sin efecto —o restituyen— una autorización del
+   titular. Reactivar ya no se ofrece en la pantalla; la ruta se conserva para
+   deshacer una revocación hecha por error. */
+$accesoRevocacion = 'solo el rol SuperAdmin';
+
 foreach ([
     'revocar'   => ['Revocar consentimiento', 'Marca el consentimiento como INACTIVO, sella `FechaRevocacion` y registra `REVOCACION`.', 'INACTIVO'],
-    'reactivar' => ['Reactivar consentimiento', 'Devuelve el consentimiento a ACTIVO, limpia `FechaRevocacion` y registra `REACTIVACION`.', 'ACTIVO'],
+    'reactivar' => ['Reactivar consentimiento', 'Devuelve el consentimiento a ACTIVO, limpia `FechaRevocacion` y registra `REACTIVACION`. No se ofrece en la pantalla: restituir la vigencia es una decisión del titular, que debe volver a otorgarlo desde su enlace. Se conserva para deshacer una revocación hecha por error.', 'ACTIVO'],
 ] as $accion => [$resumen, $descripcion, $estadoFinal]) {
     $spec['paths']['/consentimientos/{id}/' . $accion] = [
         'post' => [
             'tags'        => ['Consentimientos'],
             'summary'     => $resumen,
-            'description' => $descripcion . "\n\n**Acceso:** " . $accesoConsentimientos,
+            'description' => $descripcion . "\n\n**Acceso:** " . $accesoRevocacion,
             'operationId' => $accion . 'Consentimiento',
             'parameters'  => [['$ref' => '#/components/parameters/IdRuta']],
             'requestBody' => [

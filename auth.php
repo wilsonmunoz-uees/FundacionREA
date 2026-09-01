@@ -131,6 +131,16 @@ function requireLogin(): void {
         header('Location: ' . $prefijo . 'login.php');
         exit;
     }
+
+    /* Contraseña temporal todavía puesta: la sesión existe, pero no sirve para
+       nada más que cambiarla. Se comprueba aquí, en el único sitio por el que
+       pasan todas las pantallas, para que no haya ninguna puerta lateral. */
+    if (!empty($_SESSION['debe_cambiar_clave'])
+        && basename($_SERVER['SCRIPT_NAME'] ?? '') !== 'cambiar_clave.php') {
+        $prefijo = defined('APP_ROOT') ? APP_ROOT : '';
+        header('Location: ' . $prefijo . 'cambiar_clave.php');
+        exit;
+    }
 }
 
 /**
@@ -185,6 +195,9 @@ function procesarLogin(string $username, string $password, string $institucion) 
     // (solo ocurre con el SuperAdmin, que entra en todas).
     $_SESSION['institucion_propia'] = $usuario['institucion_propia'] ?? $usuario['institucion_id'];
     $_SESSION['institucion_visita'] = !empty($usuario['visita']);
+    /* Entró con la contraseña temporal que le envió el sistema: hasta que fije
+       la suya, requireLogin() lo devuelve a la pantalla de cambio. */
+    $_SESSION['debe_cambiar_clave'] = !empty($usuario['debe_cambiar_clave']);
 
     return true;
 }

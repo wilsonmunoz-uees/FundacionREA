@@ -104,6 +104,9 @@ $router->get('estado', static function (): void {
 // --- Autenticación -----------------------------------------------------------
 $router->post('auth/login',  [AuthController::class, 'login']);
 $router->post('auth/logout', [AuthController::class, 'logout']);
+// La fija su propio dueño: exige la contraseña vigente, y es el único camino
+// para quitarse la clave temporal que envió el sistema.
+$router->post('auth/cambiar-clave', [AuthController::class, 'cambiarClave']);
 $router->get('auth/me',      [AuthController::class, 'me']);
 $router->get('auth/permiso', [AuthController::class, 'permiso']);
 

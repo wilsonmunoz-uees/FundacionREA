@@ -6,14 +6,17 @@
  *
  * Qué se acepta según el tipo:
  *
- *   CEDULA     solo dígitos
- *   RUC        solo dígitos
+ *   CEDULA     solo dígitos, hasta 10
+ *   RUC        solo dígitos, hasta 13
  *   PASAPORTE  letras y dígitos (los pasaportes extranjeros los mezclan)
  *
- * El largo máximo NO se inventa aquí: se lee de la propia base de datos, de la
- * columna donde el valor va a terminar guardado. Así el formulario nunca deja
- * escribir algo que la base vaya a recortar en silencio, y si mañana alguien
- * amplía la columna, el formulario se entera solo.
+ * El largo sale de dos sitios y manda el más estrecho:
+ *
+ *   · el del DOCUMENTO, que es una regla del país: la cédula ecuatoriana tiene
+ *     diez dígitos y el RUC trece;
+ *   · el de la COLUMNA donde el valor termina guardado, leído de la propia base.
+ *     Así el formulario nunca deja escribir algo que la base vaya a recortar en
+ *     silencio, y si mañana alguien estrecha la columna, se entera solo.
  *
  * Este archivo es la autoridad del servidor. El navegador aplica las mismas
  * reglas mientras se escribe —ver assets/js/documento.js—, pero eso es una
@@ -39,6 +42,18 @@ final class Documento
     private const LARGO_POR_DEFECTO = [
         'persona.Identificacion' => 50,
         'proveedor.Ruc'          => 20,
+    ];
+
+    /**
+     * Largo que admite cada documento, por lo que es el documento y no por lo
+     * que quepa en la columna.
+     *
+     * El pasaporte no está: no hay un formato único internacional, así que para
+     * él manda lo que admita la columna.
+     */
+    private const LARGO_POR_TIPO = [
+        'CEDULA' => 10,
+        'RUC'    => 13,
     ];
 
     /** Se consulta una vez por petición: son datos de esquema, no cambian. */
@@ -95,12 +110,16 @@ final class Documento
      * En proveedores el mismo número se copia además a `proveedor`.`Ruc`, que es
      * más corta: manda la más estrecha de las dos, porque es la que recortaría.
      */
-    public static function largoMaximo(?PDO $db, string $contexto = 'persona'): int
+    public static function largoMaximo(?PDO $db, string $contexto = 'persona', ?string $tipo = null): int
     {
         $largo = self::largoColumna($db, 'persona', 'Identificacion');
 
         if ($contexto === 'proveedor') {
             $largo = min($largo, self::largoColumna($db, 'proveedor', 'Ruc'));
+        }
+
+        if ($tipo !== null) {
+            $largo = min($largo, self::LARGO_POR_TIPO[self::tipoValido($tipo)] ?? $largo);
         }
 
         return $largo;
@@ -147,7 +166,7 @@ final class Documento
             $limpio = mb_strtoupper($limpio);
         }
 
-        return mb_substr($limpio, 0, self::largoMaximo($db, $contexto));
+        return mb_substr($limpio, 0, self::largoMaximo($db, $contexto, $tipo));
     }
 
     /**
@@ -171,7 +190,7 @@ final class Documento
         $nombre   = self::ETIQUETAS[$tipo];
         $de       = ' ' . self::contraer($etiqueta);
         $errores  = [];
-        $maximo   = self::largoMaximo($db, $contexto);
+        $maximo   = self::largoMaximo($db, $contexto, $tipo);
         $limpio   = (string)preg_replace('/[\s.\-]/', '', trim($valorCrudo));
 
         if ($limpio === '') {
@@ -204,11 +223,11 @@ final class Documento
      */
     public static function reglasParaFormulario(?PDO $db = null, string $contexto = 'persona'): array
     {
-        $maximo = self::largoMaximo($db, $contexto);
         $reglas = [];
 
         foreach (self::TIPOS as $tipo) {
             $letras = self::admiteLetras($tipo);
+            $maximo = self::largoMaximo($db, $contexto, $tipo);
 
             $reglas[$tipo] = [
                 'patron'   => $letras ? '[^0-9A-Za-z]' : '[^0-9]',

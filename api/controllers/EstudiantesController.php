@@ -301,7 +301,23 @@ final class EstudiantesController extends Controller
         $this->auditarActualizacion('persona',    'PersonaId',    $personaId, $antesPersona, $institucionId);
         $this->auditarActualizacion('estudiante', 'EstudianteId', $id, $antes, $institucionId);
 
-        Response::exito(['EstudianteId' => $id, 'mensaje' => 'Estudiante actualizado correctamente.']);
+        /* Datos de contacto nuevos, consentimiento nuevo. En estudiantes el
+           correo va al representante: es él quien consiente por el menor, y es
+           su dirección la que consta en la ficha. */
+        $invitacion = InvitacionConsentimiento::enviarA($this->db, $institucionId, 'ESTUDIANTE', [
+            'destino'        => $representante !== null ? $representante['email'] : $persona['email'],
+            'titular'        => trim($persona['apellidos'] . ' ' . $persona['nombres']),
+            'identificacion' => $persona['identificacion'],
+            'representante'  => $representante !== null
+                ? trim($representante['apellidos'] . ' ' . $representante['nombres'])
+                : '',
+        ]);
+
+        Response::exito([
+            'EstudianteId' => $id,
+            'mensaje'      => 'Estudiante actualizado correctamente.',
+            'invitacion'   => $invitacion,
+        ]);
     }
 
     /** PATCH /api/estudiantes/{id}/estado */

@@ -225,7 +225,7 @@ include __DIR__ . '/../includes/layout_top.php';
         <input type="hidden" name="id" value="<?= $esNuevo ? 0 : (int)($registro['DisclaimerId'] ?? $id) ?>">
 
         <div class="card">
-            <h3><?= $esNuevo ? 'Nuevo disclaimer' : 'Editar disclaimer' ?></h3>
+            <?php encabezadoFormulario($esNuevo ? 'Nuevo disclaimer' : 'Editar disclaimer', 'disclaimers.php'); ?>
 
             <div class="form-row">
                 <div class="form-group">

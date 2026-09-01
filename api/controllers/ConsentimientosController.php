@@ -14,6 +14,15 @@ final class ConsentimientosController extends Controller
         return $this->requiereAcceso('consentimientos');
     }
 
+    /**
+     * Revocar deja sin efecto una autorización del titular, así que la reserva
+     * el SuperAdmin. Ver la clave `consentimientos_revocar` en accesos.php.
+     */
+    private function autorizarRevocacion(): array
+    {
+        return $this->requiereAcceso('consentimientos_revocar');
+    }
+
     /** GET /api/consentimientos?q=&estado=&pagina= */
     public function index(array $ruta = []): void
     {
@@ -104,118 +113,51 @@ final class ConsentimientosController extends Controller
         Response::exito($registro);
     }
 
-    /** POST /api/consentimientos */
+    /**
+     * POST /api/consentimientos
+     *
+     * **Retirado.** El consentimiento lo otorga el titular desde su enlace
+     * público, con verificación de identidad y constancia de fecha, hora,
+     * dirección de origen y versión de la política aceptada. Registrarlo a mano
+     * dejaba en la base una autorización que el sistema no podía acreditar: si
+     * mañana alguien pregunta quién consintió y cómo, no hay respuesta.
+     *
+     * La ruta se conserva para responder con el motivo en vez de un 404.
+     */
     public function store(array $ruta = []): void
     {
-        $usuario = $this->autorizar();
-        $institucionId = $this->institucion();
-        $datos = $this->validar();
+        $this->autorizar();
 
-        try {
-            $this->db->beginTransaction();
-
-            $this->ejecutar(
-                "INSERT INTO consentimiento
-                    (InstitucionEducativaId, PersonaId, FinalidadId, FechaConsentimiento, FechaRevocacion,
-                     RepresentanteId, MedioConsentimiento, VersionPolitica, IpOrigen, Estado)
-                 VALUES (?,?,?,?,NULL,?,?,?,?,'ACTIVO')",
-                [
-                    $institucionId, $datos['persona_id'], $datos['finalidad_id'], $datos['fecha'],
-                    $datos['representante_id'], $datos['medio'], $datos['version_politica'], $datos['ip_origen'],
-                ]
-            );
-
-            $consentimientoId = (int)$this->db->lastInsertId();
-
-            $this->registrarHistorial(
-                $institucionId, $consentimientoId, null, 'ACTIVO', 'CREACION',
-                'Registro inicial del consentimiento.', $usuario, $datos['ip_origen']
-            );
-
-            $this->sincronizarTiposDato($institucionId, $consentimientoId, $datos['tipos_autorizados']);
-
-            $this->db->commit();
-        } catch (PDOException $ex) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            $this->errorBaseDatos($ex, 'El consentimiento ya existe.');
-        }
-
-        $this->auditarInsercion('consentimiento', 'ConsentimientoId', $consentimientoId, $institucionId);
-        $this->auditarLista(
-            'consentimiento', $consentimientoId, 'TiposDatoAutorizados',
-            [], $datos['tipos_autorizados']
-        );
-
-        Response::exito(
-            ['ConsentimientoId' => $consentimientoId, 'mensaje' => 'Consentimiento registrado correctamente.'],
-            [],
-            201
+        Response::error(
+            'El consentimiento lo otorga el titular desde su enlace de consentimiento; '
+            . 'no se registra a mano. Use «Envío Masivo de Invitaciones» para pedírselo.',
+            403
         );
     }
 
-    /** PUT /api/consentimientos/{id} */
+    /**
+     * PUT /api/consentimientos/{id}
+     *
+     * **Retirado.** Un consentimiento otorgado es un hecho con fecha: no se
+     * edita. Si cambió lo que el titular autoriza, lo que corresponde es que
+     * vuelva a pronunciarse, no que alguien reescriba lo que dijo. Lo único que
+     * puede hacerse sobre él es revocarlo, y eso queda en el historial.
+     */
     public function update(array $ruta): void
     {
-        $usuario = $this->autorizar();
-        $institucionId = $this->institucion();
-        $id    = (int)$ruta['id'];
-        $datos = $this->validar();
+        $this->autorizar();
 
-        $actual = $this->filaAuditable('consentimiento', 'ConsentimientoId', $id, $institucionId);
-        if (!$actual) {
-            Response::noEncontrado();
-        }
-        $estadoAnterior = $actual['Estado'] ?? null;
-        $tiposAntes     = array_map('intval', $this->columna(
-            "SELECT TipoDatoId FROM consentimientodato
-              WHERE ConsentimientoId = ? AND InstitucionEducativaId = ? AND Autorizado = 'SI'",
-            [$id, $institucionId]
-        ));
-
-        try {
-            $this->db->beginTransaction();
-
-            $this->ejecutar(
-                'UPDATE consentimiento
-                    SET PersonaId = ?, FinalidadId = ?, FechaConsentimiento = ?, RepresentanteId = ?,
-                        MedioConsentimiento = ?, VersionPolitica = ?, IpOrigen = ?
-                  WHERE ConsentimientoId = ? AND InstitucionEducativaId = ?',
-                [
-                    $datos['persona_id'], $datos['finalidad_id'], $datos['fecha'], $datos['representante_id'],
-                    $datos['medio'], $datos['version_politica'], $datos['ip_origen'], $id, $institucionId,
-                ]
-            );
-
-            $this->registrarHistorial(
-                $institucionId, $id, $estadoAnterior, $estadoAnterior, 'MODIFICACION',
-                'Actualización de datos del consentimiento.', $usuario, $datos['ip_origen']
-            );
-
-            $this->sincronizarTiposDato($institucionId, $id, $datos['tipos_autorizados']);
-
-            $this->db->commit();
-        } catch (PDOException $ex) {
-            if ($this->db->inTransaction()) {
-                $this->db->rollBack();
-            }
-            $this->errorBaseDatos($ex, 'No se pudo actualizar el consentimiento.');
-        }
-
-        $this->auditarActualizacion('consentimiento', 'ConsentimientoId', $id, $actual, $institucionId);
-        $this->auditarLista(
-            'consentimiento', $id, 'TiposDatoAutorizados',
-            $tiposAntes, $datos['tipos_autorizados']
+        Response::error(
+            'Un consentimiento otorgado no se modifica: es un hecho con fecha y constancia. '
+            . 'Puede consultarlo o revocarlo.',
+            403
         );
-
-        Response::exito(['ConsentimientoId' => $id, 'mensaje' => 'Consentimiento actualizado correctamente.']);
     }
 
-    /** POST /api/consentimientos/{id}/revocar */
+    /** POST /api/consentimientos/{id}/revocar — solo SuperAdmin. */
     public function revocar(array $ruta): void
     {
-        $usuario = $this->autorizar();
+        $usuario = $this->autorizarRevocacion();
         $institucionId = $this->institucion();
         $id = (int)$ruta['id'];
 
@@ -241,10 +183,17 @@ final class ConsentimientosController extends Controller
         Response::exito(['ConsentimientoId' => $id, 'estado' => 'INACTIVO', 'mensaje' => 'Consentimiento revocado correctamente.']);
     }
 
-    /** POST /api/consentimientos/{id}/reactivar */
+    /**
+     * POST /api/consentimientos/{id}/reactivar — solo SuperAdmin.
+     *
+     * Ya no se ofrece en la pantalla: devolver la vigencia a un consentimiento
+     * revocado es una decisión del titular, y el camino para eso es que vuelva a
+     * otorgarlo desde su enlace público, con su verificación y su constancia. La
+     * ruta se conserva para deshacer una revocación hecha por error.
+     */
     public function reactivar(array $ruta): void
     {
-        $usuario = $this->autorizar();
+        $usuario = $this->autorizarRevocacion();
         $institucionId = $this->institucion();
         $id = (int)$ruta['id'];
 
@@ -273,33 +222,6 @@ final class ConsentimientosController extends Controller
     /* Apoyo                                                               */
     /* ------------------------------------------------------------------ */
 
-    /** Reescribe el detalle consentimientodato marcando SI/NO por tipo de dato. */
-    private function sincronizarTiposDato(int $institucionId, int $consentimientoId, array $autorizados): void
-    {
-        $this->ejecutar(
-            'DELETE FROM consentimientodato WHERE ConsentimientoId = ? AND InstitucionEducativaId = ?',
-            [$consentimientoId, $institucionId]
-        );
-
-        $tipos = $this->columna('SELECT TipoDatoId FROM tipodato');
-        if (!$tipos) {
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'INSERT INTO consentimientodato (InstitucionEducativaId, ConsentimientoId, TipoDatoId, Autorizado)
-             VALUES (?,?,?,?)'
-        );
-        foreach ($tipos as $tipoDatoId) {
-            $stmt->execute([
-                $institucionId,
-                $consentimientoId,
-                $tipoDatoId,
-                in_array((int)$tipoDatoId, $autorizados, true) ? 'SI' : 'NO',
-            ]);
-        }
-    }
-
     /** Bitácora de auditoría (equivalente a registrarHistorialConsentimiento). */
     private function registrarHistorial(
         int $institucionId,
@@ -326,45 +248,5 @@ final class ConsentimientosController extends Controller
                 $observacion,
             ]
         );
-    }
-
-    private function validar(): array
-    {
-        $errores     = [];
-        $personaId   = $this->peticion->entero('persona_id');
-        $finalidadId = $this->peticion->entero('finalidad_id');
-        $medio       = $this->peticion->texto('medio');
-        $fecha       = $this->peticion->texto('fecha_consentimiento');
-        $ip          = $this->peticion->texto('ip_origen');
-
-        $institucionId   = $this->institucion();
-        $representanteId = $this->peticion->entero('representante_id') ?: null;
-
-        if ($personaId <= 0) {
-            $errores[] = 'Debe seleccionar la persona titular del dato.';
-        } elseif (!Padron::perteneceA($this->db, $personaId, $institucionId)) {
-            $errores[] = 'El titular seleccionado no pertenece a esta institución.';
-        }
-
-        if ($representanteId && !Padron::perteneceA($this->db, $representanteId, $institucionId)) {
-            $errores[] = 'El representante seleccionado no pertenece a esta institución.';
-        }
-
-        if ($finalidadId <= 0) $errores[] = 'Debe seleccionar la finalidad del tratamiento.';
-
-        if ($errores) {
-            Response::validacion($errores);
-        }
-
-        return [
-            'persona_id'        => $personaId,
-            'finalidad_id'      => $finalidadId,
-            'representante_id'  => $representanteId,
-            'medio'             => in_array($medio, self::MEDIOS, true) ? $medio : null,
-            'version_politica'  => $this->peticion->texto('version_politica'),
-            'fecha'             => $fecha !== '' ? $fecha : date('Y-m-d H:i:s'),
-            'ip_origen'         => $ip !== '' ? $ip : ($_SERVER['REMOTE_ADDR'] ?? ''),
-            'tipos_autorizados' => $this->peticion->arregloEnteros('tipos_autorizados'),
-        ];
     }
 }

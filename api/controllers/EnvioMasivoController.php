@@ -213,7 +213,7 @@ final class EnvioMasivoController extends Controller
             $ok = $correo->enviar(
                 $destino,
                 $nombreDestino,
-                'Consentimiento para el tratamiento de sus datos personales',
+                InvitacionConsentimiento::ASUNTO,
                 $html
             );
 
@@ -348,20 +348,9 @@ final class EnvioMasivoController extends Controller
      */
     private function enlaceVerificado(string $tipo, int $institucionId, string $identificacion): string
     {
-        $esHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-
-        // /api/... -> raíz del sitio
-        $script  = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '/api/index.php');
-        $carpeta = rtrim(preg_replace('#/api(/.*)?$#', '', $script) ?? '', '/');
-
-        return ($esHttps ? 'https' : 'http') . '://' . $host . $carpeta
-            . '/consentimiento_verificado.php'
-            . '?tipo=' . urlencode(mb_strtolower($tipo))
-            . '&inst=' . $institucionId
-            . '&doc='  . urlencode($identificacion);
+        // La regla vive en api/core/InvitacionConsentimiento.php, que es también
+        // quien envía la invitación de una en una desde los mantenimientos.
+        return InvitacionConsentimiento::enlace($tipo, $institucionId, $identificacion);
     }
 
     private function correoValido(string $correo): bool

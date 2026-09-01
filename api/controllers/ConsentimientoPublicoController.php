@@ -386,6 +386,9 @@ final class ConsentimientoPublicoController extends Controller
             $errores[] = 'El correo electrónico del estudiante no es válido.';
         }
 
+        // El teléfono sigue la misma regla que en el resto del sistema
+        $errores = array_merge($errores, Telefono::validar($telefono, 'la persona'));
+
         if ($tipo === 'PROVEEDOR' && $campo('razon_social') === '') {
             $errores[] = 'Ingrese la razón social.';
         }
@@ -400,7 +403,7 @@ final class ConsentimientoPublicoController extends Controller
                 'nombres'        => $repCampo('nombres'),
                 'apellidos'      => $repCampo('apellidos'),
                 'email'          => $repCampo('email'),
-                'telefono'       => $repCampo('telefono'),
+                'telefono'       => $repCampo('telefono'),   // se valida y normaliza abajo
                 'relacion'       => strtoupper($repCampo('relacion')),
             ];
 
@@ -416,6 +419,7 @@ final class ConsentimientoPublicoController extends Controller
             if (!in_array($rep['relacion'], EstudiantesController::relacionesDisponibles($this->db), true)) {
                 $errores[] = 'Indique la relación del representante con el estudiante.';
             }
+            $errores = array_merge($errores, Telefono::validar($rep['telefono'], 'el representante'));
         }
 
         if ($errores) {
@@ -429,7 +433,7 @@ final class ConsentimientoPublicoController extends Controller
             'nombres'        => mb_substr($nombres, 0, 100),
             'apellidos'      => mb_substr($apellidos, 0, 100),
             'email'          => $email,
-            'telefono'       => $telefono,
+            'telefono'       => Telefono::normalizar($telefono),
             'estado'         => 'ACTIVO',
         ]);
 
@@ -441,7 +445,7 @@ final class ConsentimientoPublicoController extends Controller
                 'nombres'        => mb_substr($rep['nombres'], 0, 100),
                 'apellidos'      => mb_substr($rep['apellidos'], 0, 100),
                 'email'          => $rep['email'],
-                'telefono'       => $rep['telefono'],
+                'telefono'       => Telefono::normalizar($rep['telefono']),
                 'estado'         => 'ACTIVO',
             ]);
 

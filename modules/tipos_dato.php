@@ -63,6 +63,20 @@ $listado = apiGet('tipos-dato', [
 $registros = apiDatos($listado, []);
 [$numPagina, $totalPaginas] = paginacionDesdeMeta(apiMeta($listado));
 
+/* Categorías admitidas, publicadas por la API a partir del enum de la columna:
+   la pantalla ofrece exactamente lo que se puede guardar. */
+$categorias = apiMeta($listado, 'categorias', []);
+if (!is_array($categorias) || !$categorias) {
+    $categorias = ['PERSONAL', 'PUBLICO', 'OPCIONAL'];
+}
+
+/** Qué significa cada una, para que la elección no sea a ciegas. */
+$ayudaCategoria = [
+    'PERSONAL' => 'Identifica o describe a la persona.',
+    'PUBLICO'  => 'Ya consta en una fuente de acceso público.',
+    'OPCIONAL' => 'Se recoge solo si el titular quiere entregarlo.',
+];
+
 if (!$listado['ok']) {
     flashSet('error', apiError($listado));
 }
@@ -82,9 +96,15 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
 </div>
 
+<div class="alerta alerta-info">
+    Este catálogo lo comparten <strong>las 21 instituciones de la red</strong>: lo que se cambie aquí
+    lo verán todas, y los consentimientos ya otorgados apuntan a estos registros. Por eso solo lo
+    mantiene el SuperAdmin.
+</div>
+
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Tipo de Dato' : 'Editar Tipo de Dato' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Registrar Tipo de Dato' : 'Editar Tipo de Dato', 'tipos_dato.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="tipos_dato.php?accion=<?= e($accion) ?>">
             <?= csrfCampo() ?>
@@ -101,8 +121,20 @@ include __DIR__ . '/../includes/layout_top.php';
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Categoría</label>
-                    <input type="text" name="categoria" maxlength="100" placeholder="Identificación, Contacto, Salud, Académico..." value="<?= e($registroEditar['Categoria'] ?? '') ?>">
+                    <label for="categoria" class="campo-requerido">Categoría</label>
+                    <?php $categoriaActual = $_POST['categoria'] ?? $registroEditar['Categoria'] ?? 'PERSONAL'; ?>
+                    <select name="categoria" id="categoria" required>
+                        <?php foreach ($categorias as $cat): ?>
+                            <option value="<?= e($cat) ?>" <?= $categoriaActual === $cat ? 'selected' : '' ?>>
+                                <?= e($cat) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="form-ayuda">
+                        <?php foreach ($categorias as $cat): ?>
+                            <strong><?= e($cat) ?>:</strong> <?= e($ayudaCategoria[$cat] ?? '') ?><br>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>¿Dato Sensible?</label>

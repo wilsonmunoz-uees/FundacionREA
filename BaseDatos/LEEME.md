@@ -13,11 +13,19 @@ Motor: **MySQL 5.7 o superior**, o **MariaDB 10.3 o superior**.
 ## Instalación
 
 ```bash
-mysql -u USUARIO -p < 01_DDL_estructura.sql
-mysql -u USUARIO -p < 02_DML_datos.sql
+mysql -u USUARIO -p --default-character-set=utf8mb4 < 01_DDL_estructura.sql
+mysql -u USUARIO -p --default-character-set=utf8mb4 < 02_DML_datos.sql
 ```
 
-Desde phpMyAdmin: pestaña **Importar**, primero un archivo y luego el otro.
+Desde phpMyAdmin: pestaña **Importar**, primero un archivo y luego el otro,
+dejando el juego de caracteres en **utf-8**.
+
+> **Los dos archivos están guardados en UTF-8.** El `--default-character-set=utf8mb4`
+> del ejemplo no es un adorno: sin él, algunos clientes de MySQL se conectan en
+> latin1 y las tildes y las eñes entran dobladas —«Muñoz» se convierte en
+> «MuÃ±oz»—. No es un error del archivo ni de la base: es la conexión con la que
+> se cargó. Si ya le ocurrió, vuelva a cargar el DML con la opción puesta.
+> Lo mismo vale si edita estos archivos: guárdelos siempre en UTF-8.
 
 Cada script termina con consultas de verificación que muestran lo que quedó
 creado. El DDL debe reportar **19 tablas y 33 claves foráneas**; el DML, los
