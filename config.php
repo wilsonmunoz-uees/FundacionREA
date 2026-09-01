@@ -1,9 +1,9 @@
 <?php
 // config.php
 return [
-    'db_host' => 'sql102.ezyro.com',
+    'db_host' => '127.0.0.1',
     'db_port' => '3306',
     'db_name' => 'ezyro_42650191_protecciondatos',
-    'db_user' => 'ezyro_42650191',
-    'db_pass' => 'Paralelo1PC'
+    'db_user' => 'root',
+    'db_pass' => ''
 ];

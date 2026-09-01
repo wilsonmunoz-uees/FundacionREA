@@ -43,7 +43,7 @@ include __DIR__ . '/../includes/layout_top.php';
     <form method="GET" class="flex-gap w-100">
         <div class="form-group" style="flex:1;">
             <label>Persona o usuario</label>
-            <input type="text" name="q" value="<?= e($buscar) ?>" placeholder="Buscar...">
+            <input type="text" name="q" value="<?= e($buscar) ?>" placeholder="Nombre, identificación, email, usuario o ID...">
         </div>
         <div class="form-group">
             <label>Desde</label>

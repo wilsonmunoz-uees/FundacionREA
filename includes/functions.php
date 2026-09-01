@@ -58,21 +58,79 @@ function paginacionDesdeMeta(array $meta): array {
     ];
 }
 
-/** Genera el bloque HTML de navegación de páginas conservando los filtros de la URL. */
-function renderPaginacion(int $paginaActual, int $totalPaginas): void {
+/**
+ * Genera el bloque HTML de navegación de páginas conservando los filtros de la URL.
+ *
+ * Se dibuja SIEMPRE en una sola línea. Antes se imprimían todos los números, de
+ * modo que una consulta de cuatro mil registros llenaba media pantalla de
+ * botones; ahora se muestra una ventana alrededor de la página actual y, cuando
+ * quedan páginas fuera de esa ventana, se indica con puntos suspensivos, un
+ * acceso directo al extremo y el texto «Página X de Y».
+ *
+ * @param int $ventana Cuántos números como máximo se muestran a la vez.
+ */
+function renderPaginacion(int $paginaActual, int $totalPaginas, int $ventana = 7): void {
     if ($totalPaginas <= 1) return;
-    $params = $_GET;
-    echo '<div class="paginacion">';
-    for ($i = 1; $i <= $totalPaginas; $i++) {
-        $params['pagina'] = $i;
-        $url = '?' . http_build_query($params);
-        if ($i === $paginaActual) {
-            echo '<span class="pagina-actual">' . $i . '</span>';
-        } else {
-            echo '<a href="' . e($url) . '">' . $i . '</a>';
+
+    $paginaActual = max(1, min($paginaActual, $totalPaginas));
+    $params       = $_GET;
+
+    /** Enlace a una página conservando los filtros que ya trae la URL. */
+    $url = static function (int $pagina) use ($params): string {
+        $params['pagina'] = $pagina;
+        return '?' . http_build_query($params);
+    };
+
+    /* Ventana centrada en la página actual, corrida hacia adentro cuando se
+       acerca a un extremo para que siempre se ofrezcan los mismos saltos. */
+    $desde = max(1, $paginaActual - intdiv($ventana, 2));
+    $hasta = min($totalPaginas, $desde + $ventana - 1);
+    $desde = max(1, $hasta - $ventana + 1);
+
+    echo '<nav class="paginacion" aria-label="Paginación">';
+
+    // Anterior
+    if ($paginaActual > 1) {
+        echo '<a href="' . e($url($paginaActual - 1)) . '" rel="prev" title="Página anterior">‹</a>';
+    } else {
+        echo '<span class="pagina-inerte" aria-hidden="true">‹</span>';
+    }
+
+    // Primera página y corte, si la ventana no llega hasta el principio
+    if ($desde > 1) {
+        echo '<a href="' . e($url(1)) . '">1</a>';
+        if ($desde > 2) {
+            echo '<span class="pagina-corte" aria-hidden="true">…</span>';
         }
     }
-    echo '</div>';
+
+    for ($i = $desde; $i <= $hasta; $i++) {
+        if ($i === $paginaActual) {
+            echo '<span class="pagina-actual" aria-current="page">' . $i . '</span>';
+        } else {
+            echo '<a href="' . e($url($i)) . '">' . $i . '</a>';
+        }
+    }
+
+    /* Lo que pide la vista: al final, la señal de que la lista continúa. Los
+       puntos suspensivos avisan de que hay más, y el número del final permite
+       saltar directamente a la última página. */
+    if ($hasta < $totalPaginas) {
+        if ($hasta < $totalPaginas - 1) {
+            echo '<span class="pagina-corte" aria-hidden="true">…</span>';
+        }
+        echo '<a href="' . e($url($totalPaginas)) . '" title="Última página">' . $totalPaginas . '</a>';
+    }
+
+    // Siguiente
+    if ($paginaActual < $totalPaginas) {
+        echo '<a href="' . e($url($paginaActual + 1)) . '" rel="next" title="Página siguiente">›</a>';
+    } else {
+        echo '<span class="pagina-inerte" aria-hidden="true">›</span>';
+    }
+
+    echo '<span class="pagina-resumen">Página ' . $paginaActual . ' de ' . $totalPaginas . '</span>';
+    echo '</nav>';
 }
 
 /**
