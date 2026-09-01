@@ -207,6 +207,172 @@ if ($formato === 'pdf') {
 }
 
 /* ---------------------------------------------------------------------------
+   Exportación a Excel (.xls)
+   --------------------------------------------------------------------------- */
+if ($formato === 'excel') {
+    $respuestaXls = apiGet('reportes/consentimientos');
+    if (!$respuestaXls['ok']) {
+        flashSet('error', 'No se pudo generar el Excel: ' . apiError($respuestaXls));
+        redirigir('reporte_consentimientos.php');
+    }
+    $reporteXls   = apiDatos($respuestaXls, []);
+    $poblacionXls = $reporteXls['poblacion'] ?? [];
+    $porTipoXls   = $reporteXls['por_tipo'] ?? [];
+    $porFinXls    = $reporteXls['por_finalidad'] ?? [];
+    $porMedioXls  = $reporteXls['por_medio'] ?? [];
+
+    $nombreArchivo = 'rea_reporte_consentimientos_cumplimiento_' . date('Ymd_His') . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <table border="0" style="font-family: Arial, sans-serif; border-collapse: collapse; width: 100%;">
+        <!-- CABECERA INSTITUCIONAL -->
+        <tr>
+            <td colspan="7" style="background-color: #8B0000; color: #ffffff; font-size: 15px; font-weight: bold; padding: 8px; text-align: center; letter-spacing: 1px;">
+                RED EDUCATIVA ARQUIDIOCESANA (REA)
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="background-color: #5c0000; color: #ffffff; font-size: 12px; font-weight: bold; padding: 4px; text-align: center;">
+                <?= e($_SESSION['institucion_nombre'] ?? 'Escuela Don Bosco') ?> — Reporte de Consentimientos y Cumplimiento General
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="font-size: 9.5px; color: #666666; padding: 4px; text-align: center;">
+                Diagnóstico consolidado de cobertura, contactabilidad, finalidades y canales de recolección
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 10px;"></td></tr>
+
+        <!-- TARJETAS KPIS -->
+        <tr style="background-color: #f8f9fa;">
+            <td colspan="2" style="border: 1px solid #dcdcdc; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Población Objetivo Activa</span><br>
+                <strong style="font-size: 15px; color: #1c1f27;"><?= number_format((int)($poblacionXls['total'] ?? 0)) ?></strong>
+            </td>
+            <td colspan="2" style="border: 1px solid #dcdcdc; border-left: 3px solid #12734A; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Consentimientos Vigentes (Firmados)</span><br>
+                <strong style="font-size: 15px; color: #12734A;"><?= number_format((int)($poblacionXls['consentidos'] ?? 0)) ?> (<?= $poblacionXls['pct_cobertura'] ?? 0 ?>%)</strong>
+            </td>
+            <td colspan="2" style="border: 1px solid #dcdcdc; border-left: 3px solid #C8102E; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Pendientes por Firmar</span><br>
+                <strong style="font-size: 15px; color: #C8102E;"><?= number_format((int)($poblacionXls['pendientes'] ?? 0)) ?> (<?= $poblacionXls['pct_pendientes'] ?? 0 ?>%)</strong>
+            </td>
+            <td style="border: 1px solid #dcdcdc; border-left: 3px solid #B4780A; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Consentimientos Revocados</span><br>
+                <strong style="font-size: 15px; color: #B4780A;"><?= number_format((int)($poblacionXls['revocados'] ?? 0)) ?> (<?= $poblacionXls['pct_revocados'] ?? 0 ?>%)</strong>
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 14px;"></td></tr>
+
+        <!-- SECCIÓN 1: COBERTURA Y CONTACTABILIDAD POR TIPO DE TITULAR -->
+        <tr>
+            <td colspan="7" style="font-size: 12px; font-weight: bold; color: #8B0000; border-bottom: 2px solid #8B0000; padding: 4px 0;">
+                1. Cobertura y Contactabilidad por Tipo de Titular
+            </td>
+        </tr>
+        <tr style="background-color: #f2f2f2;">
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">TIPO DE TITULAR</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">POBLACIÓN</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">CON CORREO (%)</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">FIRMADOS (VIGENTES)</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">PENDIENTES</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">REVOCADOS</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">% COBERTURA</td>
+        </tr>
+        <?php foreach ((array)$porTipoXls as $t): ?>
+            <tr style="background-color: #ffffff;">
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px;"><?= e($t['etiqueta'] ?? '—') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right;"><?= number_format((int)($t['poblacion'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right;"><?= number_format((int)($t['con_correo'] ?? 0), 0, ',', '.') ?> (<?= $t['pct_correo'] ?? 0 ?>%)</td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right; color: #12734A;"><?= number_format((int)($t['consentidos'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right; color: <?= (int)($t['pendientes'] ?? 0) > 0 ? '#C8102E' : '#333' ?>;"><?= number_format((int)($t['pendientes'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right; color: <?= (int)($t['revocados'] ?? 0) > 0 ? '#B4780A' : '#333' ?>;"><?= number_format((int)($t['revocados'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right; color: #12734A;"><?= $t['pct_cumplimiento'] ?? 0 ?>%</td>
+            </tr>
+        <?php endforeach; ?>
+        <tr style="background-color: #fdf2f2; font-weight: bold;">
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; color: #8B0000;">TOTAL INSTITUCIONAL</td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right;"><?= number_format((int)($poblacionXls['total'] ?? 0), 0, ',', '.') ?></td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right;"><?= number_format((int)($poblacionXls['con_correo'] ?? 0), 0, ',', '.') ?> (<?= $poblacionXls['pct_con_correo'] ?? 0 ?>%)</td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right; color: #12734A;"><?= number_format((int)($poblacionXls['consentidos'] ?? 0), 0, ',', '.') ?></td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right; color: #C8102E;"><?= number_format((int)($poblacionXls['pendientes'] ?? 0), 0, ',', '.') ?></td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right; color: #B4780A;"><?= number_format((int)($poblacionXls['revocados'] ?? 0), 0, ',', '.') ?></td>
+            <td style="border-top: 2px solid #8B0000; border-bottom: 1px solid #dcdcdc; font-size: 11px; padding: 6px; text-align: right; color: #12734A;"><?= $poblacionXls['pct_cobertura'] ?? 0 ?>%</td>
+        </tr>
+        <tr><td colspan="7" style="height: 14px;"></td></tr>
+
+        <!-- SECCIÓN 2: DISTRIBUCIÓN POR FINALIDAD DEL TRATAMIENTO -->
+        <tr>
+            <td colspan="7" style="font-size: 12px; font-weight: bold; color: #8B0000; border-bottom: 2px solid #8B0000; padding: 4px 0;">
+                2. Distribución por Finalidad del Tratamiento
+            </td>
+        </tr>
+        <tr style="background-color: #f2f2f2;">
+            <td colspan="3" style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">FINALIDAD DECLARADA</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">TOTAL REGISTROS</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">VIGENTES (ACTIVOS)</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">REVOCADOS</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">% ACEPTACIÓN</td>
+        </tr>
+        <?php foreach ((array)$porFinXls as $f): ?>
+            <tr style="background-color: #ffffff;">
+                <td colspan="3" style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px;"><?= e($f['Nombre'] ?? '—') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right;"><?= number_format((int)($f['total'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right; color: #12734A;"><?= number_format((int)($f['activos'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right; color: <?= (int)($f['revocados'] ?? 0) > 0 ? '#B4780A' : '#333' ?>;"><?= number_format((int)($f['revocados'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right;"><?= (float)($f['tasa_aceptacion'] ?? 0) ?>%</td>
+            </tr>
+        <?php endforeach; ?>
+        <tr><td colspan="7" style="height: 14px;"></td></tr>
+
+        <!-- SECCIÓN 3: RENDIMIENTO Y CALIDAD POR CANAL / MEDIO -->
+        <tr>
+            <td colspan="7" style="font-size: 12px; font-weight: bold; color: #8B0000; border-bottom: 2px solid #8B0000; padding: 4px 0;">
+                3. Rendimiento y Calidad por Canal / Medio
+            </td>
+        </tr>
+        <tr style="background-color: #f2f2f2;">
+            <td colspan="3" style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">CANAL / MEDIO</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">CONSENTIMIENTOS</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">% DEL TOTAL</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">VIGENTES</td>
+            <td style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: right;">TASA REVOCATORIA</td>
+        </tr>
+        <?php foreach ((array)$porMedioXls as $m): 
+            $revM = (int)($m['revocados'] ?? 0);
+            $tasaR = (float)($m['tasa_revocatoria'] ?? 0);
+        ?>
+            <tr style="background-color: #ffffff;">
+                <td colspan="3" style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px;"><?= e($m['medio'] ?? '—') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right;"><?= number_format((int)($m['total'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; text-align: right;"><?= (float)($m['pct_del_total'] ?? 0) ?>%</td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right; color: #12734A;"><?= number_format((int)($m['activos'] ?? 0), 0, ',', '.') ?></td>
+                <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; text-align: right; color: <?= $tasaR > 0 ? '#B4780A' : '#333' ?>;"><?= $tasaR ?>% (<?= $revM ?> rev.)</td>
+            </tr>
+        <?php endforeach; ?>
+
+        <!-- PIE LEGAL -->
+        <tr><td colspan="7" style="height: 15px;"></td></tr>
+        <tr>
+            <td colspan="7" style="font-size: 9px; color: #777777; border-top: 1px solid #ccc; padding-top: 4px;">
+                Generado el <?= date('d/m/Y H:i:s') ?> &nbsp;·&nbsp; Emitido por: <?= e($_SESSION['username'] ?? 'admin') ?>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="font-size: 8.5px; color: #999999;">
+                Documento de auditoría y control de cumplimiento. Contiene métricas estadísticas de tratamiento de datos personales protegidos por la LOPDP; su divulgación no autorizada está prohibida.
+            </td>
+        </tr>
+    </table>
+    <?php
+    exit;
+}
+
+/* ---------------------------------------------------------------------------
    Consulta en pantalla (estado general consolidado)
    --------------------------------------------------------------------------- */
 $respuesta = apiGet('reportes/consentimientos');
@@ -262,6 +428,7 @@ include __DIR__ . '/../includes/layout_top.php';
         <button type="button" onclick="window.print()" class="btn btn-secundario">Imprimir</button>
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
+            <a href="reporte_consentimientos.php?formato=excel" class="btn btn-secundario" style="background:#1e7e34; color:#fff; border-color:#1c7430;">Exportar a Excel</a>
         <?php else: ?>
             <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
                 Exportar a PDF

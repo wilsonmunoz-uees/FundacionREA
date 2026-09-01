@@ -191,6 +191,152 @@ if ($formato === 'pdf') {
 }
 
 /* ---------------------------------------------------------------------------
+   Exportación a Excel (.xls)
+   --------------------------------------------------------------------------- */
+if ($formato === 'excel') {
+    $respuestaXls = apiGet('reportes/envios-masivos', $parametros + ['pagina' => 1, 'por_pagina' => 1000]);
+    if (!$respuestaXls['ok']) {
+        flashSet('error', 'No se pudo generar el Excel: ' . apiError($respuestaXls));
+        redirigir('reporte_envios_masivos.php?' . http_build_query($parametros));
+    }
+    $filasXls = apiDatos($respuestaXls, []);
+    $metaXls  = apiMeta($respuestaXls, 'kpis', []);
+
+    if (empty($filasXls)) {
+        flashSet('advertencia', 'No se encontraron registros de envíos masivos para exportar.');
+        redirigir('reporte_envios_masivos.php?' . http_build_query($parametros));
+    }
+
+    $totInv  = (int)($metaXls['total_invitaciones'] ?? count($filasXls));
+    $totUsad = (int)($metaXls['verificados_usados'] ?? 0);
+    $totPend = (int)($metaXls['pendientes_activos'] ?? 0);
+    $totExp  = (int)($metaXls['anulados'] ?? $metaXls['expirados_anulados'] ?? 0);
+    $pctConv = (float)($metaXls['pct_conversion'] ?? 0);
+    $pctPend = $totInv > 0 ? round(($totPend / $totInv) * 100, 1) : 0.0;
+    $pctExp  = $totInv > 0 ? round(($totExp / $totInv) * 100, 1) : 0.0;
+
+    $nombreArchivo = 'rea_efectividad_envios_masivos_' . date('Ymd_His') . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <table border="0" style="font-family: Arial, sans-serif; border-collapse: collapse; width: 100%;">
+        <!-- CABECERA INSTITUCIONAL -->
+        <tr>
+            <td colspan="7" style="background-color: #8B0000; color: #ffffff; font-size: 15px; font-weight: bold; padding: 8px; text-align: center; letter-spacing: 1px;">
+                RED EDUCATIVA ARQUIDIOCESANA (REA)
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="background-color: #5c0000; color: #ffffff; font-size: 12px; font-weight: bold; padding: 4px; text-align: center;">
+                <?= e($_SESSION['institucion_nombre'] ?? 'Escuela Don Bosco') ?> — Reporte de Efectividad de Envíos Masivos
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="font-size: 9.5px; color: #666666; padding: 4px; text-align: center;">
+                Auditoría de invitaciones enviadas, uso de enlaces verificados y conversión a consentimientos
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 6px;"></td></tr>
+
+        <!-- FILTROS APLICADOS -->
+        <tr>
+            <td colspan="7" style="font-size: 10px; color: #444444; background-color: #f2f2f2; padding: 6px; border: 1px solid #dcdcdc;">
+                <strong>Institución:</strong> <?= e($_SESSION['institucion_nombre'] ?? 'Todas') ?> &nbsp;·&nbsp;
+                <strong>Tipo de titular:</strong> <?= e($resumenFiltros['Tipo'] ?? 'Todos los tipos') ?> &nbsp;·&nbsp;
+                <strong>Estado:</strong> <?= e($resumenFiltros['Estado'] ?? 'Todos los estados') ?> &nbsp;·&nbsp;
+                <strong>Período:</strong> <?= e($resumenFiltros['Período'] ?? 'Histórico completo') ?>
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 10px;"></td></tr>
+
+        <!-- TARJETAS KPIS SUPERIORES -->
+        <tr style="background-color: #f8f9fa;">
+            <td colspan="2" style="border: 1px solid #dcdcdc; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Invitaciones Emitidas</span><br>
+                <strong style="font-size: 15px; color: #1c1f27;"><?= number_format($totInv) ?></strong>
+            </td>
+            <td colspan="2" style="border: 1px solid #dcdcdc; border-left: 3px solid #12734A; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Enlaces Verificados (Firmados)</span><br>
+                <strong style="font-size: 15px; color: #12734A;"><?= number_format($totUsad) ?> (<?= $pctConv ?>%)</strong>
+            </td>
+            <td colspan="2" style="border: 1px solid #dcdcdc; border-left: 3px solid #B4780A; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Pendientes por Abrir</span><br>
+                <strong style="font-size: 15px; color: #B4780A;"><?= number_format($totPend) ?> (<?= $pctPend ?>%)</strong>
+            </td>
+            <td style="border: 1px solid #dcdcdc; border-left: 3px solid #C8102E; padding: 8px; text-align: center;">
+                <span style="font-size: 9px; color: #666; text-transform: uppercase;">Anulados</span><br>
+                <strong style="font-size: 15px; color: #C8102E;"><?= number_format($totExp) ?> (<?= $pctExp ?>%)</strong>
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 14px;"></td></tr>
+
+        <!-- SECCIÓN: TRAZABILIDAD DE INVITACIONES Y VERIFICACIONES -->
+        <tr>
+            <td colspan="7" style="font-size: 12px; font-weight: bold; color: #8B0000; border-bottom: 2px solid #8B0000; padding: 4px 0;">
+                Trazabilidad de Invitaciones y Verificaciones
+            </td>
+        </tr>
+        <thead>
+            <tr style="background-color: #f2f2f2;">
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">TITULAR / REPRESENTANTE</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">DOCUMENTO</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">TIPO</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">CORREO DE DESTINO</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">FECHA ENVÍO</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">ESTADO ENLACE</th>
+                <th style="border-bottom: 1px solid #dcdcdc; font-size: 10px; font-weight: bold; padding: 6px; text-align: left;">FECHA USO</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($filasXls as $i => $f): 
+                $colorFondo = ($i % 2 === 0) ? '#ffffff' : '#fafafa';
+                $estado = $f['EstadoCalculado'] ?? 'PENDIENTE';
+                
+                $colorEstado = '#B4780A'; // Ámbar
+                $estadoTexto = 'PENDIENTE';
+                if ($estado === 'USADO') {
+                    $colorEstado = '#12734A'; // Verde
+                    $estadoTexto = 'VERIFICADO';
+                } elseif ($estado === 'ANULADO') {
+                    $colorEstado = '#C8102E'; // Rojo
+                    $estadoTexto = 'ANULADO';
+                }
+
+                $tipoPersona = ucfirst(strtolower((string)($f['TipoPersona'] ?? '—')));
+            ?>
+                <tr style="background-color: <?= $colorFondo ?>;">
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; color: #111;"><?= e($f['Titular'] ?? '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px; mso-number-format:'\@';"><?= e((string)($f['Identificacion'] ?: '—')) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px;"><?= e($tipoPersona) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px;"><?= e($f['Destinatario'] ?: '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px;"><?= f_fecha($f['FechaEmision'] ?? null) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 5px; color: <?= $colorEstado ?>;"><?= e($estadoTexto) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 5px;"><?= !empty($f['FechaUso']) ? f_fecha($f['FechaUso']) : '—' ?></td>
+                </tr>
+            <?php endforeach; ?>
+
+            <!-- PIE LEGAL -->
+            <tr><td colspan="7" style="height: 15px;"></td></tr>
+            <tr>
+                <td colspan="7" style="font-size: 9px; color: #777777; border-top: 1px solid #ccc; padding-top: 4px;">
+                    Generado el <?= date('d/m/Y H:i:s') ?> &nbsp;·&nbsp; Emitido por: <?= e($_SESSION['username'] ?? 'admin') ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="7" style="font-size: 8.5px; color: #999999;">
+                    Documento de auditoría y control de cumplimiento. Contiene métricas de trazabilidad de invitaciones al consentimiento protegidas por la LOPDP; su divulgación no autorizada está prohibida.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <?php
+    exit;
+}
+
+/* ---------------------------------------------------------------------------
    Consulta en pantalla
    --------------------------------------------------------------------------- */
 $listado = apiGet('reportes/envios-masivos', $parametros + [
@@ -245,6 +391,7 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
 </div>
 
+<?php $urlExcel = 'reporte_envios_masivos.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
 <div class="page-header no-imprimir">
     <div>
         <h1>📬 Reporte de Efectividad de Envíos Masivos</h1>
@@ -253,10 +400,10 @@ include __DIR__ . '/../includes/layout_top.php';
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
+            <a href="<?= e($urlExcel) ?>" class="btn btn-secundario" style="background:#1e7e34; color:#fff; border-color:#1c7430;">Exportar a Excel</a>
         <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
-                Exportar a PDF
-            </button>
+            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">Exportar a PDF</button>
+            <button type="button" class="btn btn-secundario" disabled>Exportar a Excel</button>
         <?php endif; ?>
     </div>
 </div>

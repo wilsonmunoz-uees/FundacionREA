@@ -155,6 +155,127 @@ if ($formato === 'pdf') {
 }
 
 /* ---------------------------------------------------------------------------
+   Exportación a Excel (.xls)
+   --------------------------------------------------------------------------- */
+if ($formato === 'excel') {
+    $respuestaXls = apiGet('reportes/cobertura', $parametros + ['pagina' => 1, 'por_pagina' => 1000]);
+    if (!$respuestaXls['ok']) {
+        flashSet('error', 'No se pudo generar el Excel: ' . apiError($respuestaXls));
+        redirigir('reporte_cobertura.php?' . http_build_query($parametros));
+    }
+    $filasXls = apiDatos($respuestaXls, []);
+    $metaXls  = apiMeta($respuestaXls, 'kpis', []);
+
+    if (empty($filasXls)) {
+        flashSet('advertencia', 'No se encontraron registros de cobertura para exportar.');
+        redirigir('reporte_cobertura.php?' . http_build_query($parametros));
+    }
+
+    $nombreArchivo = 'rea_cobertura_pendientes_' . date('Ymd_His') . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <table border="0" style="font-family: Arial, sans-serif; border-collapse: collapse; width: 100%;">
+        <!-- CABECERA INSTITUCIONAL -->
+        <tr>
+            <td colspan="7" style="background-color: #8B0000; color: #ffffff; font-size: 15px; font-weight: bold; padding: 8px; text-align: center; letter-spacing: 1px;">
+                RED EDUCATIVA ARQUIDIOCESANA (REA)
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="background-color: #5c0000; color: #ffffff; font-size: 12px; font-weight: bold; padding: 4px; text-align: center;">
+                <?= e($_SESSION['institucion_nombre'] ?? 'Escuela Don Bosco') ?> — Reporte de Cobertura y Pendientes de Consentimiento
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="font-size: 9.5px; color: #666666; padding: 4px; text-align: center;">
+                Monitoreo de cumplimiento LOPDP: titulares con consentimiento otorgado vs. pendientes de registro
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 6px;"></td></tr>
+
+        <!-- FILTROS APLICADOS -->
+        <tr>
+            <td colspan="7" style="font-size: 10px; color: #444444; background-color: #f2f2f2; padding: 6px; border: 1px solid #dcdcdc;">
+                <strong>Institución:</strong> <?= e($_SESSION['institucion_nombre'] ?? 'Todas') ?> &nbsp;·&nbsp;
+                <strong>Tipo de titular:</strong> <?= e($resumenFiltros['Tipo'] ?? 'Todos los tipos') ?> &nbsp;·&nbsp;
+                <strong>Estado:</strong> <?= e($resumenFiltros['Estado'] ?? 'Todos') ?>
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 10px;"></td></tr>
+
+        <!-- ENCABEZADOS DE TABLA (7 COLUMNAS IDÉNTICAS AL PDF) -->
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">TITULAR</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">DOCUMENTO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">TIPO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">REPRESENTANTE / CONTACTO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: center;">VERSIÓN</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">ESTADO COBERTURA</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">ÚLTIMA FECHA</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($filasXls as $i => $r): 
+                $colorFondo = ($i % 2 === 0) ? '#ffffff' : '#fafafa';
+                $estado = $r['EstadoCobertura'] ?? 'PENDIENTE';
+                
+                $colorEstado = '#C8102E'; // Rojo
+                if ($estado === 'CONSENTIDO') {
+                    $colorEstado = '#12734A'; // Verde
+                } elseif ($estado === 'PENDIENTE') {
+                    $colorEstado = '#B4780A'; // Ámbar/Dorado
+                }
+
+                $fecha = !empty($r['UltimaFechaConsentimiento'])
+                    ? f_fecha($r['UltimaFechaConsentimiento'])
+                    : (!empty($r['UltimaFechaRevocacion']) ? f_fecha($r['UltimaFechaRevocacion']) : '—');
+            ?>
+                <tr style="background-color: <?= $colorFondo ?>;">
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; color: #111;"><?= e($r['Titular'] ?? '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; mso-number-format:'\@';"><?= e((string)($r['Documento'] ?: '—')) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e($r['TipoPersona'] ?? '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e($r['Representante'] ?: '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: center;"><?= !empty($r['VersionPolitica']) ? 'v' . e((string)$r['VersionPolitica']) : '—' ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; color: <?= $colorEstado ?>;"><?= e($estado) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e($fecha) ?></td>
+                </tr>
+            <?php endforeach; ?>
+
+            <!-- RESUMEN DE TOTALES -->
+            <tr><td colspan="7" style="height: 10px;"></td></tr>
+            <tr>
+                <td colspan="7" style="font-size: 11px; font-weight: bold; color: #222222; background-color: #f9f9f9; padding: 7px; border: 1px solid #dcdcdc;">
+                    Población objetivo: <?= (int)($metaXls['total'] ?? count($filasXls)) ?> personas &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #12734A;">Consentimientos vigentes: <?= (int)($metaXls['consentidos'] ?? 0) ?> (<?= (float)($metaXls['porcentaje_cobertura'] ?? 0) ?>%)</span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #B4780A;">Pendientes: <?= (int)($metaXls['pendientes'] ?? 0) ?></span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #C8102E;">Revocados: <?= (int)($metaXls['revocados'] ?? 0) ?></span>
+                </td>
+            </tr>
+
+            <!-- PIE LEGAL -->
+            <tr><td colspan="7" style="height: 15px;"></td></tr>
+            <tr>
+                <td colspan="7" style="font-size: 9px; color: #777777; border-top: 1px solid #ccc; padding-top: 4px;">
+                    Generado el <?= date('d/m/Y H:i:s') ?> &nbsp;·&nbsp; Emitido por: <?= e($_SESSION['username'] ?? 'admin') ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="7" style="font-size: 8.5px; color: #999999;">
+                    Documento de auditoría y control de cumplimiento. Contiene datos personales protegidos por la Ley Orgánica de Protección de Datos Personales (LOPDP); su divulgación no autorizada está terminantemente prohibida.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <?php
+    exit;
+}
+
+/* ---------------------------------------------------------------------------
    Consulta en pantalla
    --------------------------------------------------------------------------- */
 $listado = apiGet('reportes/cobertura', $parametros + [
@@ -191,6 +312,7 @@ $breadcrumb = [['label' => 'Reportes', 'url' => null], ['label' => 'Cobertura y 
 include __DIR__ . '/../includes/layout_top.php';
 ?>
 
+<?php $urlExcel = 'reporte_cobertura.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
 <div class="page-header no-imprimir">
     <div>
         <h1>🎯 Reporte de Cobertura y Pendientes</h1>
@@ -199,10 +321,10 @@ include __DIR__ . '/../includes/layout_top.php';
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
-        <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
-                Exportar a PDF
-            </button>
+            <a href="<?= e($urlExcel) ?>" class="btn btn-secundario" style="background:#1e7e34; color:#fff; border-color:#1c7430;">Exportar a Excel</a>
+            <?php else: ?>
+            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">Exportar a PDF</button>
+            <button type="button" class="btn btn-secundario" disabled>Exportar a Excel</button>
         <?php endif; ?>
     </div>
 </div>
