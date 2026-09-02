@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
         ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', 'Empleado actualizado correctamente.');
+            flashGuardadoConInvitacion('Empleado actualizado correctamente.', $respuesta);
             redirigir('empleados.php');
         }
         $errores = apiErrores($respuesta);
@@ -89,7 +89,7 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'editar'): ?>
     <div class="card">
-        <h3>Editar Empleado</h3>
+        <?php encabezadoFormulario('Editar Empleado', 'empleados.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="empleados.php?accion=editar">
             <?= csrfCampo() ?>

@@ -159,6 +159,126 @@ if ($consultado && $formato === 'pdf') {
 }
 
 /* ---------------------------------------------------------------------------
+   Exportación a Excel (.xls)
+   --------------------------------------------------------------------------- */
+if ($formato === 'excel') {
+    $respuestaXls = apiGet('reportes/auditoria', $parametros + ['pagina' => 1, 'por_pagina' => 1000]);
+    if (!$respuestaXls['ok']) {
+        flashSet('error', 'No se pudo generar el Excel: ' . apiError($respuestaXls));
+        redirigir('reporte_auditoria.php?' . http_build_query($parametros));
+    }
+    $filasXls   = apiDatos($respuestaXls, []);
+    $totalesXls = apiMeta($respuestaXls, 'totales', []);
+
+    if (empty($filasXls)) {
+        flashSet('advertencia', 'No se encontraron registros de auditoría para exportar.');
+        redirigir('reporte_auditoria.php?' . http_build_query($parametros));
+    }
+
+    $nombreArchivo = 'rea_bitacora_auditoria_' . date('Ymd_His') . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <table border="0" style="font-family: Arial, sans-serif; border-collapse: collapse; width: 100%;">
+        <!-- CABECERA INSTITUCIONAL -->
+        <tr>
+            <td colspan="7" style="background-color: #8B0000; color: #ffffff; font-size: 15px; font-weight: bold; padding: 8px; text-align: center; letter-spacing: 1px;">
+                RED EDUCATIVA ARQUIDIOCESANA (REA)
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="background-color: #5c0000; color: #ffffff; font-size: 12px; font-weight: bold; padding: 4px; text-align: center;">
+                <?= e($_SESSION['institucion_nombre'] ?? 'Escuela Don Bosco') ?> — Bitácora de Auditoría del Sistema
+            </td>
+        </tr>
+        <tr>
+            <td colspan="7" style="font-size: 9.5px; color: #666666; padding: 4px; text-align: center;">
+                Registro de altas, cambios y bajas realizados sobre la base de datos
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 6px;"></td></tr>
+
+        <!-- FILTROS APLICADOS -->
+        <tr>
+            <td colspan="7" style="font-size: 10px; color: #444444; background-color: #f2f2f2; padding: 6px; border: 1px solid #dcdcdc;">
+                <strong>Institución:</strong> <?= e($_SESSION['institucion_nombre'] ?? 'Todas') ?> &nbsp;·&nbsp;
+                <strong>Período:</strong> <?= e($resumenFiltros['Período'] ?? 'Todas las fechas') ?> &nbsp;·&nbsp;
+                <strong>Usuario:</strong> <?= e($resumenFiltros['Usuario'] ?? 'Todos') ?> &nbsp;·&nbsp;
+                <strong>Movimiento:</strong> <?= e($operacionesDisponibles[$filtroOperacion] ?? 'Todos los movimientos') ?>
+            </td>
+        </tr>
+        <tr><td colspan="7" style="height: 10px;"></td></tr>
+
+        <!-- ENCABEZADOS DE TABLA (7 COLUMNAS IDÉNTICAS AL PDF) -->
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">FECHA Y HORA</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">USUARIO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">IP ORIGEN</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">TABLA</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">REGISTRO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">MOVIMIENTO</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 11px; font-weight: bold; padding: 7px; text-align: left;">DATO TOCADO</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($filasXls as $i => $r): 
+                $colorFondo = ($i % 2 === 0) ? '#ffffff' : '#fafafa';
+                $op = $r['Operacion'] ?? '';
+                $movTexto = $r['OperacionTexto'] ?? ($op === 'INSERT' ? 'ALTA' : ($op === 'UPDATE' ? 'CAMBIO' : ($op === 'DELETE' ? 'BAJA' : $op)));
+                
+                $coloresMov = [
+                    'INSERT' => '#12734A',
+                    'UPDATE' => '#B4780A',
+                    'DELETE' => '#C8102E'
+                ];
+                $colorMov = $coloresMov[$op] ?? '#333333';
+            ?>
+                <tr style="background-color: <?= $colorFondo ?>;">
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= f_fecha($r['FechaHora'] ?? null) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px;"><?= e($r['Username'] ?: 'sistema') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; mso-number-format:'\@';"><?= e($r['IpOrigen'] ?: '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e($r['Tabla'] ?? '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e((string)($r['RegistroId'] ?: '—')) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; color: <?= $colorMov ?>;"><?= e($movTexto) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px;"><?= e($r['Campo'] ?: '—') ?></td>
+                </tr>
+            <?php endforeach; ?>
+
+            <!-- RESUMEN DE TOTALES -->
+            <tr><td colspan="7" style="height: 10px;"></td></tr>
+            <tr>
+                <td colspan="7" style="font-size: 11px; font-weight: bold; color: #222222; background-color: #f9f9f9; padding: 7px; border: 1px solid #dcdcdc;">
+                    Total de movimientos: <?= (int)($totalesXls['registros'] ?? count($filasXls)) ?> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #12734A;">Altas: <?= (int)($totalesXls['altas'] ?? 0) ?></span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #B4780A;">Cambios: <?= (int)($totalesXls['cambios'] ?? 0) ?></span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #C8102E;">Bajas: <?= (int)($totalesXls['bajas'] ?? 0) ?></span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    Usuarios distintos: <?= (int)($totalesXls['usuarios_distintos'] ?? 0) ?>
+                </td>
+            </tr>
+
+            <!-- PIE LEGAL -->
+            <tr><td colspan="7" style="height: 15px;"></td></tr>
+            <tr>
+                <td colspan="7" style="font-size: 9px; color: #777777; border-top: 1px solid #ccc; padding-top: 4px;">
+                    Generado el <?= date('d/m/Y H:i:s') ?> &nbsp;·&nbsp; Emitido por: <?= e($_SESSION['username'] ?? 'admin') ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="7" style="font-size: 8.5px; color: #999999;">
+                    Documento de uso interno y confidencial. Deja constancia de quién tocó qué dato y cuándo; no reproduce el contenido de los datos personales protegidos por la Ley Orgánica de Protección de Datos Personales.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <?php
+    exit;
+}
+
+/* ---------------------------------------------------------------------------
    Consulta en pantalla
    --------------------------------------------------------------------------- */
 $registros    = [];
@@ -205,6 +325,7 @@ $breadcrumb = [['label' => 'Reportes', 'url' => null], ['label' => 'Bitácora de
 include __DIR__ . '/../includes/layout_top.php';
 ?>
 
+<?php $urlExcel = 'reporte_auditoria.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
 <div class="page-header no-imprimir">
     <div>
         <h1>🗂️ Bitácora de Auditoría</h1>
@@ -214,10 +335,10 @@ include __DIR__ . '/../includes/layout_top.php';
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
-        <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
-                Exportar a PDF
-            </button>
+            <a href="<?= e($urlExcel) ?>" class="btn btn-secundario" style="background:#1e7e34; color:#fff; border-color:#1c7430;">Exportar a Excel</a>
+            <?php else: ?>
+            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">Exportar a PDF</button>
+            <button type="button" class="btn btn-secundario" disabled>Exportar a Excel</button>
         <?php endif; ?>
     </div>
 </div>

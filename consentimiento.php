@@ -483,8 +483,11 @@ $urlBase = 'consentimiento.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst
                             </div>
                             <div class="campo">
                                 <label for="telefono">Teléfono</label>
-                                <input type="tel" id="telefono" name="telefono" maxlength="20"
+                                <input type="tel" id="telefono" name="telefono" maxlength="16"
+                                       inputmode="tel" pattern="^\+?[0-9]{7,15}$"
+                                       title="Solo números, con un + opcional al inicio"
                                        value="<?= $e($previo('telefono')) ?>">
+                                <p class="campo-ayuda">Solo números, con un + opcional al inicio. Máximo 16 caracteres.</p>
                             </div>
                         </div>
 
@@ -545,7 +548,9 @@ $urlBase = 'consentimiento.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst
                                 </div>
                                 <div class="campo">
                                     <label for="rep_telefono">Teléfono</label>
-                                    <input type="tel" id="rep_telefono" name="rep_telefono" maxlength="20"
+                                    <input type="tel" id="rep_telefono" name="rep_telefono" maxlength="16"
+                                           inputmode="tel" pattern="^\+?[0-9]{7,15}$"
+                                           title="Solo números, con un + opcional al inicio"
                                            value="<?= $e($previoRep('telefono')) ?>">
                                 </div>
                             </div>

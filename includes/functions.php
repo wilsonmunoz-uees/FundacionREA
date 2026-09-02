@@ -59,6 +59,45 @@ function paginacionDesdeMeta(array $meta): array {
 }
 
 /**
+ * Encabezado de un formulario, con su título y el botón de volver al listado.
+ *
+ * El botón de abajo dice «Cancelar», que es lo correcto al pie de un formulario
+ * pero obliga a recorrerlo entero para salir. En las pantallas largas —un
+ * estudiante con su representante, un usuario con sus roles— eso significaba
+ * bajar hasta el final solo para retroceder. Este va arriba y siempre se ve.
+ */
+function encabezadoFormulario(string $titulo, string $volverA, string $etiqueta = 'Volver al listado'): void {
+    ?>
+    <div class="form-encabezado">
+        <h3><?= e($titulo) ?></h3>
+        <a href="<?= e($volverA) ?>" class="btn btn-sm btn-secundario">&larr; <?= e($etiqueta) ?></a>
+    </div>
+    <?php
+}
+
+/**
+ * Deja preparado el aviso de un guardado que además disparó el correo de
+ * consentimiento.
+ *
+ * La API responde con `invitacion`, y ahí viene la frase ya redactada. Cuando el
+ * correo no salió el aviso se marca como advertencia y no como éxito: los datos
+ * sí se guardaron, pero el titular no se enteró, y eso hay que verlo.
+ */
+function flashGuardadoConInvitacion(string $mensajeBase, array $respuesta): void {
+    $invitacion = apiDatos($respuesta, [])['invitacion'] ?? null;
+
+    if (!is_array($invitacion) || ($invitacion['mensaje'] ?? '') === '') {
+        flashSet('exito', $mensajeBase);
+        return;
+    }
+
+    flashSet(
+        !empty($invitacion['enviado']) ? 'exito' : 'advertencia',
+        $mensajeBase . ' ' . $invitacion['mensaje']
+    );
+}
+
+/**
  * Genera el bloque HTML de navegación de páginas conservando los filtros de la URL.
  *
  * Se dibuja SIEMPRE en una sola línea. Antes se imprimían todos los números, de

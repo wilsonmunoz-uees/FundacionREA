@@ -26,7 +26,6 @@ CREATE TABLE `institucion_educativa` (
   `nombre` varchar(50) NOT NULL,
   `direccion` varchar(100) NOT NULL,
   `telefono` varchar(20) NOT NULL,
-  `nombre_logotipo` varchar(100) DEFAULT NULL,
   `estado` enum('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -44,7 +43,7 @@ CREATE TABLE `tipodato` (
   `TipoDatoId` int(11) NOT NULL,
   `Codigo` varchar(50) NOT NULL,
   `Nombre` varchar(150) NOT NULL,
-  `Categoria` varchar(100) DEFAULT NULL,
+  `Categoria` enum('PERSONAL','PUBLICO','OPCIONAL') NOT NULL DEFAULT 'PERSONAL',
   `EsSensible` enum('SI','NO') DEFAULT 'NO'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -148,6 +147,7 @@ CREATE TABLE `usuario` (
   `UsuarioId` int(11) NOT NULL,
   `Username` varchar(50) NOT NULL,
   `PasswordHash` varchar(255) NOT NULL,
+  `DebeCambiarClave` enum('SI','NO') NOT NULL DEFAULT 'NO',
   `Email` varchar(150) DEFAULT NULL,
   `UltimoAcceso` datetime DEFAULT NULL,
   `Estado` enum('ACTIVO','INACTIVO') DEFAULT 'ACTIVO'
@@ -358,6 +358,7 @@ ALTER TABLE `verificacion_codigo`
 -- AUTO_INCREMENT
 -- ==========================================
 
+ALTER TABLE `institucion_educativa` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 ALTER TABLE `auditoria` MODIFY `AuditoriaId` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
 ALTER TABLE `consentimiento` MODIFY `ConsentimientoId` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 ALTER TABLE `consentimientohistorial` MODIFY `HistorialId` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;

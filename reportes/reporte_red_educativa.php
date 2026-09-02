@@ -93,6 +93,106 @@ if (isset($_GET['formato']) && $_GET['formato'] === 'pdf') {
 }
 
 /* ---------------------------------------------------------------------------
+   Exportación a Excel (.xls)
+   --------------------------------------------------------------------------- */
+if (isset($_GET['formato']) && $_GET['formato'] === 'excel') {
+    $apiRes = apiGet('reportes/red-educativa');
+    if (!$apiRes['ok']) {
+        flashSet('error', 'No se pudo generar el Excel: ' . apiError($apiRes));
+        redirigir('reporte_red_educativa.php');
+    }
+    $reporteXls = apiDatos($apiRes, []);
+    $kpisXls    = $reporteXls['kpis_globales'] ?? [];
+    $sedesXls   = $reporteXls['sedes'] ?? [];
+
+    $nombreArchivo = 'rea_tablero_red_educativa_' . date('Ymd_His') . '.xls';
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nombreArchivo . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <table border="0" style="font-family: Arial, sans-serif; border-collapse: collapse; width: 100%;">
+        <!-- CABECERA INSTITUCIONAL -->
+        <tr>
+            <td colspan="9" style="background-color: #8B0000; color: #ffffff; font-size: 15px; font-weight: bold; padding: 8px; text-align: center; letter-spacing: 1px;">
+                RED EDUCATIVA ARQUIDIOCESANA (REA)
+            </td>
+        </tr>
+        <tr>
+            <td colspan="9" style="background-color: #5c0000; color: #ffffff; font-size: 12px; font-weight: bold; padding: 4px; text-align: center;">
+                Sede Central — Tablero Comparativo de Red Educativa
+            </td>
+        </tr>
+        <tr>
+            <td colspan="9" style="font-size: 9.5px; color: #666666; padding: 4px; text-align: center;">
+                Consolidado General de Cumplimiento LOPDP - Todas las Sedes de la Red
+            </td>
+        </tr>
+        <tr><td colspan="9" style="height: 10px;"></td></tr>
+
+        <!-- ENCABEZADOS DE TABLA (9 COLUMNAS IDÉNTICAS AL PDF) -->
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: center;">RANK</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: left;">INSTITUCIÓN / SEDE</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">ESTUDIANTES</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">EMPLEADOS</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">PROVEEDORES</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">POBLACIÓN TOTAL</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">CONSENTIDOS</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">PENDIENTES</th>
+                <th style="border-bottom: 2px solid #8B0000; border-top: 1px solid #dcdcdc; color: #222; font-size: 10.5px; font-weight: bold; padding: 7px; text-align: right;">% CUMPL.</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ((array)$sedesXls as $i => $s): 
+                $colorFondo = ($i % 2 === 0) ? '#ffffff' : '#fafafa';
+                $pct = (float)($s['pct_cumplimiento'] ?? 0);
+            ?>
+                <tr style="background-color: <?= $colorFondo ?>;">
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; text-align: center; color: #555;">#<?= e((string)($s['ranking'] ?? ($i + 1))) ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; color: #111;"><?= e($s['nombre'] ?? '—') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: right;"><?= number_format((int)($s['estudiantes'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: right;"><?= number_format((int)($s['empleados'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: right;"><?= number_format((int)($s['proveedores'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; text-align: right;"><?= number_format((int)($s['poblacion'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: right; color: #12734A;"><?= number_format((int)($s['consentidos'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; padding: 6px; text-align: right; color: <?= (int)($s['pendientes'] ?? 0) > 0 ? '#C8102E' : '#333' ?>;"><?= number_format((int)($s['pendientes'] ?? 0), 0, ',', '.') ?></td>
+                    <td style="border-bottom: 1px solid #e0e0e0; font-size: 11px; font-weight: bold; padding: 6px; text-align: right; color: <?= $pct >= 50 ? '#12734A' : '#C8102E' ?>;"><?= $pct ?>%</td>
+                </tr>
+            <?php endforeach; ?>
+
+            <!-- RESUMEN DE TOTALES -->
+            <tr><td colspan="9" style="height: 10px;"></td></tr>
+            <tr>
+                <td colspan="9" style="font-size: 11px; font-weight: bold; color: #222222; background-color: #f9f9f9; padding: 7px; border: 1px solid #dcdcdc;">
+                    Sedes activas: <?= (int)($kpisXls['total_sedes'] ?? count($sedesXls)) ?> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    Población total de la red: <?= (int)($kpisXls['poblacion_total'] ?? 0) ?> personas &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    <span style="color: #12734A;">Consentimientos firmados: <?= (int)($kpisXls['consentimientos_total'] ?? 0) ?></span> &nbsp;&nbsp;·&nbsp;&nbsp; 
+                    Cumplimiento promedio: <?= (float)($kpisXls['cumplimiento_promedio'] ?? 0) ?>%
+                </td>
+            </tr>
+
+            <!-- PIE LEGAL -->
+            <tr><td colspan="9" style="height: 15px;"></td></tr>
+            <tr>
+                <td colspan="9" style="font-size: 9px; color: #777777; border-top: 1px solid #ccc; padding-top: 4px;">
+                    Generado el <?= date('d/m/Y H:i:s') ?> &nbsp;·&nbsp; Emitido por: <?= e($_SESSION['username'] ?? 'admin') ?>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="9" style="font-size: 8.5px; color: #999999;">
+                    Documento de uso directivo y confidencial. Contiene métricas consolidadas de tratamiento de datos personales protegidos por la Ley Orgánica de Protección de Datos Personales (LOPDP); su divulgación no autorizada está prohibida.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <?php
+    exit;
+}
+
+/* ---------------------------------------------------------------------------
    Consulta en pantalla
    --------------------------------------------------------------------------- */
 $apiRes = apiGet('reportes/red-educativa');
@@ -129,10 +229,10 @@ include __DIR__ . '/../includes/layout_top.php';
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
+            <a href="reporte_red_educativa.php?formato=excel" class="btn btn-secundario" style="background:#1e7e34; color:#fff; border-color:#1c7430;">Exportar a Excel</a>
         <?php else: ?>
-            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">
-                Exportar a PDF
-            </button>
+            <button type="button" class="btn btn-primario" disabled title="No hay datos disponibles para exportar">Exportar a PDF</button>
+            <button type="button" class="btn btn-secundario" disabled>Exportar a Excel</button>
         <?php endif; ?>
     </div>
 </div>

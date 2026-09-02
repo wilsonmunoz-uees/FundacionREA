@@ -87,7 +87,7 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Permiso' : 'Editar Permiso' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Registrar Permiso' : 'Editar Permiso', 'permisos.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="permisos.php?accion=<?= e($accion) ?>">
             <?= csrfCampo() ?>

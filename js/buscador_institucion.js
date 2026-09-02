@@ -48,6 +48,10 @@
         return;
     }
 
+    /* Institución que venía marcada al abrir la página —la del ingreso anterior,
+       recordada en la cookie—. Se conserva al filtrar. */
+    var elegidaInicial = lista.value;
+
     /** Minúsculas y sin tildes, para que «espiritu» encuentre «Espíritu». */
     function normalizar(texto) {
         return String(texto)
@@ -68,7 +72,7 @@
     function pintar() {
         var texto    = normalizar(buscar.value);
         var palabras = texto === '' ? [] : texto.split(' ');
-        var elegida  = lista.value;
+        var elegida  = lista.value || elegidaInicial;
 
         var visibles = palabras.length === 0
             ? opciones

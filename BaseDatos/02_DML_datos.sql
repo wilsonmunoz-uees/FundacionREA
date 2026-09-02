@@ -4,13 +4,13 @@
 USE `ezyro_42650191_protecciondatos`;
 
 -- ==========================================
--- INSERCIí“N DE DATOS (ORDEN DE DEPENDENCIAS)
+-- INSERCIÃ“N DE DATOS (ORDEN DE DEPENDENCIAS)
 -- ==========================================
 
 -- Nivel 1: Tablas Base
-INSERT INTO `institucion_educativa` (`id`, `nombre`, `direccion`, `telefono`, `nombre_logotipo`, `estado`) VALUES
-(1, 'Escuela Don Bosco', 'Direccion 1', '09999999', NULL, 'ACTIVO'),
-(2, 'Escuela Juan Pablo Segundo', 'Direccion 2', '09999999', NULL, 'ACTIVO');
+INSERT INTO `institucion_educativa` (`id`, `nombre`, `direccion`, `telefono`, `estado`) VALUES
+(1, 'Escuela Don Bosco', 'Direccion 1', '09999999', 'ACTIVO'),
+(2, 'Escuela Juan Pablo Segundo', 'Direccion 2', '09999999', 'ACTIVO');
 
 INSERT INTO `finalidad` (`FinalidadId`, `Codigo`, `Nombre`, `Descripcion`, `Activo`) VALUES
 (1, '1', 'CONSENTIMIENTO DE USO DE DATOS', 'CONSENTIMIENTO DE USO DE DATOS', 'ACTIVO');
@@ -20,58 +20,58 @@ INSERT INTO `tipodato` (`TipoDatoId`, `Codigo`, `Nombre`, `Categoria`, `EsSensib
 (2, '2', 'Email', 'PERSONAL', 'NO'),
 (3, '3', 'Direccion', 'PERSONAL', 'SI');
 
--- Nivel 2: Dependen de Institución
+-- Nivel 2: Dependen de InstituciÃ³n
 INSERT INTO `persona` (`InstitucionEducativaId`, `PersonaId`, `TipoIdentificacion`, `Identificacion`, `Nombres`, `Apellidos`, `Email`, `Telefono`, `Estado`) VALUES
 (1, 1, 'CEDULA', '0999999999', 'Super', 'Administrador', 'admin@uees.edu.ec', '09999999', 'ACTIVO'),
-(1, 9, 'CEDULA', '0916686009', 'Wilson Fidel', 'Muñoz Recalde', 'wmunozr@gmail.com', '0939071545', 'ACTIVO'),
-(1, 10, 'CEDULA', '0700316284', 'Wilson Emiliano', 'Muñoz Davila', 'wilson.munoz@uees.edu.ec', '0980930119', 'ACTIVO'),
+(1, 9, 'CEDULA', '0916686009', 'Wilson Fidel', 'MuÃ±oz Recalde', 'wmunozr@gmail.com', '0939071545', 'ACTIVO'),
+(1, 10, 'CEDULA', '0700316284', 'Wilson Emiliano', 'MuÃ±oz Davila', 'wilson.munoz@uees.edu.ec', '0980930119', 'ACTIVO'),
 (1, 11, 'RUC', '0916686009001', 'COMPUMUNDOHYPERMEGARED', 'S.A.', 'wmunozr@yahoo.com', '0917181177', 'ACTIVO'),
 (1, 12, 'CEDULA', 'USR-SEG-001', 'Usuario', 'Seguridades', 'seguridades@rea.local', NULL, 'ACTIVO'),
 (1, 13, 'CEDULA', 'USR-REG-001', 'Usuario', 'Registro de Datos', 'registro@rea.local', NULL, 'ACTIVO'),
 (1, 14, 'CEDULA', 'USR-CON-001', 'Usuario', 'Consultas', 'consultas@rea.local', NULL, 'ACTIVO'),
 (1, 15, 'CEDULA', 'USR-REP-001', 'Usuario', 'Reportes', 'reportes@rea.local', NULL, 'ACTIVO'),
 (1, 16, 'CEDULA', '0923112887', 'Luis Arturo', 'Celleri Carabajo', 'luis.celleri@uees.edu.ec', '0981427719', 'ACTIVO'),
-(1, 17, 'CEDULA', '0955499645', 'Santiago Andrés', 'Muñoz Ringelman', 'santiago.munoz.ringelman@gmail.com', '0992694788', 'ACTIVO'),
+(1, 17, 'CEDULA', '0955499645', 'Santiago AndrÃ©s', 'MuÃ±oz Ringelman', 'santiago.munoz.ringelman@gmail.com', '0992694788', 'ACTIVO'),
 (1, 18, 'RUC', '096328988001', 'Cristhian Ricardo', 'Cela Figueroa', 'cristhian.cela@uees.edu.ec', '096328988', 'ACTIVO'),
 (1, 19, 'RUC', '0700316284001', 'Carlos', 'Freire Icaza', 'wilsonmunoz@hotmail.com', '0945454541', 'ACTIVO'),
 (1, 20, 'CEDULA', '0921074860', 'Gabriel', 'Herrera', 'herrera.gabriel@gmail.com', '0984770197', 'ACTIVO'),
 (1, 21, 'CEDULA', '0921708406', 'Gabriel', 'Herrera', 'herrera.gabriel@gmail.com', NULL, 'ACTIVO'),
 (1, 22, 'CEDULA', '0919127480', 'Danny', 'Bajar', 'danie.f.bejar@gmail.com', '999437982', 'ACTIVO'),
-(1, 23, 'CEDULA', '0919127481', 'Daniel', 'Béjar', 'daniel.f.bejar@gmail.com', '999437985', 'ACTIVO'),
-(1, 24, 'CEDULA', '09188724402', 'Marco Vinicio', 'Muñoz Recalde', 'mmunozrecalde@gmail.com', '0992158118', 'ACTIVO');
+(1, 23, 'CEDULA', '0919127481', 'Daniel', 'BÃ©jar', 'daniel.f.bejar@gmail.com', '999437985', 'ACTIVO'),
+(1, 24, 'CEDULA', '09188724402', 'Marco Vinicio', 'MuÃ±oz Recalde', 'mmunozrecalde@gmail.com', '0992158118', 'ACTIVO');
 
 INSERT INTO `rol` (`InstitucionEducativaId`, `RolId`, `Nombre`, `Descripcion`, `Estado`) VALUES
 (1, 1, 'SuperAdmin', 'SuperAdmin', 'ACTIVO'),
-(1, 2, 'Seguridades', 'Administración de accesos: usuarios, roles y permisos', 'ACTIVO'),
-(1, 3, 'Registro de Datos', 'Mantenimiento de entidades, catálogos y consentimientos', 'ACTIVO'),
-(1, 4, 'Consultas', 'Consulta de personas, consentimientos e historial de auditorí­a', 'ACTIVO'),
-(1, 5, 'Reportes', 'Emisión de reportes de cumplimiento y exportación de datos', 'ACTIVO');
+(1, 2, 'Seguridades', 'AdministraciÃ³n de accesos: usuarios, roles y permisos', 'ACTIVO'),
+(1, 3, 'Registro de Datos', 'Mantenimiento de entidades, catÃ¡logos y consentimientos', 'ACTIVO'),
+(1, 4, 'Consultas', 'Consulta de personas, consentimientos e historial de auditorÃ­a', 'ACTIVO'),
+(1, 5, 'Reportes', 'EmisiÃ³n de reportes de cumplimiento y exportaciÃ³n de datos', 'ACTIVO');
 
 INSERT INTO `permiso` (`InstitucionEducativaId`, `PermisoId`, `Codigo`, `Nombre`, `Modulo`, `Descripcion`, `Estado`) VALUES
 (1, 1, 'a001', 'Todo', 'REGISTRO_DATOS', 'Permiso 1', 'ACTIVO'),
 (1, 2, 'SEG_USUARIOS', 'Usuarios del Sistema', 'ADMINISTRACION', 'Crear, editar y activar/inactivar cuentas de usuario y sus roles', 'ACTIVO'),
 (1, 3, 'SEG_ROLES', 'Roles', 'ADMINISTRACION', 'Administrar roles y los permisos asignados a cada uno', 'ACTIVO'),
-(1, 4, 'SEG_PERMISOS', 'Permisos', 'ADMINISTRACION', 'Mantener el catálogo de permisos del sistema', 'ACTIVO'),
+(1, 4, 'SEG_PERMISOS', 'Permisos', 'ADMINISTRACION', 'Mantener el catÃ¡logo de permisos del sistema', 'ACTIVO'),
 (1, 5, 'REG_INSTITUCIONES', 'Instituciones Educativas', 'REGISTRO_DATOS', 'Mantenimiento de instituciones educativas', 'ACTIVO'),
 (1, 6, 'REG_PERSONAS', 'Personas', 'REGISTRO_DATOS', 'Directorio general de personas (entidad base del sistema)', 'ACTIVO'),
 (1, 7, 'REG_EMPLEADOS', 'Empleados', 'REGISTRO_DATOS', 'Mantenimiento del personal, cargos y departamentos', 'ACTIVO'),
-(1, 8, 'REG_ESTUDIANTES', 'Estudiantes', 'REGISTRO_DATOS', 'Matrí­cula de estudiantes y sus representantes legales', 'ACTIVO'),
+(1, 8, 'REG_ESTUDIANTES', 'Estudiantes', 'REGISTRO_DATOS', 'MatrÃ­cula de estudiantes y sus representantes legales', 'ACTIVO'),
 (1, 9, 'REG_PROVEEDORES', 'Proveedores', 'REGISTRO_DATOS', 'Directorio de proveedores de bienes y servicios', 'ACTIVO'),
-(1, 10, 'REG_CONSENTIMIENTOS', 'Consentimientos', 'REGISTRO_DATOS', 'Registro, modificación, revocación y reactivación de consentimientos', 'ACTIVO'),
-(1, 11, 'REG_FINALIDADES', 'Finalidades del Tratamiento', 'REGISTRO_DATOS', 'Catálogo de finalidades del tratamiento de datos', 'ACTIVO'),
-(1, 12, 'REG_TIPOS_DATO', 'Tipos de Dato Personal', 'CONSULTA_BUSQUEDAS', 'Catálogo de tipos de dato personal y su condición de sensible', 'ACTIVO'),
-(1, 20, 'CON_BUSCAR_PERSONA', 'Buscar Persona', 'CONSULTA_BUSQUEDAS', 'Bíºsqueda de personas y ficha 360Â° del titular', 'ACTIVO'),
-(1, 21, 'CON_HISTORIAL', 'Historial de Consentimientos', 'CONSULTA_BUSQUEDAS', 'Bitácora de auditorí­a: creación, modificación, revocación y reactivación', 'ACTIVO'),
+(1, 10, 'REG_CONSENTIMIENTOS', 'Consentimientos', 'REGISTRO_DATOS', 'Registro, modificaciÃ³n, revocaciÃ³n y reactivaciÃ³n de consentimientos', 'ACTIVO'),
+(1, 11, 'REG_FINALIDADES', 'Finalidades del Tratamiento', 'REGISTRO_DATOS', 'CatÃ¡logo de finalidades del tratamiento de datos', 'ACTIVO'),
+(1, 12, 'REG_TIPOS_DATO', 'Tipos de Dato Personal', 'CONSULTA_BUSQUEDAS', 'CatÃ¡logo de tipos de dato personal y su condiciÃ³n de sensible', 'ACTIVO'),
+(1, 20, 'CON_BUSCAR_PERSONA', 'Buscar Persona', 'CONSULTA_BUSQUEDAS', 'BÃºsqueda de personas y ficha 360Â° del titular', 'ACTIVO'),
+(1, 21, 'CON_HISTORIAL', 'Historial de Consentimientos', 'CONSULTA_BUSQUEDAS', 'BitÃ¡cora de auditorÃ­a: creaciÃ³n, modificaciÃ³n, revocaciÃ³n y reactivaciÃ³n', 'ACTIVO'),
 (1, 22, 'CON_VIGENTES', 'Consentimientos Vigentes / Revocados', 'CONSULTA_BUSQUEDAS', 'Consulta de consentimientos por finalidad y tipo de dato', 'ACTIVO'),
-(1, 23, 'REP_CONSENTIMIENTOS', 'Reporte de Consentimientos', 'REPORTES_EXPORTACION', 'Consentimientos por finalidad, medio y evolución mensual', 'ACTIVO'),
-(1, 24, 'REP_DATOS_SENSIBLES', 'Reporte de Datos Sensibles', 'REPORTES_EXPORTACION', 'Tratamiento de categorí­as especiales de datos personales', 'ACTIVO'),
+(1, 23, 'REP_CONSENTIMIENTOS', 'Reporte de Consentimientos', 'REPORTES_EXPORTACION', 'Consentimientos por finalidad, medio y evoluciÃ³n mensual', 'ACTIVO'),
+(1, 24, 'REP_DATOS_SENSIBLES', 'Reporte de Datos Sensibles', 'REPORTES_EXPORTACION', 'Tratamiento de categorÃ­as especiales de datos personales', 'ACTIVO'),
 (1, 25, 'REP_TITULARES', 'Consentimientos por Titular', 'REPORTES_EXPORTACION', 'Detalle de titulares con consentimiento otorgado o revocado, con salida a PDF', 'ACTIVO'),
-(1, 26, 'REP_EXPORTAR_CSV', 'Exportar Datos (CSV)', 'REPORTES_EXPORTACION', 'Descarga de la información de la institución en formato CSV', 'ACTIVO'),
-(1, 30, 'REP_AUDITORIA', 'Bitácora de Auditorí­a', 'REPORTES_EXPORTACION', 'Consulta de todos los movimientos registrados en la base de datos', 'ACTIVO'),
-(1, 32, 'ADM_DISCLAIMERS', 'Disclaimers de Datos', 'ADMINISTRACION', 'Redacción y vigencia de las polí­ticas de protección de datos que se muestran al dar el consentimiento.', 'ACTIVO'),
-(1, 33, 'ADM_CORREO', 'Configuración de Correo', 'ADMINISTRACION', 'Servidor de correo saliente y enlaces píºblicos de consentimiento.', 'ACTIVO'),
-(1, 34, 'ADM_ENLACES_VERIF', 'Links con Verificación', 'ADMINISTRACION', 'Enlaces píƒÂºblicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO'),
-(2, 35, 'ADM_ENLACES_VERIF', 'Links con Verificación', 'ADMINISTRACION', 'Enlaces píƒÂºblicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO');
+(1, 26, 'REP_EXPORTAR_CSV', 'Exportar Datos (CSV)', 'REPORTES_EXPORTACION', 'Descarga de la informaciÃ³n de la instituciÃ³n en formato CSV', 'ACTIVO'),
+(1, 30, 'REP_AUDITORIA', 'BitÃ¡cora de AuditorÃ­a', 'REPORTES_EXPORTACION', 'Consulta de todos los movimientos registrados en la base de datos', 'ACTIVO'),
+(1, 32, 'ADM_DISCLAIMERS', 'Disclaimers de Datos', 'ADMINISTRACION', 'RedacciÃ³n y vigencia de las polÃ­ticas de protecciÃ³n de datos que se muestran al dar el consentimiento.', 'ACTIVO'),
+(1, 33, 'ADM_CORREO', 'ConfiguraciÃ³n de Correo', 'ADMINISTRACION', 'Servidor de correo saliente y enlaces pÃºblicos de consentimiento.', 'ACTIVO'),
+(1, 34, 'ADM_ENLACES_VERIF', 'Links con VerificaciÃƒÂ³n', 'ADMINISTRACION', 'Enlaces pÃƒÂºblicos de solo consulta que verifican la identidad con un cÃƒÂ³digo enviado por correo.', 'ACTIVO'),
+(2, 35, 'ADM_ENLACES_VERIF', 'Links con VerificaciÃƒÂ³n', 'ADMINISTRACION', 'Enlaces pÃƒÂºblicos de solo consulta que verifican la identidad con un cÃƒÂ³digo enviado por correo.', 'ACTIVO');
 
 INSERT INTO `correo_configuracion` (`InstitucionEducativaId`, `Servidor`, `Puerto`, `Seguridad`, `Usuario`, `Clave`, `RemitenteCorreo`, `RemitenteNombre`, `Activo`, `Actualizado`) VALUES
 (1, 'smtp.hostinger.com', 587, 'TLS', 'wmunoz@saberempresarial.com', 'sNrO18855935+*', 'wmunoz@saberempresarial.com', 'REA', 'SI', '2026-08-24 12:35:08');
@@ -81,7 +81,7 @@ INSERT INTO `disclaimer` (`InstitucionEducativaId`, `DisclaimerId`, `TipoPersona
 (1, 2, 'EMPLEADO', '1.0', 'Consentimiento para el tratamiento de datos personales', '<p>De conformidad con la <strong>Ley Org&aacute;nica de Protecci&oacute;n de Datos Personales</strong> y su reglamento...</p>', 'ACTIVO', '2026-08-24 20:58:55', '2026-08-24 20:58:55', NULL, 'instalacion'),
 (1, 3, 'PROVEEDOR', '1.0', 'Consentimiento para el tratamiento de datos personales', '<p>De conformidad con la <strong>Ley Org&aacute;nica de Protecci&oacute;n de Datos Personales</strong> y su reglamento...</p>', 'ACTIVO', '2026-08-24 20:58:55', '2026-08-24 20:58:55', NULL, 'instalacion');
 
--- Nivel 3: Dependen de Institución y/o Persona
+-- Nivel 3: Dependen de InstituciÃ³n y/o Persona
 INSERT INTO `empleado` (`InstitucionEducativaId`, `EmpleadoId`, `PersonaId`, `Estado`) VALUES
 (1, 1, 10, 'ACTIVO'),
 (2, 2, 10, 'ACTIVO'),
@@ -90,7 +90,7 @@ INSERT INTO `empleado` (`InstitucionEducativaId`, `EmpleadoId`, `PersonaId`, `Es
 INSERT INTO `proveedor` (`InstitucionEducativaId`, `ProveedorId`, `PersonaId`, `Ruc`, `RazonSocial`, `Estado`) VALUES
 (1, 1, 11, '0916686009001', 'COMPUMUNDO HYPER MEGA RED S.A.', 'ACTIVO'),
 (1, 3, 19, '0700316284001', 'PAPELERIA E INSUMOS FREIRE S.A.', 'ACTIVO'),
-(2, 2, 18, '096328988001', 'Papelerí­a Cela S.A.', 'ACTIVO');
+(2, 2, 18, '096328988001', 'PapelerÃ­a Cela S.A.', 'ACTIVO');
 
 INSERT INTO `estudiante` (`InstitucionEducativaId`, `EstudianteId`, `PersonaId`, `CodigoEstudiante`, `RepresentanteId`, `RepresentanteRelacion`, `Estado`) VALUES
 (1, 1, 9, '202598289', 10, 'PADRE', 'ACTIVO'),
@@ -176,7 +176,7 @@ INSERT INTO `consentimientodato` (`InstitucionEducativaId`, `ConsentimientoId`, 
 
 INSERT INTO `consentimientohistorial` (`InstitucionEducativaId`, `HistorialId`, `ConsentimientoId`, `EstadoAnterior`, `EstadoNuevo`, `Accion`, `FechaAccion`, `UsuarioId`, `IpOrigen`, `Observacion`) VALUES
 (1, 1, 1, NULL, 'ACTIVO', 'CREACION', '2026-08-20 09:02:29', 1, '187.251.172.1', 'Registro inicial del consentimiento.'),
-(1, 2, 1, 'ACTIVO', 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 13:06:18', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde la pantalla píºblica (CEDULA 0700316284, EMPLEADO).'),
-(1, 3, 2, NULL, 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 21:00:20', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde el enlace píºblico de la institución. Polí­tica versión 1.0.'),
-(1, 4, 3, NULL, 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:07:20', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace píºblico de la institución. Polí­tica versión 1.0.'),
-(1, 5, 2, 'INACTIVO', 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:13:31', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace píºblico de la institución. Polí­tica versión 1.0.');
+(1, 2, 1, 'ACTIVO', 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 13:06:18', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde la pantalla pÃºblica (CEDULA 0700316284, EMPLEADO).'),
+(1, 3, 2, NULL, 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 21:00:20', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde el enlace pÃºblico de la instituciÃ³n. PolÃ­tica versiÃ³n 1.0.'),
+(1, 4, 3, NULL, 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:07:20', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace pÃºblico de la instituciÃ³n. PolÃ­tica versiÃ³n 1.0.'),
+(1, 5, 2, 'INACTIVO', 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:13:31', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace pÃºblico de la instituciÃ³n. PolÃ­tica versiÃ³n 1.0.');

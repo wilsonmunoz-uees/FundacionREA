@@ -133,10 +133,14 @@ final class UsuariosController extends Controller
      * Las condiciones que debe cumplir una contraseña, para que la pantalla las
      * muestre y las vaya marcando mientras se escribe. Quien decide sigue siendo
      * el servidor, en `api/core/Password.php`, al guardar.
+     *
+     * Basta con estar autenticado: la política no es un dato reservado, y la
+     * necesita cualquiera que vaya a cambiar su propia contraseña, no solo quien
+     * administra las cuentas.
      */
     public function politicaClave(array $ruta = []): void
     {
-        $this->requiereAcceso(self::MODULO);
+        $this->requiereAutenticacion();
 
         Response::exito(Password::reglas(), [
             'largo_minimo' => Password::LARGO_MINIMO,
@@ -174,15 +178,23 @@ final class UsuariosController extends Controller
         $institucionId = $this->institucion();
         $datos = $this->validar(true);
 
+        /* La contraseña la genera el sistema y no la ve nadie: ni quien crea la
+           cuenta ni esta respuesta. Viaja por correo al titular, que está
+           obligado a cambiarla en su primer ingreso. El correo tampoco se pide
+           en el formulario: es el de la persona, que ya consta en el padrón. */
+        $clave  = Password::generar();
+        $correo = $this->correoDeLaPersona($institucionId, $datos['persona_id']);
+
         try {
             $this->db->beginTransaction();
 
             $this->ejecutar(
-                'INSERT INTO usuario (InstitucionEducativaId, PersonaId, Username, PasswordHash, Email, Estado)
-                 VALUES (?,?,?,?,?,?)',
+                'INSERT INTO usuario
+                    (InstitucionEducativaId, PersonaId, Username, PasswordHash, DebeCambiarClave, Email, Estado)
+                 VALUES (?,?,?,?,?,?,?)',
                 [
                     $institucionId, $datos['persona_id'], $datos['username'],
-                    password_hash($datos['password'], PASSWORD_DEFAULT), $datos['email'], $datos['estado'],
+                    password_hash($clave, PASSWORD_DEFAULT), 'SI', $correo, $datos['estado'],
                 ]
             );
             $usuarioId = (int)$this->db->lastInsertId();
@@ -206,7 +218,17 @@ final class UsuariosController extends Controller
             [], $this->nombresRoles($institucionId, $datos['roles'])
         );
 
-        Response::exito(['UsuarioId' => $usuarioId, 'mensaje' => 'Usuario creado correctamente.'], [], 201);
+        $aviso = ClaveTemporal::enviar($this->db, $institucionId, [
+            'destino'  => $correo,
+            'username' => $datos['username'],
+            'clave'    => $clave,
+        ]);
+
+        Response::exito([
+            'UsuarioId'  => $usuarioId,
+            'mensaje'    => 'Usuario creado correctamente.',
+            'credencial' => $aviso,
+        ], [], 201);
     }
 
     /** PUT /api/usuarios/{id} — la contraseña solo cambia si se envía. */
@@ -226,23 +248,34 @@ final class UsuariosController extends Controller
             [$id, $institucionId]
         )));
 
+        /* El correo sigue siendo el de la persona: se refresca por si cambió en
+           su ficha. Nadie lo escribe aquí. */
+        $correo = $this->correoDeLaPersona($institucionId, (int)$antes['PersonaId']);
+
+        /* Restablecer la clave no es escribir una: el sistema genera otra
+           temporal, la envía y vuelve a exigir el cambio en el próximo ingreso.
+           Así nadie —tampoco quien administra— llega a conocer la contraseña de
+           otra persona. */
+        $clave = $datos['restablecer_clave'] ? Password::generar() : '';
+
         try {
             $this->db->beginTransaction();
 
-            if ($datos['password'] !== '') {
+            if ($clave !== '') {
                 $this->ejecutar(
-                    'UPDATE usuario SET Username = ?, PasswordHash = ?, Email = ?, Estado = ?
+                    'UPDATE usuario
+                        SET Username = ?, PasswordHash = ?, DebeCambiarClave = \'SI\', Email = ?, Estado = ?
                       WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
                     [
-                        $datos['username'], password_hash($datos['password'], PASSWORD_DEFAULT),
-                        $datos['email'], $datos['estado'], $id, $institucionId,
+                        $datos['username'], password_hash($clave, PASSWORD_DEFAULT),
+                        $correo, $datos['estado'], $id, $institucionId,
                     ]
                 );
             } else {
                 $this->ejecutar(
                     'UPDATE usuario SET Username = ?, Email = ?, Estado = ?
                       WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
-                    [$datos['username'], $datos['email'], $datos['estado'], $id, $institucionId]
+                    [$datos['username'], $correo, $datos['estado'], $id, $institucionId]
                 );
             }
 
@@ -265,7 +298,17 @@ final class UsuariosController extends Controller
             $rolesAntes, $this->nombresRoles($institucionId, $datos['roles'])
         );
 
-        Response::exito(['UsuarioId' => $id, 'mensaje' => 'Usuario actualizado correctamente.']);
+        $respuesta = ['UsuarioId' => $id, 'mensaje' => 'Usuario actualizado correctamente.'];
+
+        if ($clave !== '') {
+            $respuesta['credencial'] = ClaveTemporal::enviar($this->db, $institucionId, [
+                'destino'  => $correo,
+                'username' => $datos['username'],
+                'clave'    => $clave,
+            ]);
+        }
+
+        Response::exito($respuesta);
     }
 
     /** PATCH /api/usuarios/{id}/estado */
@@ -345,9 +388,6 @@ final class UsuariosController extends Controller
         $errores   = [];
         $personaId = $this->peticion->entero('persona_id');
         $username  = $this->peticion->texto('username');
-        $email     = $this->oNulo($this->peticion->texto('email'));
-        $password  = (string)$this->peticion->dato('password', '');
-        $confirmar = (string)$this->peticion->dato('password_confirm', $password);
 
         /* Se anota qué campo falla, no solo el mensaje: así la pantalla puede
            marcarlo en rojo sin tener que adivinar leyendo el texto. */
@@ -368,22 +408,17 @@ final class UsuariosController extends Controller
             $falla('username', 'El nombre de usuario es obligatorio.');
         }
 
-        if ($email !== null && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $falla('email', 'El correo electrónico no es válido.');
-        }
-
-        /* Contraseña. Al editar puede dejarse en blanco: significa «no la
-           cambies». Si viene con algo, se le exige toda la política. */
-        if ($esNuevo && $password === '') {
-            $falla('password', 'La contraseña es obligatoria para un nuevo usuario.');
-        } elseif ($password !== '') {
-            foreach (Password::validar($password) as $mensaje) {
-                $falla('password', $mensaje);
-            }
-        }
-
-        if ($password !== $confirmar) {
-            $falla('password_confirm', 'Las contraseñas no coinciden.');
+        /* Ni el correo ni la contraseña se piden en el formulario:
+           · el correo es el de la persona, que ya consta en el padrón, y
+             pedirlo dos veces solo servía para que las dos copias se separaran;
+           · la contraseña la genera el sistema y viaja al titular por correo,
+             de modo que quien administra las cuentas no llega a conocerla.
+           Si el alta se hace sobre una persona sin correo, no hay forma de
+           entregarle su clave: se rechaza aquí y no después. */
+        if ($personaId > 0 && $this->correoDeLaPersona($this->institucion(), $personaId) === null) {
+            $falla('persona_id',
+                'La persona seleccionada no tiene correo electrónico registrado, y es allí donde '
+                . 'se le envía su contraseña. Regístreselo primero en su ficha.');
         }
 
         if ($errores) {
@@ -391,12 +426,27 @@ final class UsuariosController extends Controller
         }
 
         return [
-            'persona_id' => $personaId,
-            'username'   => $username,
-            'email'      => $email,
-            'password'   => $password,
-            'estado'     => $this->estado($this->peticion->texto('estado', 'ACTIVO')),
-            'roles'      => $this->peticion->arregloEnteros('roles'),
+            'persona_id'        => $personaId,
+            'username'          => $username,
+            'estado'            => $this->estado($this->peticion->texto('estado', 'ACTIVO')),
+            'roles'             => $this->peticion->arregloEnteros('roles'),
+            // Solo en la edición: genera otra clave temporal y la reenvía
+            'restablecer_clave' => (bool)$this->peticion->dato('restablecer_clave', false),
         ];
+    }
+
+    /**
+     * Correo de la persona dueña de la cuenta.
+     *
+     * Es el único correo del sistema para esa persona: `usuario`.`Email` se
+     * conserva como copia porque otras consultas la leen, pero quien manda es
+     * la ficha del padrón.
+     */
+    private function correoDeLaPersona(int $institucionId, int $personaId): ?string
+    {
+        $ficha = Padron::porId($this->db, $institucionId, $personaId);
+        $correo = trim((string)($ficha['Email'] ?? ''));
+
+        return ($correo !== '' && filter_var($correo, FILTER_VALIDATE_EMAIL)) ? $correo : null;
     }
 }

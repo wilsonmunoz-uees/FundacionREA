@@ -136,7 +136,19 @@ final class ProveedoresController extends Controller
         $this->auditarActualizacion('persona',   'PersonaId',   $personaId, $antesPersona, $institucionId);
         $this->auditarActualizacion('proveedor', 'ProveedorId', $id, $antes, $institucionId);
 
-        Response::exito(['ProveedorId' => $id, 'mensaje' => 'Proveedor actualizado correctamente.']);
+        /* Datos de contacto nuevos, consentimiento nuevo. Ver el comentario
+           equivalente en EmpleadosController::update. */
+        $invitacion = InvitacionConsentimiento::enviarA($this->db, $institucionId, 'PROVEEDOR', [
+            'destino'        => $persona['email'],
+            'titular'        => (string)($antes['RazonSocial'] ?? trim($persona['apellidos'] . ' ' . $persona['nombres'])),
+            'identificacion' => $persona['identificacion'],
+        ]);
+
+        Response::exito([
+            'ProveedorId' => $id,
+            'mensaje'     => 'Proveedor actualizado correctamente.',
+            'invitacion'  => $invitacion,
+        ]);
     }
 
     /** PATCH /api/proveedores/{id}/estado */

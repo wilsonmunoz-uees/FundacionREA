@@ -140,7 +140,20 @@ final class EmpleadosController extends Controller
         $this->auditarActualizacion('persona',  'PersonaId',  $personaId, $antesPersona, $institucionId);
         $this->auditarActualizacion('empleado', 'EmpleadoId', $id, $antes, $institucionId);
 
-        Response::exito(['EmpleadoId' => $id, 'mensaje' => 'Empleado actualizado correctamente.']);
+        /* Datos de contacto nuevos, consentimiento nuevo: se vuelve a pedir
+           sobre la información vigente. El envío no puede deshacer el guardado
+           —ya está hecho—, así que su resultado viaja en la respuesta. */
+        $invitacion = InvitacionConsentimiento::enviarA($this->db, $institucionId, 'EMPLEADO', [
+            'destino'        => $persona['email'],
+            'titular'        => trim($persona['apellidos'] . ' ' . $persona['nombres']),
+            'identificacion' => $persona['identificacion'],
+        ]);
+
+        Response::exito([
+            'EmpleadoId' => $id,
+            'mensaje'    => 'Empleado actualizado correctamente.',
+            'invitacion' => $invitacion,
+        ]);
     }
 
     /** PATCH /api/empleados/{id}/estado */

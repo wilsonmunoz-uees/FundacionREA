@@ -17,13 +17,14 @@ final class Auth
     /**
      * Verificación de contraseña con password_verify().
      *
-     * Se deja en false para conservar el comportamiento del sistema original
-     * (auth.php tenía la verificación comentada porque los hashes cargados en
-     * la base de pruebas no corresponden a las contraseñas). Cambie a true
-     * cuando todos los usuarios tengan su PasswordHash generado con
-     * password_hash(); el login seguirá funcionando igual.
+     * Está activa, que es como debe quedar. Nació en false porque los hashes
+     * cargados en la base de pruebas no correspondían a las contraseñas, y con
+     * ella apagada cualquier clave abría cualquier cuenta.
+     *
+     * No la vuelva a poner en false: es el riesgo RT-01 del registro, el de
+     * mayor exposición de todo el análisis.
      */
-    public const VALIDAR_PASSWORD = false;
+    public const VALIDAR_PASSWORD = true;
 
     private static ?array $usuario = null;
 
@@ -155,7 +156,8 @@ final class Auth
         $pdo = Database::conexion();
 
         $stmt = $pdo->prepare(
-            'SELECT UsuarioId, PersonaId, Username, PasswordHash, Email, Estado, InstitucionEducativaId
+            'SELECT UsuarioId, PersonaId, Username, PasswordHash, Email, Estado,
+                    InstitucionEducativaId, DebeCambiarClave
                FROM usuario
               WHERE Username = ?'
         );
@@ -196,6 +198,9 @@ final class Auth
             'persona_id'         => (int)$usuario['PersonaId'],
             'username'           => (string)$usuario['Username'],
             'email'              => $usuario['Email'],
+            /* Todavía tiene la clave temporal que le envió el sistema: hasta que
+               fije la suya, la sesión no le sirve para nada más. */
+            'debe_cambiar_clave' => ($usuario['DebeCambiarClave'] ?? 'NO') === 'SI',
             'institucion_id'     => $institucionId,
             'institucion_propia' => $institucionPropia,
             'visita'             => $institucionPropia !== $institucionId,

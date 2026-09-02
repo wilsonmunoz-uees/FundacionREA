@@ -15,14 +15,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar
     if (!csrfValido()) {
         $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
     } else {
+        /* El identificador no viaja en el alta: lo asigna la base. En la
+           edición sirve solo para saber a qué fila se apunta. */
         $id = trim($_POST['id'] ?? '');
         $datos = [
-            'id'              => $id,
-            'nombre'          => trim($_POST['nombre'] ?? ''),
-            'direccion'       => trim($_POST['direccion'] ?? ''),
-            'telefono'        => trim($_POST['telefono'] ?? ''),
-            'nombre_logotipo' => trim($_POST['nombre_logotipo'] ?? ''),
-            'estado'          => $_POST['estado'] ?? 'ACTIVO',
+            'nombre'    => trim($_POST['nombre'] ?? ''),
+            'direccion' => trim($_POST['direccion'] ?? ''),
+            'telefono'  => trim($_POST['telefono'] ?? ''),
+            'estado'    => $_POST['estado'] ?? 'ACTIVO',
         ];
 
         if ($accion === 'crear') {
@@ -91,19 +91,22 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Institución Educativa' : 'Editar Institución Educativa' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Registrar Institución Educativa' : 'Editar Institución Educativa', 'instituciones.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="instituciones.php?accion=<?= e($accion) ?>">
             <?= csrfCampo() ?>
             <div class="form-row">
                 <div class="form-group" style="max-width:160px;">
-                    <label class="campo-requerido">ID</label>
+                    <label>ID</label>
                     <?php if ($accion === 'editar'): ?>
-                        <input type="text" value="<?= e((string)$registroEditar['id']) ?>" disabled>
+                        <input type="text" class="campo-bloqueado" disabled
+                               value="<?= e((string)$registroEditar['id']) ?>">
                         <input type="hidden" name="id" value="<?= e((string)$registroEditar['id']) ?>">
+                        <div class="form-ayuda">Lo asignó el sistema y no cambia.</div>
                     <?php else: ?>
-                        <input type="number" name="id" required value="<?= e((string)$siguienteId) ?>">
-                        <div class="form-ayuda">Identificador numérico único (sugerido automáticamente).</div>
+                        <input type="text" class="campo-bloqueado" disabled
+                               value="<?= e((string)$siguienteId) ?>">
+                        <div class="form-ayuda">Lo asigna el sistema al guardar.</div>
                     <?php endif; ?>
                 </div>
                 <div class="form-group" style="flex:2;">
@@ -118,14 +121,16 @@ include __DIR__ . '/../includes/layout_top.php';
                 </div>
                 <div class="form-group">
                     <label class="campo-requerido">Teléfono</label>
-                    <input type="text" name="telefono" maxlength="20" required value="<?= e($registroEditar['telefono'] ?? ($_POST['telefono'] ?? '')) ?>">
+                    <input type="tel" name="telefono" maxlength="16" required
+                           inputmode="tel" pattern="^\+?[0-9]{7,15}$" data-telefono="1"
+                           title="Solo números, con un + opcional al inicio"
+                           value="<?= e($registroEditar['telefono'] ?? ($_POST['telefono'] ?? '')) ?>">
+                    <div class="form-ayuda">
+                        Solo números, con un + opcional al inicio. Máximo 16 caracteres.
+                    </div>
                 </div>
             </div>
             <div class="form-row">
-                <div class="form-group">
-                    <label>Nombre del Logotipo (archivo)</label>
-                    <input type="text" name="nombre_logotipo" maxlength="100" value="<?= e($registroEditar['nombre_logotipo'] ?? ($_POST['nombre_logotipo'] ?? '')) ?>">
-                </div>
                 <div class="form-group">
                     <label>Estado</label>
                     <select name="estado">

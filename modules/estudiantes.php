@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
         ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', 'Estudiante actualizado correctamente.');
+            flashGuardadoConInvitacion('Estudiante actualizado correctamente.', $respuesta);
             redirigir('estudiantes.php');
         }
         $errores = apiErrores($respuesta);
@@ -125,7 +125,7 @@ include __DIR__ . '/../includes/layout_top.php';
 <?php if ($accion === 'editar'): ?>
     <?php $tieneRepresentante = !empty($registroEditar['RepresentanteId']); ?>
     <div class="card">
-        <h3>Editar Estudiante</h3>
+        <?php encabezadoFormulario('Editar Estudiante', 'estudiantes.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="estudiantes.php?accion=editar">
             <?= csrfCampo() ?>
@@ -143,7 +143,7 @@ include __DIR__ . '/../includes/layout_top.php';
             <div class="form-row">
                 <div class="form-group">
                     <label>Código de Estudiante</label>
-                    <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                    <input type="text" class="campo-bloqueado" disabled
                            value="<?= e($registroEditar['CodigoEstudiante'] ?? '') ?>">
                 </div>
                 <div class="form-group" style="flex:0 1 200px;">

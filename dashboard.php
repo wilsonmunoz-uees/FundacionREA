@@ -109,10 +109,12 @@ include __DIR__ . '/includes/layout_top.php';
     <div class="card-modulo">
         <div class="icono-modulo">✅</div>
         <h3>Consentimientos</h3>
-        <p>Registro y control de consentimientos para el tratamiento de datos.</p>
+        <p>Consulta de los consentimientos otorgados por los titulares.</p>
         <ul>
             <li><a href="modules/consentimientos.php">Ver Consentimientos</a></li>
-            <li><a href="modules/consentimientos.php?accion=crear">Registrar Consentimiento</a></li>
+            <?php if (puedeAcceder('envio_masivo')): ?>
+                <li><a href="modules/envio_masivo.php">Pedir consentimiento (envío masivo)</a></li>
+            <?php endif; ?>
         </ul>
     </div>
     <?php endif; ?>

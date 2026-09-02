@@ -2,6 +2,11 @@
 // login.php
 // El formulario ya no consulta MySQL: pide las instituciones a la API y
 // delega la validación de credenciales en /api/auth/login.
+//
+// Recuerda el ÚLTIMO USUARIO y la ÚLTIMA INSTITUCIÓN en una cookie, para no
+// volver a teclearlos en cada entrada. La CONTRASEÑA nunca se guarda, ni en la
+// cookie ni en el almacén de claves del navegador: los campos van marcados con
+// autocomplete="off" y el de contraseña se envía siempre vacío.
 define('APP_ROOT', '');
 require_once __DIR__ . '/auth.php';
 
@@ -13,6 +18,52 @@ if (isset($_SESSION['usuario_id']) && !empty($_SESSION['api_token'])) {
 
 // Generar token CSRF si no existe
 csrfToken();
+
+/* Cookie con el último ingreso. Solo usuario e institución: dos datos que la
+   persona ya conoce de memoria y que no abren nada por sí solos. Dura 90 días,
+   viaja únicamente por HTTPS cuando lo hay, y no es accesible desde JavaScript
+   para que un script inyectado no pueda leerla. */
+const COOKIE_ULTIMO_INGRESO = 'rea_ultimo_ingreso';
+const COOKIE_DIAS           = 90;
+
+/** Lo que se recordó del ingreso anterior. */
+function ultimoIngreso(): array
+{
+    $crudo = $_COOKIE[COOKIE_ULTIMO_INGRESO] ?? '';
+
+    if ($crudo === '') {
+        return ['usuario' => '', 'institucion' => 0];
+    }
+
+    $datos = json_decode((string)$crudo, true);
+
+    if (!is_array($datos)) {
+        return ['usuario' => '', 'institucion' => 0];
+    }
+
+    return [
+        'usuario'     => mb_substr(trim((string)($datos['u'] ?? '')), 0, 50),
+        'institucion' => (int)($datos['i'] ?? 0),
+    ];
+}
+
+/** Deja recordado el ingreso que acaba de funcionar. */
+function recordarIngreso(string $usuario, int $institucionId): void
+{
+    $seguro = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+
+    setcookie(COOKIE_ULTIMO_INGRESO, json_encode([
+        'u' => mb_substr($usuario, 0, 50),
+        'i' => $institucionId,
+    ], JSON_UNESCAPED_UNICODE), [
+        'expires'  => time() + COOKIE_DIAS * 86400,
+        'path'     => '/',
+        'secure'   => $seguro,
+        'httponly' => true,      // fuera del alcance de JavaScript
+        'samesite' => 'Lax',
+    ]);
+}
 
 $error = '';
 
@@ -33,6 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resultado = procesarLogin($username, $password, $institucion);
 
             if ($resultado === true) {
+                // Solo se recuerda lo que funcionó, nunca un intento fallido
+                recordarIngreso($username, (int)$institucion);
                 header('Location: dashboard.php');
                 exit;
             }
@@ -50,6 +103,12 @@ if ($error === '') {
         $error = $flash['mensaje'];
     }
 }
+
+/* Lo que se muestra por defecto: lo escrito en este intento si lo hubo, y si no
+   lo que quedó recordado del ingreso anterior. */
+$recordado          = ultimoIngreso();
+$usuarioPropuesto   = (string)($_POST['username'] ?? $recordado['usuario']);
+$institucionElegida = (int)($_POST['institucion_id'] ?? $recordado['institucion']);
 
 // Instituciones activas para el combo (endpoint público de la API)
 $respuestaInstituciones = apiGet('instituciones/activas');
@@ -83,16 +142,28 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
         <?php endif; ?>
 
         <form method="POST" action="login.php" autocomplete="off">
+            <?php if ($recordado['usuario'] !== '' && ($_POST['username'] ?? '') === ''): ?>
+                <p class="form-ayuda" style="text-align:center; margin-bottom:10px;">
+                    Se recuerdan su usuario y su institución del ingreso anterior.
+                    La contraseña nunca se guarda.
+                </p>
+            <?php endif; ?>
             <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
 
             <div class="form-group">
                 <label for="username" class="campo-requerido">Usuario</label>
-                <input type="text" id="username" name="username" required autocomplete="username" placeholder="Ej. jperez">
+                <input type="text" id="username" name="username" required
+                       autocomplete="username" placeholder="Ej. jperez"
+                       value="<?= e($usuarioPropuesto) ?>">
             </div>
 
             <div class="form-group">
                 <label for="password" class="campo-requerido">Contraseña</label>
-                <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+                <?php /* autocomplete="off" y sin valor: la contraseña no se recuerda
+                         ni se ofrece al navegador para guardarla en su almacén. */ ?>
+                <input type="password" id="password" name="password" required
+                       autocomplete="off" placeholder="••••••••"
+                       autocapitalize="off" autocorrect="off" spellcheck="false">
             </div>
 
             <!-- El buscador viene oculto y lo muestra js/buscador_institucion.js:
@@ -109,7 +180,8 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                 <select name="institucion_id" id="institucion_id" required>
                     <option value="">-- Seleccione una institución --</option>
                     <?php foreach ($instituciones as $institucion): ?>
-                        <option value="<?= e((string)$institucion['id']) ?>">
+                        <option value="<?= e((string)$institucion['id']) ?>"
+                            <?= (int)$institucion['id'] === $institucionElegida ? 'selected' : '' ?>>
                             <?= e($institucion['nombre']) ?>
                         </option>
                     <?php endforeach; ?>

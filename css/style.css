@@ -758,6 +758,30 @@ table.tabla-datos tbody tr:last-child td { border-bottom: none; }
     .paginacion .pagina-resumen { position: sticky; right: 0; background: var(--rea-blanco); }
 }
 
+/* ---------- Encabezado de formulario ----------
+   Título a la izquierda, botón de volver a la derecha, siempre a la vista. */
+.form-encabezado {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.form-encabezado h3 { margin: 0; }
+
+/* ---------- Campos que no se editan ----------
+   Se usan en los mantenimientos cuyas altas vienen de la Carga de Información y
+   en el identificador de la institución, que asigna la base. Van deshabilitados,
+   así que no viajan en el envío: lo que se ve es solo para leer. */
+.campo-bloqueado,
+input.campo-bloqueado:disabled,
+select.campo-bloqueado:disabled {
+    background: #f1f3f6;
+    color: #55606f;
+    border-style: dashed;
+    cursor: not-allowed;
+    opacity: 1;                 /* Safari los apaga demasiado */
+    -webkit-text-fill-color: #55606f;
+}
+.bloque-persona-bloqueado > legend::after { content: ' 🔒'; font-size: .85em; }
+
 /* ---------- Pestañas ---------- */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--rea-gris-200); margin-bottom: 20px; flex-wrap: wrap; }
 .tab-link {

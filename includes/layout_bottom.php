@@ -17,5 +17,9 @@ if (function_exists('selectorEntidadModal')) {
     selectorEntidadModal();
 }
 ?>
+<?php /* Regla del teléfono para toda pantalla que capture uno: basta con marcar
+         el campo con data-telefono. Ver api/core/Telefono.php, que es quien
+         decide al guardar. */ ?>
+<script src="<?= e(APP_ROOT) ?>js/telefono.js" defer></script>
 </body>
 </html>

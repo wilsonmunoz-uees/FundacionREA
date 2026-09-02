@@ -55,8 +55,81 @@ final class AuthController extends Controller
                 'visita'             => $usuario['visita'],
                 'roles'              => $usuario['roles'],
                 'permisos'           => Auth::permisosDe($usuario['usuario_id'], $usuario['institucion_id']),
+                // Con la clave temporal todavía puesta, lo único que puede hacer
+                // es cambiarla: la pantalla lo lleva allí y no lo suelta.
+                'debe_cambiar_clave' => !empty($usuario['debe_cambiar_clave']),
             ],
         ]);
+    }
+
+    /**
+     * POST /api/auth/cambiar-clave
+     *
+     * La fija el propio dueño de la cuenta, y solo él: se exige la contraseña
+     * vigente además de la nueva. Es el único camino para quitarse de encima la
+     * clave temporal que envió el sistema.
+     */
+    public function cambiarClave(array $ruta = []): void
+    {
+        $usuario = $this->requiereAutenticacion();
+
+        $actual    = (string)$this->peticion->dato('password_actual', '');
+        $nueva     = (string)$this->peticion->dato('password', '');
+        $confirmar = (string)$this->peticion->dato('password_confirm', '');
+
+        $errores = [];
+        $campos  = [];
+        $falla   = static function (string $campo, string $mensaje) use (&$errores, &$campos): void {
+            $errores[]      = $mensaje;
+            $campos[$campo] = true;
+        };
+
+        if ($actual === '') {
+            $falla('password_actual', 'Escriba su contraseña actual.');
+        }
+        if ($nueva === '') {
+            $falla('password', 'Escriba la contraseña nueva.');
+        } else {
+            foreach (Password::validar($nueva) as $mensaje) {
+                $falla('password', $mensaje);
+            }
+        }
+        if ($nueva !== $confirmar) {
+            $falla('password_confirm', 'Las contraseñas no coinciden.');
+        }
+        if ($actual !== '' && $nueva !== '' && $actual === $nueva) {
+            $falla('password', 'La contraseña nueva debe ser distinta de la actual.');
+        }
+
+        if ($errores) {
+            Response::validacion($errores, $campos);
+        }
+
+        $fila = $this->consultarUna(
+            'SELECT PasswordHash FROM usuario WHERE UsuarioId = ?',
+            [(int)$usuario['usuario_id']]
+        );
+        if (!$fila) {
+            Response::noEncontrado();
+        }
+
+        if (!password_verify($actual, (string)$fila['PasswordHash'])) {
+            Response::validacion(['La contraseña actual no es correcta.'], ['password_actual' => true]);
+        }
+
+        $this->ejecutar(
+            'UPDATE usuario SET PasswordHash = ?, DebeCambiarClave = \'NO\' WHERE UsuarioId = ?',
+            [password_hash($nueva, PASSWORD_DEFAULT), (int)$usuario['usuario_id']]
+        );
+
+        /* La bitácora deja constancia del hecho, nunca del valor: registra que
+           la contraseña se cambió, no cuál es. */
+        Auditoria::cambioLista(
+            $usuario, 'usuario', (int)$usuario['usuario_id'],
+            'PasswordHash', 'anterior', 'nueva'
+        );
+
+        Response::exito(['mensaje' => 'Contraseña actualizada correctamente.']);
     }
 
     /**

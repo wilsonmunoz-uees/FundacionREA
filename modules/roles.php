@@ -98,7 +98,7 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Rol' : 'Editar Rol' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Registrar Rol' : 'Editar Rol', 'roles.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="roles.php?accion=<?= e($accion) ?>">
             <?= csrfCampo() ?>

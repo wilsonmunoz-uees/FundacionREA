@@ -111,7 +111,10 @@ final class Padron
             'nombres'        => mb_substr($campo('nombres'), 0, 100),
             'apellidos'      => mb_substr($campo('apellidos'), 0, 100),
             'email'          => mb_substr($campo('email'), 0, 150),
-            'telefono'       => mb_substr($campo('telefono'), 0, 20),
+            /* El crudo se conserva por el mismo motivo que el del documento:
+               para poder avisar de que escribió letras en vez de borrárselas. */
+            'telefono'       => Telefono::normalizar($campo('telefono')),
+            'telefono_crudo' => $campo('telefono'),
             'estado'         => in_array($estado, ['ACTIVO', 'INACTIVO'], true) ? $estado : 'ACTIVO',
         ];
     }
@@ -144,7 +147,8 @@ final class Padron
             'nombres'              => (string)($ficha['Nombres'] ?? ''),
             'apellidos'            => (string)($ficha['Apellidos'] ?? ''),
             'email'                => mb_substr($campo('email'), 0, 150),
-            'telefono'             => mb_substr($campo('telefono'), 0, 20),
+            'telefono'             => Telefono::normalizar($campo('telefono')),
+            'telefono_crudo'       => $campo('telefono'),
             'estado'               => (string)($ficha['Estado'] ?? 'ACTIVO'),
         ];
     }
@@ -166,15 +170,41 @@ final class Padron
         $errores = [];
         $de      = ' ' . Documento::contraer($etiqueta);   // «de el» -> «del»
 
-        if ($datos['email'] === '') {
-            if ($exigeCorreo) {
-                $errores[] = 'Ingrese el correo electrónico' . $de . '.';
-            }
-        } elseif (!filter_var($datos['email'], FILTER_VALIDATE_EMAIL)) {
-            $errores[] = 'El correo electrónico' . $de . ' no es válido.';
-        }
+        $errores = array_merge($errores, self::validarCorreo($datos, $etiqueta, $exigeCorreo));
+        $errores = array_merge($errores, Telefono::validar(
+            (string)($datos['telefono_crudo'] ?? $datos['telefono']), $etiqueta
+        ));
 
         return $errores;
+    }
+
+    /**
+     * Comprueba el correo electrónico.
+     *
+     * Se revisa SIEMPRE antes de grabar, aquí y no en cada controlador: una
+     * dirección mal escrita no da error al guardar, simplemente hace que el
+     * titular nunca reciba su enlace de consentimiento, y eso se descubre tarde.
+     *
+     * @return string[]
+     */
+    public static function validarCorreo(array $datos, string $etiqueta, bool $exigeCorreo): array
+    {
+        $de     = ' ' . Documento::contraer($etiqueta);
+        $correo = trim((string)($datos['email'] ?? ''));
+
+        if ($correo === '') {
+            return $exigeCorreo ? ['Ingrese el correo electrónico' . $de . '.'] : [];
+        }
+
+        if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            return ['El correo electrónico' . $de . ' no es válido: revise que tenga la forma nombre@dominio.'];
+        }
+
+        if (mb_strlen($correo) > 150) {
+            return ['El correo electrónico' . $de . ' es demasiado largo.'];
+        }
+
+        return [];
     }
 
     /**
@@ -209,13 +239,10 @@ final class Padron
         if ($datos['nombres'] === '')   { $errores[] = 'Ingrese los nombres' . $de . '.'; }
         if ($datos['apellidos'] === '') { $errores[] = 'Ingrese los apellidos' . $de . '.'; }
 
-        if ($datos['email'] === '') {
-            if ($exigeCorreo) {
-                $errores[] = 'Ingrese el correo electrónico' . $de . '.';
-            }
-        } elseif (!filter_var($datos['email'], FILTER_VALIDATE_EMAIL)) {
-            $errores[] = 'El correo electrónico' . $de . ' no es válido.';
-        }
+        $errores = array_merge($errores, self::validarCorreo($datos, $etiqueta, $exigeCorreo));
+        $errores = array_merge($errores, Telefono::validar(
+            (string)($datos['telefono_crudo'] ?? $datos['telefono']), $etiqueta
+        ));
 
         return $errores;
     }
