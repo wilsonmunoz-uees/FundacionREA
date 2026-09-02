@@ -30,8 +30,8 @@ final class ConsentimientosController extends Controller
         $institucionId = $this->institucion();
 
         $buscar = $this->like($this->peticion->paramTexto('q'));
-        $where  = 'WHERE c.InstitucionEducativaId = ? AND (p.Nombres LIKE ? OR p.Apellidos LIKE ? OR p.Identificacion LIKE ? OR p.Email LIKE ? OR f.Nombre LIKE ?)';
-        $params = [$institucionId, $buscar, $buscar, $buscar, $buscar, $buscar];
+        $where  = 'WHERE c.InstitucionEducativaId = ? AND (p.Nombres LIKE ? OR p.Apellidos LIKE ? OR f.Nombre LIKE ?)';
+        $params = [$institucionId, $buscar, $buscar, $buscar];
 
         $estadoFiltro = strtoupper($this->peticion->paramTexto('estado'));
         if (in_array($estadoFiltro, ['ACTIVO', 'INACTIVO'], true)) {

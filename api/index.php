@@ -126,7 +126,7 @@ $router->get('documento/reglas',       [DocumentoController::class, 'reglas']);
 // --- Personas -----------------------------------------------------------------
 // `persona` es la entidad padre de empleados, estudiantes, representantes y
 // proveedores: NO tiene mantenimiento propio. Solo se lee. Sus fichas se crean
-// desde esos módulos, desde los enlaces públicos o desde la Carga de Información.
+// desde esos módulos, desde los enlaces públicos o desde la PreCarga Inicial.
 $router->get('personas/opciones',      [PersonasController::class, 'opciones']);
 $router->get('personas',               [PersonasController::class, 'index']);
 $router->get('personas/{id}/ficha',    [PersonasController::class, 'ficha']);
@@ -206,13 +206,11 @@ $router->get('consultas/consentimientos-vigentes', [ConsultasController::class, 
 
 // --- Reportes ---------------------------------------------------------------------
 $router->get('reportes/dashboard',       [ReportesController::class, 'dashboard']);
-$router->get('reportes/cobertura',       [ReportesController::class, 'cobertura']);
 $router->get('reportes/consentimientos', [ReportesController::class, 'consentimientos']);
+$router->get('reportes/datos-sensibles', [ReportesController::class, 'datosSensibles']);
 $router->get('reportes/titulares',       [ReportesController::class, 'titulares']);
 $router->get('reportes/auditoria',       [ReportesController::class, 'auditoria']);
 $router->get('reportes/cobertura-correo', [ReportesController::class, 'coberturaCorreo']);
-$router->get('reportes/envios-masivos',  [ReportesController::class, 'enviosMasivos']);
-$router->get('reportes/red-educativa',        [ReportesController::class, 'redEducativa']);
 $router->get('reportes/exportar',        [ReportesController::class, 'exportar']);
 
 // --- Configuración del correo saliente ----------------------------------------------
@@ -238,9 +236,9 @@ $router->get('envio-masivo/resumen',       [EnvioMasivoController::class, 'resum
 $router->get('envio-masivo/destinatarios', [EnvioMasivoController::class, 'destinatarios']);
 $router->post('envio-masivo/enviar',       [EnvioMasivoController::class, 'enviar']);
 
-// --- Carga de Información (solo SuperAdmin) ------------------------------------------
-$router->post('carga-informacion/previsualizar', [CargaInformacionController::class, 'previsualizar']);
-$router->post('carga-informacion/procesar',      [CargaInformacionController::class, 'procesar']);
+// --- PreCarga inicial (solo SuperAdmin) ---------------------------------------------
+$router->post('precarga/previsualizar', [PreCargaController::class, 'previsualizar']);
+$router->post('precarga/procesar',      [PreCargaController::class, 'procesar']);
 
 // --- Consentimiento público (SIN token: son los enlaces abiertos al titular) ---------
 $router->get('consentimiento-publico/inicio',      [ConsentimientoPublicoController::class, 'inicio']);
