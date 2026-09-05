@@ -45,7 +45,7 @@ rompa el mensaje.
 
 ## correo_codigo_verificacion.php
 
-Correo con el código de los **Enlaces de Consentimiento**. Se
+Correo con el código de los **Enlaces con Verificación**. Se
 envía antes de mostrar el disclaimer, para comprobar que quien abrió el enlace
 es la persona registrada.
 

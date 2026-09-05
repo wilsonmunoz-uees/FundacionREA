@@ -2,7 +2,7 @@
 /**
  * modules/enlaces_verificados.php
  * -----------------------------------------------------------------------------
- * Enlaces de Consentimiento, listos para difundir.
+ * Enlaces con Verificación, listos para difundir.
  *
  * Cada institución educativa tiene su propio juego —estudiantes, empleados y
  * proveedores—. No dan de alta a nadie: consultan lo que ya está registrado y,
@@ -62,17 +62,17 @@ $tipos = [
     ],
 ];
 
-$pageTitle  = 'Enlaces de Consentimiento';
+$pageTitle  = 'Enlaces con Verificación';
 $breadcrumb = [
     ['label' => 'Administración', 'url' => null],
-    ['label' => 'Enlaces de Consentimiento', 'url' => null],
+    ['label' => 'Enlaces con Verificación', 'url' => null],
 ];
 include __DIR__ . '/../includes/layout_top.php';
 ?>
 
 <div class="page-header">
     <div>
-        <h1>🔗 Enlaces de Consentimiento</h1>
+        <h1>🔐 Enlaces con Verificación</h1>
         <p>Enlaces públicos de solo consulta que confirman la identidad con un código enviado por correo.</p>
     </div>
     <div class="flex-gap">
