@@ -264,7 +264,7 @@ el enlace público.
 
 `persona` es la entidad **padre** de empleados, estudiantes, representantes y
 proveedores: **no hay POST, PUT ni PATCH**. Las fichas se crean desde esos
-módulos, desde los enlaces públicos o desde la PreCarga Inicial, y toda la
+módulos, desde los enlaces públicos o desde la Carga de Información, y toda la
 escritura vive en `api/core/Padron.php`, que aplica una sola regla: la
 identificación es la llave dentro de la institución, de modo que una persona ya
 registrada se reutiliza en lugar de duplicarse.
@@ -312,8 +312,8 @@ por fuera del navegador se rechaza igual.
 | POST | `/api/verificacion-publica/enviar-codigo` |
 | POST | `/api/verificacion-publica/validar-codigo` |
 
-Atienden los **Enlaces de Consentimiento** —los que se difunden desde
-*Administración › Enlaces de Consentimiento* y desde el Envío Masivo—, que
+Atienden los **Enlaces con Verificación** —los que se difunden desde
+*Registro de Datos › Enlaces con Verificación* y desde el Envío Masivo—, que
 consume `consentimiento_verificado.php`.
 
 `consultar` no escribe nada: dice si la cédula o el RUC constan en la
@@ -337,13 +337,14 @@ Toda la aritmética de tiempos (emisión, caducidad y espera entre envíos) la h
 MySQL con `NOW()`, no PHP: en un hospedaje compartido las dos zonas horarias
 rara vez coinciden y la comparación daría un resultado equivocado.
 
-### PreCarga inicial
+### Carga de Información
 | Método | Ruta | Acceso |
 |---|---|---|
-| POST | `/api/precarga/previsualizar` | Solo SuperAdmin |
-| POST | `/api/precarga/procesar` | Solo SuperAdmin |
+| POST | `/api/carga-informacion/previsualizar` | Solo SuperAdmin |
+| POST | `/api/carga-informacion/procesar` | Solo SuperAdmin |
 
 Puebla de una vez el padrón de la institución activa desde la plantilla Excel.
+No borra nada: da de alta lo que no consta y actualiza lo que ya estaba.
 El archivo viaja dentro del JSON, en base64, y se lee con
 `api/core/LectorXlsx.php` —un lector propio sobre `ZipArchive` y `SimpleXML`,
 sin librerías externas—.
@@ -436,7 +437,7 @@ los datos de las demás instituciones de la red. La operación deja una anotaci�
 de balance en la bitácora de auditoría.
 
 Junto con el Envío Masivo, es una de las dos opciones sin permiso asignable:
-`precarga` declara `'permisos' => []` en `includes/accesos.php`, de modo que la
+`carga_informacion` declara `'permisos' => []` en `includes/accesos.php`, de modo que la
 abre únicamente el rol SuperAdmin.
 
 ### Envío masivo de invitaciones
@@ -489,23 +490,28 @@ Cada envío deja una anotación de balance en la bitácora de auditoría.
 
 Son las únicas rutas sin autenticación además de `/instituciones/activas` y
 `/estado`. Las consume `consentimiento.php`, que es **la última pantalla de los
-Enlaces de Consentimiento**: allí desemboca quien superó la verificación por
+Enlaces con Verificación**: allí desemboca quien superó la verificación por
 código, ya con la identidad confirmada.
 
-`consentimiento.php` sigue atendiendo además el recorrido de autoservicio
-—identificarse, darse de alta si no consta y decidir— para quien llegue a su
-dirección directamente. **Ese recorrido ya no se publica desde ninguna pantalla
-del sistema**: la opción que difundía esos enlaces se retiró, y lo que se
-reparte hoy son los enlaces con verificación. Si quiere cerrarlo del todo, el
-punto único es `consentimiento.php`: bastaría con exigir el pase de verificación
-para continuar.
+**`registrar` exige el pase de verificación.** Sin él responde `403`; si el pase
+caducó, `409`. Y no da de alta a nadie: si el documento no consta en la
+institución responde `404`. Antes esta ruta creaba la ficha de quien no
+constaba, de modo que el autoservicio abierto poblaba el padrón sin que nadie lo
+hubiera cargado; el alta es hoy competencia exclusiva de la Carga de
+Información. `consentimiento.php` reenvía a `consentimiento_verificado.php` a
+quien llegue sin haber pasado la verificación, pero la puerta de verdad está
+aquí: la comprobación no depende de ninguna pantalla.
 
-`registrar` responde `409` cuando se intenta revocar un consentimiento ya
-otorgado: esa vía se tramita por correo con la institución.
+`registrar` responde `409` también cuando se intenta revocar un consentimiento
+ya otorgado: esa vía se tramita por correo con la institución.
 
 ### Instalación
-`POST /api/setup/admin` crea la primera cuenta SuperAdmin. Solo funciona si la
-institución aún no tiene usuarios.
+**No hay endpoint de instalación.** Existió `POST /api/setup/admin`, sin
+autenticación, que creaba un SuperAdmin en cualquier institución que todavía no
+tuviera usuarios: bastaba registrar una institución nueva y adelantarse a su
+primer usuario para quedarse con ella. El primer administrador se crea con la
+carga inicial de `BaseDatos/02_DML_datos.sql`; los siguientes, desde *Usuarios
+del Sistema*.
 
 ## URLs sin mod_rewrite
 

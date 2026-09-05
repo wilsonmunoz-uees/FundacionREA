@@ -142,8 +142,8 @@ include __DIR__ . '/includes/layout_top.php';
             <?php if (puedeAcceder('permisos')): ?><li><a href="modules/permisos.php">Permisos</a></li><?php endif; ?>
             <?php if (puedeAcceder('instituciones')): ?><li><a href="modules/instituciones.php">Instituciones Educativas</a></li><?php endif; ?>
             <?php if (puedeAcceder('disclaimers')): ?><li><a href="modules/disclaimers.php">Disclaimers de Datos</a></li><?php endif; ?>
-            <?php if (puedeAcceder('correo_configuracion')): ?><li><a href="modules/enlaces_consentimiento.php">Enlaces de Consentimiento</a></li><?php endif; ?>
-            <?php if (puedeAcceder('enlaces_verificados')): ?><li><a href="modules/enlaces_verificados.php">Links de Consentimiento con Verificación</a></li><?php endif; ?>
+            <?php if (puedeAcceder('enlaces_verificados')): ?><li><a href="modules/enlaces_verificados.php">Enlaces con Verificación</a></li><?php endif; ?>
+            <?php if (puedeAcceder('correo_configuracion')): ?><li><a href="modules/correo_configuracion.php">Configuración de Correo</a></li><?php endif; ?>
             <?php if (puedeAcceder('envio_masivo')): ?><li><a href="modules/envio_masivo.php">Envío Masivo de Invitaciones</a></li><?php endif; ?>
             <?php if (puedeAcceder('carga_informacion')): ?><li><a href="modules/carga_informacion.php">Carga de Información</a></li><?php endif; ?>
         </ul>

@@ -28,8 +28,14 @@ $sobre = static function (array $datos): array {
     ];
 };
 
-/** Envoltura de listado paginado: { ok, datos: [...], meta } */
-$sobreLista = static function (string $ref, array $metaExtra = []): array {
+/**
+ * Envoltura de listado paginado: { ok, datos: [...], meta }
+ *
+ * @param string|array $ref Nombre de un esquema de components/schemas, o el
+ *                          esquema escrito en línea para los listados que no
+ *                          tienen una entidad propia (informes y consultas).
+ */
+$sobreLista = static function ($ref, array $metaExtra = []): array {
     $meta = [
         'type'       => 'object',
         'properties' => array_merge([
@@ -44,7 +50,10 @@ $sobreLista = static function (string $ref, array $metaExtra = []): array {
         'type'       => 'object',
         'properties' => [
             'ok'    => ['type' => 'boolean', 'example' => true],
-            'datos' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/' . $ref]],
+            'datos' => [
+                'type'  => 'array',
+                'items' => is_array($ref) ? $ref : ['$ref' => '#/components/schemas/' . $ref],
+            ],
             'meta'  => $meta,
         ],
     ];
@@ -292,9 +301,9 @@ TXT,
         ['name' => 'Reportes',        'description' => 'Indicadores, reportes de cumplimiento y exportación'],
         ['name' => 'Correo',          'description' => 'Servidor de correo saliente de la institución'],
         ['name' => 'Disclaimers',     'description' => 'Textos de política de datos: versión, vigencia y tipo de persona'],
-        ['name' => 'Consentimiento Público', 'description' => 'Rutas SIN token de los tres enlaces abiertos de autoservicio'],
+        ['name' => 'Consentimiento Público', 'description' => 'Rutas SIN token de los Enlaces con Verificación'],
         ['name' => 'Verificación Pública', 'description' => 'Rutas SIN token de los enlaces de consentimiento con verificación de identidad'],
-        ['name' => 'PreCarga',        'description' => 'Carga masiva del padrón de la institución desde la plantilla Excel'],
+        ['name' => 'Carga de Información', 'description' => 'Alta y actualización del padrón de la institución desde la plantilla Excel'],
         ['name' => 'Envío Masivo',    'description' => 'Invitaciones por correo al consentimiento con verificación'],
         ['name' => 'Instalación',     'description' => 'Puesta en marcha inicial'],
     ],
@@ -1068,7 +1077,7 @@ $spec['paths'] += $crud([
 /* `persona` es la entidad PADRE de empleados, estudiantes, representantes y
    proveedores, y no tiene mantenimiento propio: no se crea, edita ni da de baja
    por su cuenta. Sus fichas nacen desde esos módulos, desde los enlaces
-   públicos o desde la PreCarga Inicial. Por eso aquí solo hay GET. */
+   públicos o desde la Carga de Información. Por eso aquí solo hay GET. */
 
 $spec['paths']['/personas'] = [
     'get' => [
@@ -1204,6 +1213,35 @@ $spec['paths'] += $crud([
     'acceso'   => 'SuperAdmin',
     'busqueda' => 'Busca por razón social o RUC.',
 ]);
+
+/* Las altas de estos tres módulos están retiradas: ahora entran por «Carga de
+   Información», que valida el archivo completo contra el padrón antes de
+   escribir nada. La ruta POST se conserva para devolver el motivo en vez de un
+   404, y el PUT quedó restringido a los datos que sí cambian con el tiempo. */
+$soloContacto = [
+    'empleados'   => ['El alta de empleados', 'correo, teléfono y estado'],
+    'estudiantes' => ['La matrícula de estudiantes', 'correo y teléfono del estudiante y de su representante, parentesco y estado'],
+    'proveedores' => ['El alta de proveedores', 'correo, teléfono y estado'],
+];
+
+foreach ($soloContacto as $rutaSolo => $detalleSolo) {
+    [$queAlta, $queEdita] = $detalleSolo;
+
+    $spec['paths']['/' . $rutaSolo]['post']['summary']     = 'Alta retirada';
+    $spec['paths']['/' . $rutaSolo]['post']['description'] =
+        "**Retirado.** {$queAlta} se realiza desde `POST /carga-informacion/procesar`. "
+        . "Esta ruta responde siempre **403** con el motivo, para que un cliente antiguo "
+        . "reciba una explicación y no un 404.";
+    unset($spec['paths']['/' . $rutaSolo]['post']['responses']['201']);
+    unset($spec['paths']['/' . $rutaSolo]['post']['responses']['409']);
+
+    $spec['paths']['/' . $rutaSolo . '/{id}']['put']['summary']      = 'Actualizar datos de contacto';
+    $spec['paths']['/' . $rutaSolo . '/{id}']['put']['description'] .=
+        "\n\n**Edición restringida.** Solo se aceptan {$queEdita}. La identificación, el tipo de "
+        . "documento y los nombres se leen de la ficha grabada y se ignora lo que venga en el "
+        . "cuerpo: son los datos que trajo la Carga de Información.";
+}
+
 
 /* ---------- Consentimientos ---------- */
 
@@ -1556,6 +1594,41 @@ $spec['paths']['/reportes/dashboard'] = [
 
 $accesoReportes = 'SuperAdmin o permiso `REPORTES_EXPORTACION`';
 
+$spec['paths']['/reportes/cobertura'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Reporte de cobertura y pendientes de consentimiento',
+        'description' => "Auditoría de cumplimiento LOPDP: calcula tasas de cobertura (% consentidos, % pendientes, % revocados) y lista a los titulares activos con sus canales de contacto.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteCobertura',
+        'parameters'  => [
+            ['name' => 'tipo', 'in' => 'query', 'description' => 'todos (por defecto), estudiantes, empleados, proveedores.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'estudiantes', 'empleados', 'proveedores']]],
+            ['name' => 'estado_cobertura', 'in' => 'query', 'description' => 'TODOS (por defecto), PENDIENTE, CONSENTIDO, REVOCADO.', 'schema' => ['type' => 'string', 'enum' => ['TODOS', 'PENDIENTE', 'CONSENTIDO', 'REVOCADO']]],
+            ['name' => 'con_correo', 'in' => 'query', 'description' => 'todos (por defecto), si, no.', 'schema' => ['type' => 'string', 'enum' => ['todos', 'si', 'no']]],
+            ['name' => 'q', 'in' => 'query', 'description' => 'Búsqueda libre por nombre, identificación o código.', 'schema' => ['type' => 'string']],
+            ['$ref' => '#/components/parameters/Pagina'],
+            ['$ref' => '#/components/parameters/PorPagina'],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado de cobertura con KPIs.', $sobreLista('Persona', [
+                'kpis' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'total'          => ['type' => 'integer'],
+                        'consentidos'    => ['type' => 'integer'],
+                        'pendientes'     => ['type' => 'integer'],
+                        'revocados'      => ['type' => 'integer'],
+                        'con_correo'     => ['type' => 'integer'],
+                        'sin_correo'     => ['type' => 'integer'],
+                        'pct_cobertura'  => ['type' => 'number', 'format' => 'float'],
+                        'pct_pendientes' => ['type' => 'number', 'format' => 'float'],
+                        'pct_revocados'  => ['type' => 'number', 'format' => 'float'],
+                    ],
+                ],
+            ])),
+        ]),
+    ],
+];
+
 $spec['paths']['/reportes/consentimientos'] = [
     'get' => [
         'tags'        => ['Reportes'],
@@ -1615,57 +1688,6 @@ $spec['paths']['/reportes/consentimientos'] = [
                             'mes'       => ['type' => 'integer'],
                         ],
                     ],
-                ],
-            ])),
-        ]),
-    ],
-];
-
-$spec['paths']['/reportes/datos-sensibles'] = [
-    'get' => [
-        'tags'        => ['Reportes'],
-        'summary'     => 'Tratamiento de datos sensibles',
-        'description' => "Resumen por tipo de dato sensible y detalle de titulares con autorización vigente (máximo 200 filas).\n\n**Acceso:** " . $accesoReportes,
-        'operationId' => 'reporteDatosSensibles',
-        'parameters'  => [[
-            'name'        => 'tipo_dato_id',
-            'in'          => 'query',
-            'description' => 'Limita el detalle a un tipo de dato sensible.',
-            'schema'      => ['type' => 'integer'],
-        ]],
-        'responses' => $erroresComunes([
-            '200' => $respuesta('Datos del reporte.', $sobre([
-                'type'       => 'object',
-                'properties' => [
-                    'resumen' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'TipoDatoId'           => ['type' => 'integer'],
-                                'Nombre'               => ['type' => 'string'],
-                                'Categoria'            => ['type' => 'string', 'nullable' => true],
-                                'autorizados_vigentes' => ['type' => 'integer'],
-                                'autorizados_total'    => ['type' => 'integer'],
-                            ],
-                        ],
-                    ],
-                    'detalle' => [
-                        'type'  => 'array',
-                        'items' => [
-                            'type'       => 'object',
-                            'properties' => [
-                                'PersonaId'           => ['type' => 'integer'],
-                                'Nombres'             => ['type' => 'string'],
-                                'Apellidos'           => ['type' => 'string'],
-                                'TipoDatoNombre'      => ['type' => 'string'],
-                                'FinalidadNombre'     => ['type' => 'string', 'nullable' => true],
-                                'FechaConsentimiento' => ['type' => 'string'],
-                            ],
-                        ],
-                    ],
-                    'tipos_sensibles' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/TipoDato']],
-                    'tipo_dato_id'    => ['type' => 'integer'],
                 ],
             ])),
         ]),
@@ -1798,6 +1820,108 @@ $spec['paths']['/reportes/auditoria'] = [
     ],
 ];
 
+$spec['paths']['/reportes/envios-masivos'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Efectividad de campañas y envíos masivos',
+        'description' => "Métricas de invitaciones digitales enviadas, uso de enlaces verificados y conversión a consentimientos firmados.\n\n**Acceso:** " . $accesoReportes,
+        'operationId' => 'reporteEnviosMasivos',
+        'parameters'  => [
+            [
+                'name'        => 'tipo',
+                'in'          => 'query',
+                'description' => 'Tipo de destinatario (todos, estudiante, empleado, proveedor).',
+                'schema'      => ['type' => 'string', 'enum' => ['todos', 'estudiante', 'empleado', 'proveedor']],
+            ],
+            [
+                'name'        => 'estado',
+                'in'          => 'query',
+                'description' => 'Estado del enlace/código de verificación.',
+                'schema'      => ['type' => 'string', 'enum' => ['TODOS', 'USADO', 'PENDIENTE', 'EXPIRADO', 'ANULADO']],
+            ],
+            [
+                'name'        => 'desde',
+                'in'          => 'query',
+                'description' => 'Fecha inicial de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'hasta',
+                'in'          => 'query',
+                'description' => 'Fecha final de emisión (YYYY-MM-DD).',
+                'schema'      => ['type' => 'string', 'format' => 'date'],
+            ],
+            [
+                'name'        => 'q',
+                'in'          => 'query',
+                'description' => 'Búsqueda por nombre, identificación o correo destinatario.',
+                'schema'      => ['type' => 'string'],
+            ],
+        ],
+        'responses' => $erroresComunes([
+            '200' => $respuesta('Listado paginado de envíos con KPIs de conversión.', $sobreLista([
+                'type'       => 'object',
+                'properties' => [
+                    'VerificacionId' => ['type' => 'integer'],
+                    'TipoPersona'    => ['type' => 'string'],
+                    'Identificacion' => ['type' => 'string'],
+                    'Destinatario'   => ['type' => 'string'],
+                    'Titular'        => ['type' => 'string'],
+                    'FechaEmision'   => ['type' => 'string'],
+                    'EstadoCodigo'   => ['type' => 'string'],
+                ],
+            ], [
+                'kpis'     => ['type' => 'object'],
+                'por_tipo' => ['type' => 'array'],
+                'filtros'  => ['type' => 'object'],
+            ])),
+        ]),
+    ],
+];
+
+$spec['paths']['/reportes/red-educativa'] = [
+    'get' => [
+        'tags'        => ['Reportes'],
+        'summary'     => 'Tablero comparativo multi-sede (Red Educativa)',
+        'description' => "Tablero ejecutivo consolidado con indicadores de cobertura LOPDP de todas las sedes de la red educativa. Exclusivo para SuperAdmin.\n\n**Acceso:** SuperAdmin",
+        'operationId' => 'reporteRedEducativa',
+        'responses'   => $erroresComunes([
+            '200' => $respuesta('Consolidado de todas las sedes.', $sobre([
+                'type'       => 'object',
+                'properties' => [
+                    'kpis_globales' => [
+                        'type'       => 'object',
+                        'properties' => [
+                            'total_sedes'           => ['type' => 'integer'],
+                            'poblacion_total'       => ['type' => 'integer'],
+                            'consentimientos_total' => ['type' => 'integer'],
+                            'cumplimiento_promedio' => ['type' => 'number'],
+                        ],
+                    ],
+                    'sedes' => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'ranking'          => ['type' => 'integer'],
+                                'nombre'           => ['type' => 'string'],
+                                'estudiantes'      => ['type' => 'integer'],
+                                'empleados'        => ['type' => 'integer'],
+                                'proveedores'      => ['type' => 'integer'],
+                                'poblacion'        => ['type' => 'integer'],
+                                'consentidos'      => ['type' => 'integer'],
+                                'pendientes'       => ['type' => 'integer'],
+                                'pct_cumplimiento' => ['type' => 'number'],
+                                'diagnostico'      => ['type' => 'string', 'enum' => ['AL_DIA', 'EN_PROGRESO', 'REZAGADA']],
+                            ],
+                        ],
+                    ],
+                ],
+            ])),
+        ]),
+    ],
+];
+
 $spec['paths']['/reportes/exportar'] = [
     'get' => [
         'tags'        => ['Reportes'],
@@ -1832,12 +1956,10 @@ $spec['paths']['/reportes/exportar'] = [
     ],
 ];
 
-/* ---------- Instalación ---------- */
-
 $spec['paths']['/consentimiento-publico/inicio'] = [
     'get' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Apertura de un enlace de consentimiento',
-        'description' => "**Ruta pública: no requiere token.** La consume `consentimiento.php`, la pantalla de autoservicio que abren los tres enlaces que difunde la institución.\n\nDevuelve el nombre de la institución, qué documento se pide en el primer paso (cédula o RUC, según el tipo) y el disclaimer vigente de ese tipo de persona.",
+        'description' => "**Ruta pública: no requiere token.** La consumen `consentimiento_verificado.php` y `consentimiento.php`, las pantallas de los Enlaces con Verificación que difunde la institución.\n\nDevuelve el nombre de la institución, qué documento se pide en el primer paso (cédula o RUC, según el tipo) y el disclaimer vigente de ese tipo de persona.",
         'operationId' => 'inicioConsentimientoPublico',
         'security' => [],
         'parameters' => [
@@ -1854,7 +1976,7 @@ $spec['paths']['/consentimiento-publico/inicio'] = [
 $spec['paths']['/consentimiento-publico/identificar'] = [
     'post' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Buscar a la persona por su documento',
-        'description' => "**Ruta pública: no requiere token.**\n\nSegundo paso del recorrido: busca la cédula —o el RUC, si es proveedor— en la tabla que corresponde al tipo, dentro de la institución del enlace.\n\nSi existe devuelve sus datos y el estado de su consentimiento; si no, `existe` viene en false y la pantalla pide los datos para el alta. `puede_revocar` viene en false cuando la persona ya tiene el consentimiento otorgado: en ese caso debe escribir a la institución.",
+        'description' => "**Ruta pública: no requiere token.**\n\nSegundo paso del recorrido: busca la cédula —o el RUC, si es proveedor— en la tabla que corresponde al tipo, dentro de la institución del enlace.\n\nSi existe devuelve sus datos y el estado de su consentimiento; si no, `existe` viene en false y el recorrido termina ahí: **estos enlaces no dan de alta a nadie**. `puede_revocar` viene en false cuando la persona ya tiene el consentimiento otorgado: en ese caso debe escribir a la institución.",
         'operationId' => 'identificarConsentimientoPublico',
         'security' => [],
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
@@ -1876,30 +1998,27 @@ $spec['paths']['/consentimiento-publico/identificar'] = [
 $spec['paths']['/consentimiento-publico/registrar'] = [
     'post' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Registrar la decisión del titular',
-        'description' => "**Ruta pública: no requiere token.**\n\nTercer paso. Si la persona no existía, la da de alta junto con su vínculo institucional —en estudiantes crea también al representante— a partir del bloque `datos`.\n\nLuego registra la decisión en `consentimiento` (creándola o actualizándola), marca el detalle por tipo de dato, deja constancia en `consentimientohistorial` con la IP y `UsuarioId` nulo, y envía el correo de confirmación. En estudiantes ese correo va al representante e indica de qué representado se trata.\n\nResponde `409` si se intenta revocar un consentimiento ya otorgado: esa vía debe tramitarse por correo con la institución.",
+        'description' => "**Ruta pública: no requiere token.**\n\nTercer paso. **Exige el `pase`** devuelto por `/verificacion-publica/validar-codigo`: sin él responde `403`, y si caducó, `409`. Es lo que distingue a quien demostró ser el titular de quien solo conoce una cédula ajena.\n\n**No da de alta a nadie:** si el documento no consta en la institución responde `404`. El padrón se puebla únicamente desde la Carga de Información.\n\nRegistra la decisión en `consentimiento` (creándola o actualizándola), marca el detalle por tipo de dato, deja constancia en `consentimientohistorial` con la IP y `UsuarioId` nulo, y envía el correo de confirmación. En estudiantes ese correo va al representante e indica de qué representado se trata.\n\nResponde `409` también si se intenta revocar un consentimiento ya otorgado: esa vía debe tramitarse por correo con la institución.",
         'operationId' => 'registrarConsentimientoPublico',
         'security' => [],
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-            'type' => 'object', 'required' => ['tipo', 'inst', 'identificacion', 'decision'],
+            'type' => 'object', 'required' => ['tipo', 'inst', 'identificacion', 'decision', 'pase'],
             'properties' => [
                 'tipo'           => ['type' => 'string', 'enum' => ['ESTUDIANTE', 'EMPLEADO', 'PROVEEDOR']],
                 'inst'           => ['type' => 'integer'],
                 'identificacion' => ['type' => 'string'],
                 'decision'       => ['type' => 'string', 'enum' => ['OTORGA', 'REVOCA']],
-                'datos'          => [
-                    'type'        => 'object',
-                    'description' => 'Solo cuando la persona no existe: nombres, apellidos, email, telefono y, según el tipo, razon_social, codigo_estudiante y el objeto representante.',
-                ],
                 'pase' => [
                     'type' => 'string',
-                    'description' => 'Solo si se llega desde un enlace CON VERIFICACIÓN: pase firmado devuelto por /verificacion-publica/validar-codigo. Si viene y no es válido, la petición se rechaza con 409.',
+                    'description' => 'Pase firmado devuelto por /verificacion-publica/validar-codigo. Obligatorio: sin él la petición se rechaza con 403, y si caducó, con 409.',
                 ],
             ],
         ]]]],
         'responses' => [
             '200' => $respuesta('Decisión registrada.', $sobre(['type' => 'object'])),
-            '404' => $respuesta('Enlace o institución no válidos.', ['$ref' => '#/components/schemas/Error']),
-            '409' => $respuesta('Revocatoria no permitida en línea, o falta configurar la finalidad.', ['$ref' => '#/components/schemas/Error']),
+            '403' => $respuesta('Falta el pase de verificación.', ['$ref' => '#/components/schemas/Error']),
+            '404' => $respuesta('Enlace o institución no válidos, o la persona no consta en la institución.', ['$ref' => '#/components/schemas/Error']),
+            '409' => $respuesta('Verificación caducada, revocatoria no permitida en línea, o falta configurar la finalidad.', ['$ref' => '#/components/schemas/Error']),
             '422' => $respuesta('Datos incompletos o no válidos.', ['$ref' => '#/components/schemas/Error']),
         ],
     ],
@@ -2013,62 +2132,19 @@ $spec['paths']['/disclaimers/{id}/activar'] = [
     ],
 ];
 
-$spec['paths']['/setup/admin'] = [
-    'post' => [
-        'tags'        => ['Instalación'],
-        'summary'     => 'Crear el primer usuario SuperAdmin',
-        'description' => 'Solo funciona mientras la institución no tenga ningún usuario. Después queda cerrado permanentemente.',
-        'operationId' => 'crearAdministrador',
-        'security'    => [],
-        'requestBody' => [
-            'required' => false,
-            'content'  => ['application/json' => ['schema' => [
-                'type'       => 'object',
-                'properties' => [
-                    'institucion_id' => ['type' => 'integer', 'default' => 1],
-                    'username'       => ['type' => 'string', 'default' => 'admin'],
-                    'password'       => ['type' => 'string', 'format' => 'password', 'default' => 'admin123'],
-                    'rol_id'         => ['type' => 'integer', 'default' => 1],
-                    'nombres'        => ['type' => 'string', 'default' => 'Admin'],
-                    'apellidos'      => ['type' => 'string', 'default' => 'Sistema'],
-                    'identificacion' => ['type' => 'string'],
-                    'email'          => ['type' => 'string', 'format' => 'email'],
-                ],
-            ]]],
-        ],
-        'responses' => [
-            '201' => $respuesta('Administrador creado.', $sobre([
-                'type'       => 'object',
-                'properties' => [
-                    'PersonaId'    => ['type' => 'integer'],
-                    'UsuarioId'    => ['type' => 'integer'],
-                    'username'     => ['type' => 'string'],
-                    'rol_asignado' => ['type' => 'boolean'],
-                    'mensaje'      => ['type' => 'string'],
-                ],
-            ])),
-            '409' => [
-                'description' => 'La institución ya tiene usuarios registrados.',
-                'content'     => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]],
-            ],
-            '422' => ['$ref' => '#/components/responses/ErrorValidacion'],
-        ],
-    ],
-];
-
 
 /* --------------------------------------------------------------------------
-   PreCarga inicial (solo SuperAdmin)
+   Carga de Información (solo SuperAdmin)
    -------------------------------------------------------------------------- */
 
-$precargaEntrada = [
+$cargaEntrada = [
     'required'   => ['archivo_base64'],
     'type'       => 'object',
     'properties' => [
         'nombre_archivo' => [
             'type'        => 'string',
             'description' => 'Nombre original del archivo, solo para mostrarlo y registrarlo en la bitácora.',
-            'example'     => 'precarga_inicial_rea.xlsx',
+            'example'     => 'carga_informacion_rea.xlsx',
         ],
         'archivo_base64' => [
             'type'        => 'string',
@@ -2078,12 +2154,21 @@ $precargaEntrada = [
     ],
 ];
 
-$spec['paths']['/precarga/previsualizar'] = [
+/** Altas y actualizaciones de una de las cuatro tablas del padrón. */
+$cargaDesglose = [
+    'type'       => 'object',
+    'properties' => [
+        'altas'           => ['type' => 'integer'],
+        'actualizaciones' => ['type' => 'integer'],
+    ],
+];
+
+$spec['paths']['/carga-informacion/previsualizar'] = [
     'post' => [
-        'tags' => ['PreCarga'], 'summary' => 'Validar la plantilla sin tocar la base',
-        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el inventario de lo que se eliminaría si la carga se confirma.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga entra ACTIVO**. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
-        'operationId' => 'previsualizarPreCarga',
-        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $precargaEntrada]]],
+        'tags' => ['Carga de Información'], 'summary' => 'Validar la plantilla sin tocar la base',
+        'description' => "Lee y valida el archivo Excel **sin modificar ningún dato**. Devuelve los conteos por hoja, los errores encontrados con su hoja y fila, las advertencias y el desglose de cuántas filas serían altas y cuántas actualizaciones.\n\nLas filas de ejemplo de la plantilla (las que empiezan con «(EJEMPLO») se ignoran solas.\n\nQuien aparece en varias hojas se carga con **una sola ficha**: la identificación es la llave. Los nombres se comparan por palabras y no por orden, porque la hoja de Proveedores toma el nombre de la razón social, que suele venir con los apellidos primero (`BOURNE SOLIS NELLY PATRICIA` frente a `NELLY PATRICIA` + `BOURNE SOLIS`). Solo se rechazan dos nombres sin relación bajo la misma cédula.\n\nLa plantilla no pide el estado: **todo lo que se carga queda ACTIVO**, incluso lo que estuviera inactivo y vuelva a venir en el archivo. Si el archivo trae una columna `Estado` de una plantilla anterior, se ignora y se avisa en las advertencias.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'operationId' => 'previsualizarCargaInformacion',
+        'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => $cargaEntrada]]],
         'responses' => $erroresComunes([
             '200' => $respuesta('Resultado de la validación.', $sobre([
                 'type'       => 'object',
@@ -2103,18 +2188,24 @@ $spec['paths']['/precarga/previsualizar'] = [
                     'errores'        => ['type' => 'array', 'items' => ['type' => 'string'], 'example' => ['Hoja Empleados, fila 5: faltan los nombres o los apellidos.']],
                     'advertencias'   => ['type' => 'array', 'items' => ['type' => 'string']],
                     'puede_procesar' => ['type' => 'boolean', 'description' => 'true solo si no hay errores y hay al menos una fila.'],
-                    'se_eliminara'   => [
-                        'type'       => 'object',
-                        'description' => 'Registros que hoy tiene la institución y que la carga eliminaría.',
-                        'properties' => [
-                            'empleados'            => ['type' => 'integer'],
-                            'estudiantes'          => ['type' => 'integer'],
-                            'proveedores'          => ['type' => 'integer'],
-                            'consentimientos'      => ['type' => 'integer'],
-                            'historial'            => ['type' => 'integer'],
-                            'personas'             => ['type' => 'integer'],
-                            'personas_con_usuario' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque tienen cuenta de usuario.'],
-                            'personas_en_otra_institucion' => ['type' => 'integer', 'description' => 'Personas que NO se eliminan porque otra institución todavía las tiene vinculadas (empleado, estudiante, representante, proveedor o consentimiento). Solo aparecen en bases que vienen de cuando el padrón era global.'],
+                    'impacto'        => [
+                        'type'        => 'object',
+                        'description' => 'Qué haría la carga con cada tabla del padrón: cuántas filas del archivo no constan todavía (altas) y cuántas sí (actualizaciones).',
+                        'properties'  => [
+                            'personas'    => $cargaDesglose,
+                            'empleados'   => $cargaDesglose,
+                            'estudiantes' => $cargaDesglose,
+                            'proveedores' => $cargaDesglose,
+                        ],
+                    ],
+                    'inventario'     => [
+                        'type'        => 'object',
+                        'description' => 'Lo que la institución tiene hoy, para poder comparar. Nada de esto se elimina.',
+                        'properties'  => [
+                            'personas'    => ['type' => 'integer'],
+                            'empleados'   => ['type' => 'integer'],
+                            'estudiantes' => ['type' => 'integer'],
+                            'proveedores' => ['type' => 'integer'],
                         ],
                     ],
                 ],
@@ -2124,18 +2215,18 @@ $spec['paths']['/precarga/previsualizar'] = [
     ],
 ];
 
-$spec['paths']['/precarga/procesar'] = [
+$spec['paths']['/carga-informacion/procesar'] = [
     'post' => [
-        'tags' => ['PreCarga'], 'summary' => 'Encerar la institución y cargar la plantilla',
-        'description' => "**Operación destructiva e irreversible.** Elimina los datos de la institución del token y los reemplaza por los del archivo, todo dentro de una sola transacción: o entra completo, o no entra nada.\n\nRepite la validación de `/precarga/previsualizar` y solo actúa si el archivo está limpio y el cuerpo trae `confirmacion` con el texto exacto `ENCERAR Y CARGAR`.\n\n**Se elimina** (solo de la institución activa): consentimientos con su historial y detalle, empleados, estudiantes, proveedores y las personas que queden sin ningún vínculo.\n\n**No se toca:** usuarios, roles, permisos, catálogos, disclaimers, configuración de correo, las personas con cuenta de usuario ni los datos de otras instituciones.\n\nDeja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** solo el rol SuperAdmin.",
-        'operationId' => 'procesarPreCarga',
+        'tags' => ['Carga de Información'], 'summary' => 'Aplicar la plantilla sobre el padrón',
+        'description' => "Carga **diferencial**: incorpora el archivo al padrón de la institución del token sin eliminar nada. Lo que no consta se da de alta; lo que ya consta se actualiza. Todo dentro de una sola transacción: o entra completo, o no entra nada.\n\nRepite la validación de `/carga-informacion/previsualizar` y solo actúa si el archivo está limpio y el cuerpo trae `confirmacion` con el texto exacto `CARGAR INFORMACION`.\n\n**Se escribe** (solo en la institución activa): `persona`, `empleado`, `estudiante` y `proveedor`. Una celda vacía nunca borra lo ya grabado, y quien no aparezca en el archivo queda como está.\n\n**No se toca:** consentimientos ni su historial —siguen siendo válidos, la persona es la misma—, usuarios, roles, permisos, catálogos, disclaimers, configuración de correo ni los datos de otras instituciones.\n\nDeja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** solo el rol SuperAdmin.",
+        'operationId' => 'procesarCargaInformacion',
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
             'required'   => ['archivo_base64', 'confirmacion'],
             'type'       => 'object',
-            'properties' => $precargaEntrada['properties'] + [
+            'properties' => $cargaEntrada['properties'] + [
                 'confirmacion' => [
                     'type'        => 'string',
-                    'enum'        => ['ENCERAR Y CARGAR'],
+                    'enum'        => ['CARGAR INFORMACION'],
                     'description' => 'Confirmación explícita del usuario. Sin ella la operación se rechaza.',
                 ],
             ],
@@ -2144,27 +2235,15 @@ $spec['paths']['/precarga/procesar'] = [
             '200' => $respuesta('Carga ejecutada.', $sobre([
                 'type'       => 'object',
                 'properties' => [
-                    'mensaje'   => ['type' => 'string', 'example' => 'PreCarga ejecutada correctamente.'],
-                    'archivo'   => ['type' => 'string'],
-                    'eliminado' => [
+                    'mensaje'  => ['type' => 'string', 'example' => 'Carga de Información ejecutada correctamente.'],
+                    'archivo'  => ['type' => 'string'],
+                    'aplicado' => [
                         'type'       => 'object',
                         'properties' => [
-                            'historial'            => ['type' => 'integer'],
-                            'consentimiento_datos' => ['type' => 'integer'],
-                            'consentimientos'      => ['type' => 'integer'],
-                            'estudiantes'          => ['type' => 'integer'],
-                            'empleados'            => ['type' => 'integer'],
-                            'proveedores'          => ['type' => 'integer'],
-                            'personas'             => ['type' => 'integer'],
-                        ],
-                    ],
-                    'cargado' => [
-                        'type'       => 'object',
-                        'properties' => [
-                            'personas'    => ['type' => 'integer'],
-                            'empleados'   => ['type' => 'integer'],
-                            'estudiantes' => ['type' => 'integer'],
-                            'proveedores' => ['type' => 'integer'],
+                            'personas'    => $cargaDesglose,
+                            'empleados'   => $cargaDesglose,
+                            'estudiantes' => $cargaDesglose,
+                            'proveedores' => $cargaDesglose,
                         ],
                     ],
                 ],
@@ -2436,7 +2515,7 @@ $spec['paths']['/verificacion-publica/validar-codigo'] = [
 $spec['paths']['/reportes/cobertura-correo'] = [
     'get' => [
         'tags' => ['Reportes'], 'summary' => 'Cuántas personas tienen correo para el código',
-        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Enlaces de Consentimiento para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
+        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Enlaces con Verificación para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
         'operationId' => 'coberturaCorreo',
         'responses' => $erroresComunes(['200' => $respuesta('Cobertura por tipo de persona.', $sobre([
             'type'       => 'object',
