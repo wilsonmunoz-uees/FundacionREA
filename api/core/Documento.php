@@ -438,6 +438,9 @@ final class Documento
         foreach (self::TIPOS as $tipo) {
             $letras = self::admiteLetras($tipo);
             $maximo = self::largoMaximo($db, $contexto, $tipo);
+            /* En la cédula y el RUC el largo no es un tope, es una medida exacta:
+               el navegador puede avisar en cuanto se completa. */
+            $exacto = self::LARGO_POR_TIPO[$tipo] ?? 0;
 
             $reglas[$tipo] = [
                 'patron'      => $letras ? '[^0-9A-Za-z]' : '[^0-9]',

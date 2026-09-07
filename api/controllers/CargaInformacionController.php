@@ -446,7 +446,8 @@ final class CargaInformacionController extends Controller
 
         $nombres   = $this->campo($fila, 'nombres', 100);
         $apellidos = $this->campo($fila, 'apellidos', 100);
-        $email     = $this->campo($fila, 'email', 150);
+        $emailCrudo = $this->campo($fila, 'email', 200);
+        $email      = CorreoElectronico::normalizar($emailCrudo);
         $telefono  = Telefono::normalizar($this->campo($fila, 'telefono', 30));
         $razon     = $this->campo($fila, 'razon social', 150);
 
@@ -484,13 +485,6 @@ final class CargaInformacionController extends Controller
                 $errores[] = $donde . 'el correo «' . $emailCrudo . '» no es válido: ' . $problema;
                 return null;
             }
-        }
-
-        /* El teléfono se normaliza arriba; aquí solo se avisa si lo que venía en
-           la celda no era un teléfono. No se descarta la fila por eso: el dato
-           importante es la persona, y el teléfono se puede corregir después. */
-        foreach (Telefono::validar($this->campo($fila, 'telefono', 30), 'la persona') as $aviso) {
-            $errores[] = $donde . lcfirst($aviso);
         }
 
         /* El teléfono se normaliza arriba; aquí solo se avisa si lo que venía en

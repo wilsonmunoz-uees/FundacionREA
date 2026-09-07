@@ -33,7 +33,7 @@ final class ClaveTemporal
     {
         $destino = trim((string)($datos['destino'] ?? ''));
 
-        if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
+        if (!CorreoElectronico::esValido($destino)) {
             return self::conMensaje([
                 'enviado' => false,
                 'destino' => $destino,
