@@ -292,6 +292,13 @@ include __DIR__ . '/../includes/layout_top.php';
             Use la plantilla de esta pantalla. El archivo se revisa completo antes de tocar la base:
             si algo está mal, se le indica la hoja y la fila exactas y no se modifica ningún dato.
         </p>
+        <p class="texto-mutado">
+            De cada fila se comprueban la <strong>cédula</strong> —diez dígitos, con su provincia y
+            su dígito verificador—, el <strong>RUC</strong> —trece dígitos, con su verificador y el
+            establecimiento—, el <strong>correo</strong> —forma nombre@dominio.ext, sin espacios— y
+            el <strong>teléfono</strong>. Una fila con un dato mal escrito no se carga, y el motivo
+            aparece aquí abajo; las demás entran con normalidad.
+        </p>
 
         <form method="POST" action="carga_informacion.php" enctype="multipart/form-data">
             <?= csrfCampo() ?>

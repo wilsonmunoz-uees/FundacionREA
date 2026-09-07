@@ -168,7 +168,6 @@ final class Padron
         bool $exigeCorreo = false
     ): array {
         $errores = [];
-        $de      = ' ' . Documento::contraer($etiqueta);   // «de el» -> «del»
 
         $errores = array_merge($errores, self::validarCorreo($datos, $etiqueta, $exigeCorreo));
         $errores = array_merge($errores, Telefono::validar(

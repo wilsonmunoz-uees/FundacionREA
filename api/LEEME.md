@@ -284,11 +284,17 @@ con prefijo `rep_` para el representante de un estudiante— en vez de un
 Las reglas viven en `api/core/Documento.php` y valen para **todos** los módulos
 que piden un documento:
 
-| Tipo | Admite |
+| Tipo | Qué se comprueba |
 |---|---|
-| `CEDULA` | solo dígitos |
-| `RUC` | solo dígitos |
-| `PASAPORTE` | letras y dígitos |
+| `CEDULA` | Exactamente 10 dígitos. Provincia (01-24, o 30 para los consulados), tercer dígito de 0 a 5 y **dígito verificador por módulo 10**. |
+| `RUC` | Exactamente 13 dígitos. Provincia, y según el tercer dígito: 0-5 lleva dentro una cédula válida; 6 es sector público (módulo 11, verificador en la 9.ª); 9 es sociedad (módulo 11, verificador en la 10.ª). Los últimos dígitos son el establecimiento, desde 001. |
+| `PASAPORTE` | Letras y dígitos. No hay un formato internacional único, así que solo manda el largo de la columna. |
+
+Comprobar el dígito verificador **no es cosmético**. Antes bastaba con que
+fueran dígitos y cupieran en la columna, de modo que `0000000000` o
+`1234567890` entraban sin protestar. Un padrón con cédulas inventadas no se nota
+al cargarlo: se nota meses después, cuando hay que responder por el
+consentimiento de una persona que no se puede identificar.
 
 El largo máximo **no está escrito en el código**: se lee de la columna donde el
 valor va a terminar guardado —`persona`.`Identificacion`—, de modo que el
@@ -304,6 +310,49 @@ porque es como vienen los documentos copiados de otro sitio.
 El endpoint solo sirve para que los formularios adapten el campo mientras se
 escribe (`js/documento.js`). **Quien decide es el servidor:** una petición hecha
 por fuera del navegador se rechaza igual.
+
+La misma llamada devuelve, en la metadata, las reglas del **teléfono**
+(`api/core/Telefono.php`) y las del **correo** (`api/core/CorreoElectronico.php`):
+el formulario que pregunta por el documento es siempre el mismo que captura esos
+dos campos, y así no hace falta una segunda vuelta por unos datos que tampoco
+cambian.
+
+### Correo electrónico
+
+No tiene endpoint propio: la regla vive en `api/core/CorreoElectronico.php` y la
+aplican **todos** los puntos por los que entra o sale una dirección —el padrón,
+la Carga de Información, la configuración del correo saliente, el envío masivo y
+el propio cliente SMTP—.
+
+El correo no es un dato más de la ficha: es el único camino por el que el
+sistema alcanza al titular. Por ahí van el código que comprueba su identidad, la
+invitación a consentir y la confirmación de lo que decidió. Una dirección mal
+escrita no falla al guardarla; falla semanas después, cuando la persona no
+aparece en la cobertura y nadie sabe por qué.
+
+Antes cada sitio la comprobaba con un `filter_var(..., FILTER_VALIDATE_EMAIL)`
+suelto. Esa función es correcta pero generosa: acepta `juan@localhost`, `a@b` y
+`x@dominio.c`, direcciones que la norma admite y que ningún proveedor va a
+entregar. Sobre ella se exige además:
+
+| Se exige | Rechaza |
+|---|---|
+| Una sola arroba, con algo a cada lado | `a@@b.com`, `@rea.com` |
+| Sin espacios en ninguna parte | `ana mora@rea.com` |
+| Parte local de hasta 64 caracteres, sin puntos al principio, al final ni dos seguidos | `.ana@`, `ana..b@` |
+| Dominio con al menos un punto, etiquetas de 1 a 63 caracteres, sin guiones en los extremos | `juan@localhost`, `ana@-rea.com` |
+| Extensión final de 2 a 24 **letras** | `x@dominio.c`, `x@dominio.123` |
+| Hasta 150 caracteres, el largo de `persona`.`Email` | |
+
+Al guardar, la dirección se pasa a minúsculas: la misma escrita de dos maneras
+dejaría de parecer dos correos. Los espacios de dentro **no** se quitan; se
+avisan. Quitar un espacio en silencio convertiría `ana mora@rea.com` en una
+dirección distinta de la que quiso escribir quien la puso, sin que nadie se
+enterara.
+
+`js/correo.js` repite la misma comprobación mientras se escribe —se engancha
+solo a todo `input[type=email]`, sin marcar nada en el HTML—, pero quien decide
+es el servidor.
 
 ### Verificación pública por código (SIN token)
 | Método | Ruta |

@@ -1099,7 +1099,7 @@ $spec['paths']['/personas'] = [
 $spec['paths']['/documento/reglas'] = [
     'get' => [
         'tags' => ['Catálogos'], 'summary' => 'Reglas del documento de identidad',
-        'description' => "Qué caracteres admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos; `PASAPORTE` admite además letras. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nLo consumen los formularios para adaptar el campo mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
+        'description' => "Qué admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos y se comprueban de verdad: largo exacto (10 y 13), código de provincia y dígito verificador —módulo 10 en la cédula, módulo 11 en los RUC de entidades—. `PASAPORTE` admite además letras y no tiene una forma que comprobar. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nEn la metadata viajan también las reglas del **teléfono** y las del **correo**, que son los otros dos campos que captura el mismo formulario.\n\nLo consumen los formularios para adaptar el campo y avisar mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
         'operationId' => 'reglasDocumento',
         'parameters'  => [[
             'name' => 'contexto', 'in' => 'query',

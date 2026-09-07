@@ -278,27 +278,32 @@ final class ConsentimientoPublicoController extends Controller
     }
 
     /** Comprueba el formato del documento según el tipo de persona. */
+    /**
+     * Comprueba el documento que escribió el titular con la MISMA regla que
+     * aplican las pantallas internas: api/core/Documento.php. Antes había aquí
+     * una copia más laxa —el RUC admitía de diez a trece dígitos— y eso hacía
+     * que un número entrara por el enlace público y fuera rechazado después.
+     */
     private function normalizarIdentificacion(string $valor, string $tipo): string
     {
-        $valor = preg_replace('/[^0-9A-Za-z]/', '', trim($valor)) ?? '';
+        $documento = self::DOCUMENTO[$tipo];
+        $crudo     = trim($valor);
 
-        if ($valor === '') {
+        if ($crudo === '') {
             Response::validacion([
-                self::DOCUMENTO[$tipo] === 'RUC'
+                $documento === 'RUC'
                     ? 'Ingrese el número de RUC.'
                     : 'Ingrese el número de cédula.',
             ]);
         }
 
-        if (self::DOCUMENTO[$tipo] === 'RUC') {
-            if (!preg_match('/^\d{10,13}$/', $valor)) {
-                Response::validacion(['El RUC debe tener entre 10 y 13 dígitos.']);
-            }
-        } elseif (!preg_match('/^\d{10}$/', $valor)) {
-            Response::validacion(['La cédula debe tener 10 dígitos.']);
+        $problemas = Documento::validar($documento, $crudo, '');
+        if ($problemas) {
+            Response::validacion($problemas);
         }
 
-        return $valor;
+        return Documento::normalizar($documento, $crudo, $this->db,
+                                     $documento === 'RUC' ? 'proveedor' : 'persona');
     }
 
     /* ================================================================== */
@@ -518,7 +523,7 @@ final class ConsentimientoPublicoController extends Controller
             ? trim((string)($persona['RepEmail'] ?? '')) ?: trim((string)($persona['Email'] ?? ''))
             : trim((string)($persona['Email'] ?? ''));
 
-        if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
+        if (!CorreoElectronico::esValido($destino)) {
             return [
                 'enviado' => false,
                 'destino' => '',

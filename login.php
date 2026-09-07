@@ -177,6 +177,18 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
 
             <div class="form-group">
                 <label for="institucion_id" class="campo-requerido">Institución Educativa</label>
+
+                <?php /* El buscador va DENTRO de este grupo, justo encima del
+                         desplegable al que filtra: no es un dato del formulario,
+                         es una ayuda para elegirlo, y como campo aparte se
+                         llevaba una etiqueta y un margen enteros.
+
+                         Viene oculto y lo muestra js/buscador_institucion.js:
+                         sin JavaScript el desplegable funciona por sí solo. */ ?>
+                <input type="text" id="buscar_institucion" class="login-buscador" hidden
+                       autocomplete="off" aria-label="Filtrar la lista de instituciones"
+                       placeholder="Escriba parte del nombre para filtrar…">
+
                 <select name="institucion_id" id="institucion_id" required>
                     <option value="">-- Seleccione una institución --</option>
                     <?php foreach ($instituciones as $institucion): ?>
@@ -186,6 +198,7 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <div class="form-ayuda" id="institucion_conteo" hidden></div>
             </div>
 
             <button type="submit" class="btn btn-submit">Ingresar</button>
