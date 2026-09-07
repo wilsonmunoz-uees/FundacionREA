@@ -125,17 +125,32 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - REA | Protección de Datos</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/login.css">
 </head>
 <body class="login-body">
 
+<!-- Fondo: fotografías de la comunidad REA en ciclo con zoom suave -->
+<div class="login-fondo" aria-hidden="true">
+    <img src="assets/login/bg-1.webp" alt="">
+    <img src="assets/login/bg-2.webp" alt="">
+    <img src="assets/login/bg-3.webp" alt="">
+    <img src="assets/login/bg-4.webp" alt="">
+    <img src="assets/login/bg-5.webp" alt="">
+</div>
+<div class="login-velo" aria-hidden="true"></div>
+
 <div class="login-shell">
 
+    <div class="login-marca">
+        <img id="login-isotipo" class="login-isotipo" src="assets/login/isotipo-rea.png"
+             alt="Isotipo de la Red Educativa Arquidiocesana" draggable="false">
+        <span class="login-marca-nombre">Fundación <span>REA</span></span>
+        <span class="login-marca-lema">Protección de Datos</span>
+    </div>
+
     <div class="login-container">
-        <!-- El logotipo va dentro de la tarjeta clara: así se apoya sobre una
-             superficie del mismo tono y no se recorta contra el fondo oscuro. -->
-        <div class="login-logo-wrap">
-            <img src="assets/logo.png" alt="Red Educativa Arquidiocesana (REA)">
-        </div>
+        <h1 class="login-titulo">Iniciar sesión</h1>
+        <p class="login-subtitulo">Ingresa para gestionar los consentimientos.</p>
 
         <?php if ($error): ?>
             <div class="error-msg"><?= e($error) ?></div>
@@ -143,7 +158,7 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
 
         <form method="POST" action="login.php" autocomplete="off">
             <?php if ($recordado['usuario'] !== '' && ($_POST['username'] ?? '') === ''): ?>
-                <p class="form-ayuda" style="text-align:center; margin:0 0 10px;">
+                <p class="form-ayuda recordado">
                     Se recuerdan su usuario y su institución. La contraseña nunca se guarda.
                 </p>
             <?php endif; ?>
@@ -201,6 +216,39 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
         &copy; <?= date('Y') ?> Red Educativa Arquidiocesana &mdash; Uso interno confidencial
     </div>
 </div>
+
+<script>
+// El farol: el halo del velo sigue el cursor con suavizado, y el isotipo se
+// inclina como si mirara el movimiento. Se desactiva con movimiento reducido y
+// en pantallas táctiles (sin cursor que seguir).
+(function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(hover: none)').matches) return;
+
+    var raiz = document.documentElement;
+    var isotipo = document.getElementById('login-isotipo');
+    var ox = innerWidth / 2, oy = innerHeight * 0.38;
+    var mx = ox, my = oy;
+
+    addEventListener('mousemove', function (e) { ox = e.clientX; oy = e.clientY; }, { passive: true });
+
+    (function cuadro() {
+        mx += (ox - mx) * 0.12;
+        my += (oy - my) * 0.12;
+        raiz.style.setProperty('--mx', mx + 'px');
+        raiz.style.setProperty('--my', my + 'px');
+
+        if (isotipo) {
+            var r = isotipo.getBoundingClientRect();
+            var dx = (mx - (r.left + r.width / 2)) / innerWidth;
+            var dy = (my - (r.top + r.height / 2)) / innerHeight;
+            isotipo.style.setProperty('--rx', (dx * 16).toFixed(2) + 'deg');
+            isotipo.style.setProperty('--ry', (-dy * 16).toFixed(2) + 'deg');
+        }
+        requestAnimationFrame(cuadro);
+    })();
+})();
+</script>
 
 </body>
 </html>
