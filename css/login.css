@@ -1,0 +1,269 @@
+/* =========================================================================
+   PANTALLA DE LOGIN — Diseño nocturno "El farol"
+   Replica el login del MVP del Grupo 1 (Portal de Privacidad): fondo con las
+   fotografías de la comunidad REA en ciclo, velo oscuro con un halo que sigue
+   al cursor, isotipo con inclinación 3D y tarjeta de vidrio.
+
+   Este archivo SUSTITUYE los estilos .login-* de style.css (que se carga
+   antes): todas las reglas de aquí ganan por orden de cascada.
+   ========================================================================= */
+:root {
+    --login-noche:       #0B1214;
+    --login-carmesi:     #D6203C;
+    --login-carmesi-2:   #9E1B30;
+    --login-marfil:      #F5EFE6;
+    --login-humo:        #93A3A6;
+    --login-vidrio:      rgba(255, 255, 255, .06);
+    --login-vidrio-linea: rgba(255, 255, 255, .10);
+    --mx: 50vw;
+    --my: 38vh;
+}
+
+body.login-body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--login-noche);
+    color: var(--login-marfil);
+    font-family: var(--fuente-base, system-ui, sans-serif);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* --- Fondo: 5 fotos en ciclo con zoom suave (Ken Burns) --- */
+.login-fondo {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: var(--login-noche);
+    z-index: 0;
+}
+.login-fondo img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    animation: login-ciclo 40s linear infinite;
+    will-change: opacity, transform;
+}
+.login-fondo img:nth-child(1) { animation-delay: -2s; }
+.login-fondo img:nth-child(2) { animation-delay: 6s; }
+.login-fondo img:nth-child(3) { animation-delay: 14s; }
+.login-fondo img:nth-child(4) { animation-delay: 22s; }
+.login-fondo img:nth-child(5) { animation-delay: 30s; }
+
+@keyframes login-ciclo {
+    0%   { opacity: 0; transform: scale(1); }
+    5%   { opacity: 1; }
+    25%  { opacity: 1; }
+    31%  { opacity: 0; }
+    100% { opacity: 0; transform: scale(1.14); }
+}
+
+/* --- El farol: velo nocturno con un halo que sigue al cursor --- */
+.login-velo {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background: radial-gradient(circle 300px at var(--mx) var(--my),
+        rgba(11, 18, 20, .22) 0%,
+        rgba(11, 18, 20, .62) 55%,
+        rgba(11, 18, 20, .84) 100%);
+}
+.login-velo::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle 220px at var(--mx) var(--my),
+        rgba(214, 32, 60, .07), transparent 70%);
+}
+@media (hover: none) {
+    .login-velo,
+    .login-velo::after { --mx: 50vw; --my: 40vh; }
+}
+
+/* --- Marca: isotipo con inclinación 3D + rótulo --- */
+.login-shell {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.login-marca {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 26px;
+    text-decoration: none;
+}
+.login-isotipo {
+    height: 88px;
+    width: auto;
+    user-select: none;
+    transform: perspective(700px) rotateX(var(--ry, 0deg)) rotateY(var(--rx, 0deg));
+    will-change: transform;
+    filter: drop-shadow(0 8px 28px rgba(214, 32, 60, .35));
+}
+.login-marca-nombre {
+    font-family: var(--fuente-titulos, var(--fuente-base));
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    color: var(--login-marfil);
+}
+.login-marca-nombre span { color: #E4506A; }
+.login-marca-lema {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .28em;
+    color: var(--login-humo);
+}
+
+/* --- Tarjeta de vidrio --- */
+.login-container {
+    width: 100%;
+    padding: 28px 28px 30px;
+    border-radius: 18px;
+    border: 1px solid var(--login-vidrio-linea);
+    background: var(--login-vidrio);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+    animation: login-subir .5s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes login-subir {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.login-titulo {
+    font-family: var(--fuente-titulos, var(--fuente-base));
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--login-marfil);
+}
+.login-subtitulo {
+    margin: 4px 0 22px;
+    font-size: .88rem;
+    color: var(--login-humo);
+}
+
+/* --- Campos sobre vidrio --- */
+.login-container .form-group { margin-bottom: 16px; }
+.login-container label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--login-marfil);
+}
+.login-container input[type=text],
+.login-container input[type=password],
+.login-container select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--login-vidrio-linea);
+    background: rgba(255, 255, 255, .07);
+    color: var(--login-marfil);
+    font-size: .9rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+.login-container input::placeholder { color: #5f6f72; }
+.login-container input:focus,
+.login-container select:focus {
+    outline: none;
+    border-color: var(--login-carmesi);
+    box-shadow: 0 0 0 3px rgba(214, 32, 60, .25);
+}
+/* El desplegable de instituciones se despliega en blanco del navegador; se
+   fuerza texto oscuro en las opciones para que sean legibles al abrirlo. */
+.login-container select option { color: #1a1a1a; }
+
+.login-container .form-ayuda {
+    margin-top: 6px;
+    font-size: .74rem;
+    color: var(--login-humo);
+}
+.login-buscador { margin-bottom: 8px; }
+.login-buscador[hidden] { display: none !important; }
+
+.login-container .btn-submit {
+    width: 100%;
+    margin-top: 4px;
+    padding: 11px 16px;
+    border: none;
+    border-radius: 10px;
+    background: var(--login-carmesi);
+    color: #fff;
+    font-size: .92rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(214, 32, 60, .25);
+    transition: background .15s;
+}
+.login-container .btn-submit:hover { background: var(--login-carmesi-2); }
+.login-container .btn-submit:focus-visible {
+    outline: 2px solid #F08A9B;
+    outline-offset: 2px;
+}
+
+/* --- Mensajes y ayudas --- */
+.login-container .error-msg {
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(240, 138, 155, .25);
+    background: rgba(214, 32, 60, .12);
+    color: #F5C6CE;
+    font-size: .86rem;
+}
+.login-container .form-ayuda.recordado {
+    text-align: center;
+    margin: 0 0 14px;
+}
+
+.login-footer-nota {
+    position: relative;
+    z-index: 2;
+    margin-top: 26px;
+    text-align: center;
+    color: var(--login-humo);
+    font-size: .74rem;
+    letter-spacing: .01em;
+}
+
+/* --- Movimiento reducido: sin ciclo, sin farol, sin tilt --- */
+@media (prefers-reduced-motion: reduce) {
+    .login-fondo img { animation: none; }
+    .login-fondo img:first-child { opacity: 1; }
+    .login-isotipo { transform: none; }
+    .login-container { animation: none; }
+}
+
+/* --- Pantallas bajas: reduce la marca antes que empujar el botón fuera --- */
+@media (max-height: 720px) {
+    body.login-body { padding: 20px 16px; }
+    .login-marca { margin-bottom: 16px; }
+    .login-isotipo { height: 64px; }
+    .login-container { padding: 20px 24px 22px; }
+    .login-container .form-group { margin-bottom: 12px; }
+}
+@media (max-height: 560px) {
+    body.login-body { justify-content: flex-start; }
+    .login-marca-lema { display: none; }
+    .login-footer-nota { display: none; }
+}
