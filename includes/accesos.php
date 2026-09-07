@@ -47,8 +47,8 @@ function accesosSistema(): array
             'permisos' => ['ADM_DISCLAIMERS'],
         ],
         /**
-         * Configuración del correo saliente y enlaces públicos de
-         * consentimiento. Ambas pantallas comparten el mismo permiso.
+         * Configuración del correo saliente de la institución: servidor,
+         * puerto, credenciales y remitente.
          */
         'correo_configuracion' => [
             'etiqueta' => 'Configuración de Correo',
@@ -57,14 +57,14 @@ function accesosSistema(): array
         ],
 
         /**
-         * Links de consentimiento con verificación: los enlaces públicos de
-         * solo consulta que confirman la identidad con un código enviado al
-         * correo registrado. Es una opción administrativa: la abren el
+         * Enlaces con Verificación: los enlaces públicos de solo consulta
+         * que confirman la identidad con un código enviado al correo
+         * registrado. Son los únicos enlaces públicos del sistema. Es una opción administrativa: la abren el
          * SuperAdmin y quien tenga el permiso, que de fábrica lleva el rol
          * administrativo del sistema.
          */
         'enlaces_verificados' => [
-            'etiqueta' => 'Links de Consentimiento con Verificación',
+            'etiqueta' => 'Enlaces con Verificación',
             'roles'    => ['SuperAdmin', 'Seguridades'],
             'permisos' => ['ADM_ENLACES_VERIF'],
         ],
@@ -117,21 +117,51 @@ function accesosSistema(): array
             'roles'    => ['SuperAdmin'],
             'permisos' => ['REG_PROVEEDORES'],
         ],
+        /*
+         * Consentimientos: pantalla de CONSULTA.
+         *
+         * El consentimiento lo otorga el titular desde el enlace público, no lo
+         * teclea nadie por él: registrarlo a mano dejaba constancia de una
+         * voluntad que el sistema no puede acreditar. Aquí solo se mira.
+         */
         'consentimientos' => [
             'etiqueta' => 'Consentimientos',
             'roles'    => ['SuperAdmin', 'RecursosHumanos', 'Secretaria'],
             // REGISTRO_DATOS se conserva por compatibilidad con el permiso original
             'permisos' => ['REG_CONSENTIMIENTOS', 'REGISTRO_DATOS'],
         ],
+
+        /*
+         * Revocar es la única acción que queda sobre un consentimiento, y la
+         * reserva el SuperAdmin: deja sin efecto una autorización del titular y
+         * afecta a todo tratamiento que dependiera de ella.
+         */
+        'consentimientos_revocar' => [
+            'etiqueta' => 'Revocar consentimientos',
+            'roles'    => ['SuperAdmin'],
+            'permisos' => [],
+        ],
+        /*
+         * Finalidades y tipos de dato son CATÁLOGOS COMPARTIDOS por las 21
+         * instituciones: sus tablas no tienen columna de institución, y no la
+         * tienen a propósito. Una finalidad como «gestión académica» o un tipo
+         * de dato como «correo electrónico» significan lo mismo en toda la red,
+         * y los consentimientos ya otorgados apuntan a ellos.
+         *
+         * Por eso solo los mantiene el SuperAdmin, que es quien tiene la vista
+         * de toda la red: cada institución los usa al registrar consentimientos,
+         * pero ninguna puede cambiar lo que las demás están usando. Editarlos
+         * desde una institución sería editarlos para todas, sin saberlo.
+         */
         'finalidades' => [
             'etiqueta' => 'Finalidades del Tratamiento',
             'roles'    => ['SuperAdmin'],
-            'permisos' => ['REG_FINALIDADES'],
+            'permisos' => [],
         ],
         'tipos_dato' => [
             'etiqueta' => 'Tipos de Dato Personal',
             'roles'    => ['SuperAdmin'],
-            'permisos' => ['REG_TIPOS_DATO'],
+            'permisos' => [],
         ],
 
         /**

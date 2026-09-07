@@ -458,19 +458,33 @@ final class VerificacionPublicaController extends Controller
         return $this->publico()->contextoPublico($this->peticion->cuerpo + $this->peticion->query);
     }
 
+    /**
+     * Documento que escribió el titular, comprobado con la misma regla que
+     * aplican las pantallas internas (api/core/Documento.php). Si el número no
+     * es una cédula ni un RUC del Ecuador, el recorrido se detiene aquí: seguir
+     * solo serviría para decirle más adelante que no consta en la institución,
+     * cuando el problema es otro.
+     */
     private function identificacion(string $tipo): string
     {
-        $valor = (string)preg_replace('/[^0-9A-Za-z]/', '', $this->peticion->texto('identificacion'));
+        $documento = ConsentimientoPublicoController::DOCUMENTO[$tipo];
+        $crudo     = trim($this->peticion->texto('identificacion'));
 
-        if ($valor === '') {
+        if ($crudo === '') {
             Response::validacion([
-                ConsentimientoPublicoController::DOCUMENTO[$tipo] === 'RUC'
+                $documento === 'RUC'
                     ? 'Ingrese el número de RUC.'
                     : 'Ingrese el número de cédula.',
             ]);
         }
 
-        return mb_substr($valor, 0, 50);
+        $problemas = Documento::validar($documento, $crudo, '');
+        if ($problemas) {
+            Response::validacion($problemas);
+        }
+
+        return Documento::normalizar($documento, $crudo, $this->db,
+                                     $documento === 'RUC' ? 'proveedor' : 'persona');
     }
 
     /** Correo al que se envía el código: el del representante en estudiantes. */
@@ -480,7 +494,7 @@ final class VerificacionPublicaController extends Controller
             ? trim((string)($registro['RepEmail'] ?? ''))
             : trim((string)($registro['Email'] ?? ''));
 
-        return filter_var($destino, FILTER_VALIDATE_EMAIL) ? $destino : '';
+        return CorreoElectronico::esValido($destino) ? $destino : '';
     }
 
     /**

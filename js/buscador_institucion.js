@@ -9,8 +9,9 @@
  * solo lo que coincide.
  *
  * Es una MEJORA PROGRESIVA: el formulario funciona sin JavaScript. El campo de
- * búsqueda viene oculto en el HTML y solo se muestra si este archivo se ejecuta;
- * el desplegable, que es quien envía el dato, no se toca.
+ * búsqueda viene oculto en el HTML —dentro del mismo grupo que el desplegable,
+ * justo encima de él— y solo se muestra si este archivo se ejecuta; el
+ * desplegable, que es quien envía el dato, no se toca.
  *
  * Se filtra reconstruyendo las opciones del <select>, no ocultándolas: un
  * <option> con display:none lo respetan unos navegadores y otros no.
@@ -48,6 +49,10 @@
         return;
     }
 
+    /* Institución que venía marcada al abrir la página —la del ingreso anterior,
+       recordada en la cookie—. Se conserva al filtrar. */
+    var elegidaInicial = lista.value;
+
     /** Minúsculas y sin tildes, para que «espiritu» encuentre «Espíritu». */
     function normalizar(texto) {
         return String(texto)
@@ -68,7 +73,7 @@
     function pintar() {
         var texto    = normalizar(buscar.value);
         var palabras = texto === '' ? [] : texto.split(' ');
-        var elegida  = lista.value;
+        var elegida  = lista.value || elegidaInicial;
 
         var visibles = palabras.length === 0
             ? opciones
@@ -112,11 +117,12 @@
     });
 
     buscar.addEventListener('input', pintar);
-    buscar.hidden = false;
 
-    var envoltorio = buscar.closest('.form-group');
-    if (envoltorio) {
-        envoltorio.hidden = false;
+    /* El buscador y su contador comparten el grupo del desplegable: se muestran
+       los dos, no el grupo entero, que ya está visible. */
+    buscar.hidden = false;
+    if (aviso) {
+        aviso.hidden = false;
     }
 
     pintar();

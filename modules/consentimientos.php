@@ -1,65 +1,47 @@
 <?php
-// modules/consentimientos.php - CRUD de Consentimientos (núcleo del sistema)
-// Gestiona el consentimiento otorgado por una persona para una finalidad determinada,
-// el detalle de los tipos de dato autorizados y la bitácora de auditoría.
+// modules/consentimientos.php - Consulta de Consentimientos (núcleo del sistema)
+//
+// Pantalla de SOLO LECTURA. El consentimiento lo otorga el titular desde su
+// enlace público, con verificación de identidad y constancia de fecha, hora,
+// dirección de origen y versión de la política aceptada; aquí se consulta lo que
+// dijo, no se escribe por él.
+//
+// La única acción que queda es la REVOCACIÓN, reservada al SuperAdmin: deja sin
+// efecto una autorización del titular y afecta a todo tratamiento que dependiera
+// de ella. Queda registrada en el historial.
+//
 // Toda la persistencia ocurre en la API REST: /api/consentimientos
 define('APP_ROOT', '../');
 require_once __DIR__ . '/../auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/selector_persona.php';
 
 requireAcceso('consentimientos');
 $institucionId = institucionActual();
-$medios = ['WEB', 'EMAIL', 'WHATSAPP', 'APP'];
 
 $accion = $_GET['accion'] ?? 'listar';
 $errores = [];
 
-// ---------- Crear / Editar ----------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar'], true)) {
-    if (!csrfValido()) {
-        $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
-    } else {
-        $datos = [
-            'persona_id'           => (int)($_POST['persona_id'] ?? 0),
-            'finalidad_id'         => (int)($_POST['finalidad_id'] ?? 0),
-            'representante_id'     => (int)($_POST['representante_id'] ?? 0),
-            'medio'                => $_POST['medio'] ?? '',
-            'version_politica'     => trim($_POST['version_politica'] ?? ''),
-            'fecha_consentimiento' => str_replace('T', ' ', trim($_POST['fecha_consentimiento'] ?? '')),
-            'ip_origen'            => trim($_POST['ip_origen'] ?? ''),
-            'tipos_autorizados'    => array_map('intval', $_POST['tipos_autorizados'] ?? []),
-        ];
-
-        if ($accion === 'crear') {
-            $respuesta = apiPost('consentimientos', $datos);
-            $mensajeOk = 'Consentimiento registrado correctamente.';
-        } else {
-            $id = (int)($_POST['consentimiento_id'] ?? 0);
-            $respuesta = apiPut('consentimientos/' . $id, $datos);
-            $mensajeOk = 'Consentimiento actualizado correctamente.';
-        }
-
-        if ($respuesta['ok']) {
-            flashSet('exito', $mensajeOk);
-            redirigir('consentimientos.php');
-        }
-        $errores = apiErrores($respuesta);
-    }
+/* Alta y edición retiradas: si alguien llega con ?accion=crear o ?accion=editar
+   escrito a mano, se le lleva al listado con la explicación. */
+if (in_array($accion, ['crear', 'editar'], true)) {
+    flashSet('error', $accion === 'crear'
+        ? 'El consentimiento lo otorga el titular desde su enlace; no se registra a mano.'
+        : 'Un consentimiento otorgado no se modifica. Puede consultarlo o, si corresponde, revocarlo.');
+    redirigir('consentimientos.php');
 }
 
-// ---------- Revocar / Reactivar ----------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['revocar', 'reactivar'], true)) {
+// ---------- Revocar (solo SuperAdmin) ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'revocar') {
+    requireAcceso('consentimientos_revocar');
+
     if (csrfValido()) {
         $id = (int)($_POST['id'] ?? 0);
-        $respuesta = apiPost('consentimientos/' . $id . '/' . $accion, [
+        $respuesta = apiPost('consentimientos/' . $id . '/revocar', [
             'observacion' => trim($_POST['observacion'] ?? ''),
         ]);
         flashSet(
             $respuesta['ok'] ? 'exito' : 'error',
-            $respuesta['ok']
-                ? ($accion === 'revocar' ? 'Consentimiento revocado correctamente.' : 'Consentimiento reactivado correctamente.')
-                : apiError($respuesta)
+            $respuesta['ok'] ? 'Consentimiento revocado correctamente.' : apiError($respuesta)
         );
     }
     redirigir('consentimientos.php');
@@ -104,131 +86,116 @@ include __DIR__ . '/../includes/layout_top.php';
 <div class="page-header">
     <div>
         <h1>✅ Consentimientos</h1>
-        <p>Registro del consentimiento de titulares para el tratamiento de sus datos personales, según finalidad.</p>
-    </div>
-    <div class="flex-gap">
-        <a class="btn btn-primario" href="consentimientos.php?accion=crear">+ Registrar Consentimiento</a>
+        <p>Consulta del consentimiento otorgado por los titulares para el tratamiento de sus datos personales.</p>
     </div>
 </div>
 
-<?php if ($accion === 'crear' || $accion === 'editar'): ?>
+<div class="alerta alerta-info">
+    Esta pantalla es de <strong>consulta</strong>. El consentimiento lo otorga el titular desde su
+    enlace, que confirma su identidad y deja constancia de la fecha, la hora, la dirección de origen y
+    la versión de la política aceptada. Para pedirlo, use
+    <strong><a href="envio_masivo.php">Envío Masivo de Invitaciones</a></strong>.
+    <?php if (puedeAcceder('consentimientos_revocar')): ?>
+        La <strong>revocación</strong> está disponible para su rol y queda registrada en el historial.
+    <?php endif; ?>
+</div>
+
+<?php if ($accion === 'ver'): ?>
+    <?php
+    $repNombre = trim((string)($registroEditar['RepNombres'] ?? '') . ' ' . (string)($registroEditar['RepApellidos'] ?? ''));
+    /** Nombre de cada tipo de dato autorizado, para no mostrar solo los códigos. */
+    $nombreTipo = [];
+    foreach ($tiposDatoDisponibles as $td) {
+        $nombreTipo[(int)$td['TipoDatoId']] = $td;
+    }
+    ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Consentimiento' : 'Editar Consentimiento' ?></h3>
-        <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
-        <form method="POST" action="consentimientos.php?accion=<?= e($accion) ?>">
-            <?= csrfCampo() ?>
-            <?php if ($accion === 'editar'): ?><input type="hidden" name="consentimiento_id" value="<?= e((string)$registroEditar['ConsentimientoId']) ?>"><?php endif; ?>
+        <?php encabezadoFormulario('Consentimiento otorgado', 'consentimientos.php'); ?>
 
-            <fieldset>
-                <legend>Titular y Finalidad</legend>
-                <div class="form-row">
-                    <div style="flex:2;">
-                        <?php
-                        // Titular del dato: etiqueta + subpantalla de búsqueda
-                        $personaId = (int)($registroEditar['PersonaId'] ?? ($_POST['persona_id'] ?? 0));
-                        $persona   = personaResumen($personaId, $registroEditar);
+        <div class="tabla-wrap">
+            <table class="tabla-datos">
+                <tbody>
+                <tr>
+                    <th style="width:32%;">Titular</th>
+                    <td><strong><?= e(nombreCompleto($registroEditar['Nombres'] ?? '', $registroEditar['Apellidos'] ?? '')) ?></strong></td>
+                </tr>
+                <tr>
+                    <th>Finalidad del tratamiento</th>
+                    <td><?= e($registroEditar['FinalidadNombre'] ?? '—') ?></td>
+                </tr>
+                <tr>
+                    <th>Representante</th>
+                    <td><?= $repNombre !== '' ? e($repNombre) : '—' ?></td>
+                </tr>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <td><?= f_fecha($registroEditar['FechaConsentimiento'] ?? null) ?></td>
+                </tr>
+                <tr>
+                    <th>Medio</th>
+                    <td><?= e($registroEditar['MedioConsentimiento'] ?: '—') ?></td>
+                </tr>
+                <tr>
+                    <th>Versión de la política aceptada</th>
+                    <td><?= e($registroEditar['VersionPolitica'] ?: '—') ?></td>
+                </tr>
+                <tr>
+                    <th>Dirección de origen</th>
+                    <td><?= e($registroEditar['IpOrigen'] ?: '—') ?></td>
+                </tr>
+                <tr>
+                    <th>Estado</th>
+                    <td>
+                        <?= badgeEstado($registroEditar['Estado'] ?? '') ?>
+                        <?php if (!empty($registroEditar['FechaRevocacion'])): ?>
+                            <span class="texto-mutado">
+                                Revocado el <?= f_fecha($registroEditar['FechaRevocacion']) ?>
+                            </span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Tipos de dato autorizados</th>
+                    <td>
+                        <?php if (empty($tiposAutorizadosActuales)): ?>
+                            <span class="texto-mutado">Ninguno registrado</span>
+                        <?php else: ?>
+                            <ul class="lista-simple">
+                                <?php foreach ($tiposAutorizadosActuales as $tid): ?>
+                                    <?php $td = $nombreTipo[(int)$tid] ?? null; ?>
+                                    <li>
+                                        <?= e($td['Nombre'] ?? ('Tipo #' . (int)$tid)) ?>
+                                        <?php if (($td['EsSensible'] ?? 'NO') === 'SI'): ?>
+                                            <span class="badge badge-sensible">SENSIBLE</span>
+                                        <?php endif; ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
 
-                        selectorPersona([
-                            'nombre'    => 'persona_id',
-                            'etiqueta'  => 'Persona (Titular del Dato)',
-                            'requerido' => true,
-                            'valor'     => $personaId ?: '',
-                            'texto'     => $persona['texto'],
-                            'detalle'   => $persona['detalle'],
-                            'vacio'     => 'Ningún titular seleccionado',
-                            'ayuda'     => 'Pulse Buscar para elegir a la persona en el directorio.',
-                        ]);
-                        ?>
-                    </div>
-                    <div class="form-group" style="flex:2;">
-                        <label class="campo-requerido">Finalidad del Tratamiento</label>
-                        <select name="finalidad_id" required>
-                            <option value="">-- Seleccione --</option>
-                            <?php foreach ($finalidadesDisponibles as $f): ?>
-                                <option value="<?= e((string)$f['FinalidadId']) ?>" <?= (($registroEditar['FinalidadId'] ?? null) == $f['FinalidadId']) ? 'selected' : '' ?>><?= e($f['Nombre']) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div style="flex:2;">
-                        <?php
-                        // Representante: se excluye de la búsqueda al propio titular
-                        $repId = (int)($registroEditar['RepresentanteId'] ?? ($_POST['representante_id'] ?? 0));
-                        $rep   = personaResumen($repId, [
-                            'Nombres'        => $registroEditar['RepNombres'] ?? null,
-                            'Apellidos'      => $registroEditar['RepApellidos'] ?? null,
-                            'Identificacion' => $registroEditar['RepIdentificacion'] ?? null,
-                        ]);
-
-                        selectorPersona([
-                            'nombre'        => 'representante_id',
-                            'etiqueta'      => 'Representante (si el titular es menor de edad)',
-                            'valor'         => $repId ?: '',
-                            'texto'         => $rep['texto'],
-                            'detalle'       => $rep['detalle'],
-                            'vacio'         => 'Sin representante',
-                            'excluir_campo' => 'persona_id',
-                            'ayuda'         => 'Opcional. No aparece el titular ya seleccionado.',
-                        ]);
-                        ?>
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset>
-                <legend>Detalle del Consentimiento</legend>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Fecha y Hora del Consentimiento</label>
-                        <input type="datetime-local" name="fecha_consentimiento"
-                               value="<?= e(!empty($registroEditar['FechaConsentimiento']) ? str_replace(' ', 'T', substr($registroEditar['FechaConsentimiento'], 0, 16)) : date('Y-m-d\TH:i')) ?>">
-                    </div>
-                    <div class="form-group">
-                        <label>Medio</label>
-                        <select name="medio">
-                            <option value="">-- Seleccione --</option>
-                            <?php foreach ($medios as $m): ?>
-                                <option value="<?= $m ?>" <?= (($registroEditar['MedioConsentimiento'] ?? '') === $m) ? 'selected' : '' ?>><?= $m ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Versión de la Política de Privacidad</label>
-                        <input type="text" name="version_politica" maxlength="50" value="<?= e($registroEditar['VersionPolitica'] ?? '') ?>" placeholder="Ej: v1.0">
-                    </div>
-                    <div class="form-group">
-                        <label>IP de Origen</label>
-                        <input type="text" name="ip_origen" maxlength="20" value="<?= e($registroEditar['IpOrigen'] ?? ($_SERVER['REMOTE_ADDR'] ?? '')) ?>">
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset>
-                <legend>Tipos de Dato Personal Autorizados</legend>
-                <?php if (empty($tiposDatoDisponibles)): ?>
-                    <p class="texto-mutado">No hay tipos de dato registrados. <a href="tipos_dato.php?accion=crear">Cree un tipo de dato primero</a>.</p>
-                <?php else: ?>
-                    <div class="check-grid">
-                        <?php foreach ($tiposDatoDisponibles as $td): ?>
-                            <label class="check-item">
-                                <input type="checkbox" name="tipos_autorizados[]" value="<?= e((string)$td['TipoDatoId']) ?>"
-                                    <?= in_array($td['TipoDatoId'], $tiposAutorizadosActuales) ? 'checked' : '' ?>>
-                                <?= e($td['Nombre']) ?>
-                                <?php if ($td['EsSensible'] === 'SI'): ?><span class="badge badge-sensible">SENSIBLE</span><?php endif; ?>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </fieldset>
-
-            <div class="flex-gap">
-                <button type="submit" class="btn btn-primario">Guardar</button>
-                <a href="consentimientos.php" class="btn btn-secundario">Cancelar</a>
-            </div>
-        </form>
+        <div class="flex-gap" style="margin-top:14px;">
+            <?php if (puedeAcceder('consulta_historial')): ?>
+                <a class="btn btn-secundario"
+                   href="../consultas/historial_consentimientos.php?consentimiento_id=<?= e((string)$registroEditar['ConsentimientoId']) ?>">
+                    Ver historial
+                </a>
+            <?php endif; ?>
+            <?php if (puedeAcceder('consentimientos_revocar') && ($registroEditar['Estado'] ?? '') === 'ACTIVO'): ?>
+                <form method="POST" action="consentimientos.php?accion=revocar"
+                      onsubmit="return confirm('¿Confirma la revocación de este consentimiento? Queda registrada en el historial.');"
+                      style="display:inline;">
+                    <?= csrfCampo() ?>
+                    <input type="hidden" name="id" value="<?= e((string)$registroEditar['ConsentimientoId']) ?>">
+                    <input type="hidden" name="observacion" value="Revocado desde la ficha del consentimiento.">
+                    <button type="submit" class="btn btn-peligro">Revocar consentimiento</button>
+                </form>
+            <?php endif; ?>
+        </div>
     </div>
 <?php endif; ?>
 
@@ -266,21 +233,19 @@ include __DIR__ . '/../includes/layout_top.php';
                 <td><?= badgeEstado($r['Estado']) ?></td>
                 <td class="no-imprimir">
                     <div class="tabla-acciones">
-                        <a class="btn btn-sm btn-secundario" href="consentimientos.php?accion=editar&id=<?= e((string)$r['ConsentimientoId']) ?>">Editar</a>
+                        <a class="btn btn-sm btn-secundario" href="consentimientos.php?accion=ver&id=<?= e((string)$r['ConsentimientoId']) ?>">Ver</a>
                         <?php if (puedeAcceder('consulta_historial')): ?>
                             <a class="btn btn-sm btn-secundario" href="../consultas/historial_consentimientos.php?consentimiento_id=<?= e((string)$r['ConsentimientoId']) ?>">Historial</a>
                         <?php endif; ?>
-                        <?php if ($r['Estado'] === 'ACTIVO'): ?>
+                        <?php /* Revocar es la única acción que queda, y solo para el SuperAdmin.
+                                 Reactivar se retiró: devolver la vigencia a un consentimiento
+                                 revocado es una decisión del titular, y el camino es que vuelva
+                                 a otorgarlo desde su enlace, con su verificación y constancia. */ ?>
+                        <?php if (puedeAcceder('consentimientos_revocar') && $r['Estado'] === 'ACTIVO'): ?>
                             <form method="POST" action="consentimientos.php?accion=revocar" onsubmit="return confirm('¿Confirma la revocación de este consentimiento?');" style="display:inline;">
                                 <?= csrfCampo() ?>
                                 <input type="hidden" name="id" value="<?= e((string)$r['ConsentimientoId']) ?>">
                                 <button type="submit" class="btn btn-sm btn-peligro">Revocar</button>
-                            </form>
-                        <?php else: ?>
-                            <form method="POST" action="consentimientos.php?accion=reactivar" onsubmit="return confirm('¿Reactivar este consentimiento?');" style="display:inline;">
-                                <?= csrfCampo() ?>
-                                <input type="hidden" name="id" value="<?= e((string)$r['ConsentimientoId']) ?>">
-                                <button type="submit" class="btn btn-sm btn-exito">Reactivar</button>
                             </form>
                         <?php endif; ?>
                     </div>

@@ -104,6 +104,9 @@ $router->get('estado', static function (): void {
 // --- Autenticación -----------------------------------------------------------
 $router->post('auth/login',  [AuthController::class, 'login']);
 $router->post('auth/logout', [AuthController::class, 'logout']);
+// La fija su propio dueño: exige la contraseña vigente, y es el único camino
+// para quitarse la clave temporal que envió el sistema.
+$router->post('auth/cambiar-clave', [AuthController::class, 'cambiarClave']);
 $router->get('auth/me',      [AuthController::class, 'me']);
 $router->get('auth/permiso', [AuthController::class, 'permiso']);
 
@@ -123,7 +126,7 @@ $router->get('documento/reglas',       [DocumentoController::class, 'reglas']);
 // --- Personas -----------------------------------------------------------------
 // `persona` es la entidad padre de empleados, estudiantes, representantes y
 // proveedores: NO tiene mantenimiento propio. Solo se lee. Sus fichas se crean
-// desde esos módulos, desde los enlaces públicos o desde la PreCarga Inicial.
+// desde esos módulos, desde los enlaces públicos o desde la Carga de Información.
 $router->get('personas/opciones',      [PersonasController::class, 'opciones']);
 $router->get('personas',               [PersonasController::class, 'index']);
 $router->get('personas/{id}/ficha',    [PersonasController::class, 'ficha']);
@@ -203,11 +206,13 @@ $router->get('consultas/consentimientos-vigentes', [ConsultasController::class, 
 
 // --- Reportes ---------------------------------------------------------------------
 $router->get('reportes/dashboard',       [ReportesController::class, 'dashboard']);
+$router->get('reportes/cobertura',       [ReportesController::class, 'cobertura']);
 $router->get('reportes/consentimientos', [ReportesController::class, 'consentimientos']);
-$router->get('reportes/datos-sensibles', [ReportesController::class, 'datosSensibles']);
 $router->get('reportes/titulares',       [ReportesController::class, 'titulares']);
 $router->get('reportes/auditoria',       [ReportesController::class, 'auditoria']);
 $router->get('reportes/cobertura-correo', [ReportesController::class, 'coberturaCorreo']);
+$router->get('reportes/envios-masivos',  [ReportesController::class, 'enviosMasivos']);
+$router->get('reportes/red-educativa',        [ReportesController::class, 'redEducativa']);
 $router->get('reportes/exportar',        [ReportesController::class, 'exportar']);
 
 // --- Configuración del correo saliente ----------------------------------------------
@@ -233,17 +238,22 @@ $router->get('envio-masivo/resumen',       [EnvioMasivoController::class, 'resum
 $router->get('envio-masivo/destinatarios', [EnvioMasivoController::class, 'destinatarios']);
 $router->post('envio-masivo/enviar',       [EnvioMasivoController::class, 'enviar']);
 
-// --- PreCarga inicial (solo SuperAdmin) ---------------------------------------------
-$router->post('precarga/previsualizar', [PreCargaController::class, 'previsualizar']);
-$router->post('precarga/procesar',      [PreCargaController::class, 'procesar']);
+// --- Carga de Información (solo SuperAdmin) ------------------------------------------
+$router->post('carga-informacion/previsualizar', [CargaInformacionController::class, 'previsualizar']);
+$router->post('carga-informacion/procesar',      [CargaInformacionController::class, 'procesar']);
 
 // --- Consentimiento público (SIN token: son los enlaces abiertos al titular) ---------
 $router->get('consentimiento-publico/inicio',      [ConsentimientoPublicoController::class, 'inicio']);
 $router->post('consentimiento-publico/identificar', [ConsentimientoPublicoController::class, 'identificar']);
 $router->post('consentimiento-publico/registrar',   [ConsentimientoPublicoController::class, 'registrar']);
 
-// --- Instalación inicial ------------------------------------------------------------
-$router->post('setup/admin', [SetupController::class, 'crearAdmin']);
+/* La instalación inicial NO tiene endpoint. Antes existía `setup/admin`, sin
+   autenticación: creaba un SuperAdmin en cualquier institución que todavía no
+   tuviera usuarios, con el nombre y la contraseña que le pasaran. Bastaba
+   registrar una institución nueva y adelantarse a su primer usuario para
+   quedarse con ella. El primer administrador se crea hoy con la carga inicial
+   de `BaseDatos/02_DML_datos.sql`, y los siguientes desde Usuarios del Sistema,
+   que sí exige sesión y permiso. */
 
 /* --------------------------------------------------------------------------
    Despacho

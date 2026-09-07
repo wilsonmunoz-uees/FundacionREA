@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $accion === 'editar') {
         ]);
 
         if ($respuesta['ok']) {
-            flashSet('exito', 'Proveedor actualizado correctamente.');
+            flashGuardadoConInvitacion('Proveedor actualizado correctamente.', $respuesta);
             redirigir('proveedores.php');
         }
         $errores = apiErrores($respuesta);
@@ -88,7 +88,7 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'editar'): ?>
     <div class="card">
-        <h3>Editar Proveedor</h3>
+        <?php encabezadoFormulario('Editar Proveedor', 'proveedores.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="proveedores.php?accion=editar">
             <?= csrfCampo() ?>
@@ -99,12 +99,12 @@ include __DIR__ . '/../includes/layout_top.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label>Razón Social</label>
-                        <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                        <input type="text" class="campo-bloqueado" disabled
                                value="<?= e($registroEditar['RazonSocial'] ?? '') ?>">
                     </div>
                     <div class="form-group" style="flex:0 1 220px;">
                         <label>RUC</label>
-                        <input type="text" class="campo-bloqueado" readonly tabindex="-1"
+                        <input type="text" class="campo-bloqueado" disabled
                                value="<?= e($registroEditar['Ruc'] ?? '') ?>">
                     </div>
                 </div>

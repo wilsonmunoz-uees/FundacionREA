@@ -2,21 +2,28 @@
 /**
  * api/controllers/ConsentimientoPublicoController.php
  * -----------------------------------------------------------------------------
- * Endpoints PÚBLICOS del autoservicio de consentimiento.
+ * Endpoints PÚBLICOS del consentimiento.
  *
- * Atienden los tres enlaces abiertos —estudiantes, empleados y proveedores— que
- * la institución difunde. No exigen token: quien llega es el titular de los
+ * Atienden los Enlaces con Verificación —estudiantes, empleados y proveedores—
+ * que la institución difunde. No exigen token: quien llega es el titular de los
  * datos (o el representante de un estudiante), que no tiene cuenta en el
  * sistema.
  *
  * El flujo tiene tres pasos:
  *
  *   1. inicio       → datos de la institución y disclaimer vigente del tipo.
- *   2. identificar  → se busca la cédula o el RUC. Si existe, se devuelven sus
- *                     datos; si no, se avisa que hay que registrarlos.
- *   3. registrar    → da de alta a quien no existía, registra la decisión en
- *                     `consentimiento` y `consentimientohistorial`, y envía el
- *                     correo de confirmación.
+ *   2. identificar  → se busca la cédula o el RUC y se devuelve lo que consta.
+ *   3. registrar    → anota la decisión en `consentimiento` y
+ *                     `consentimientohistorial`, y envía el correo de
+ *                     confirmación.
+ *
+ * NINGUNO DA DE ALTA A NADIE. Antes `registrar` creaba la ficha de quien no
+ * constaba, y por ahí entraban personas al padrón sin que nadie las hubiera
+ * cargado. El alta es hoy competencia exclusiva de la Carga de Información, de
+ * modo que ese camino se retiró: sin un pase de verificación válido —el que
+ * emite `VerificacionPublicaController` tras comprobar el código enviado al
+ * correo registrado— la decisión se rechaza, y quien no conste en la
+ * institución no llega a decidir.
  *
  * Regla de revocatoria: quien ya tenía consentimiento otorgado no puede
  * revocarlo desde aquí; debe escribir a la institución. La pantalla lo muestra
@@ -33,11 +40,6 @@ final class ConsentimientoPublicoController extends Controller
         'ESTUDIANTE' => 'CEDULA',
         'EMPLEADO'   => 'CEDULA',
         'PROVEEDOR'  => 'RUC',
-    ];
-
-    public const RELACIONES = [
-        'MADRE', 'PADRE', 'ABUELO/A', 'HERMANO/A', 'TIO/A',
-        'REPRESENTANTE LEGAL', 'TUTOR/A', 'OTRO',
     ];
 
     /** Versión de política que se sella cuando el disclaimer no trae una. */
@@ -61,9 +63,6 @@ final class ConsentimientoPublicoController extends Controller
             'institucion'      => $institucion['nombre'],
             'hay_disclaimer'   => $disclaimer !== null,
             'disclaimer'       => $this->disclaimerPublico($disclaimer),
-            // Relaciones que la base acepta hoy: la pantalla arma su desplegable
-            // con esto, y así nunca ofrece una que no se pueda guardar.
-            'relaciones'       => EstudiantesController::relacionesDisponibles($this->db),
         ]);
     }
 
@@ -120,30 +119,39 @@ final class ConsentimientoPublicoController extends Controller
             Response::validacion(['Indique si otorga o revoca el consentimiento.']);
         }
 
-        /* Si la decisión llega desde un enlace CON VERIFICACIÓN, trae el pase
-           firmado que acredita que la identidad se comprobó con un código
-           enviado al correo registrado. Queda anotado en el historial. */
-        $pase       = $this->peticion->texto('pase');
-        $verificado = $pase !== ''
-            && VerificacionPublicaController::paseValido($pase, $tipo, $institucionId, $identificacion);
+        /* El pase firmado acredita que la identidad se comprobó con un código
+           enviado al correo registrado. Es OBLIGATORIO: es lo que distingue a
+           quien demostró ser el titular de quien solo conoce una cédula ajena.
+           Sin él no se registra ninguna decisión, venga de donde venga la
+           petición. */
+        $pase = $this->peticion->texto('pase');
 
-        if ($pase !== '' && !$verificado) {
+        if ($pase === '') {
+            Response::error(
+                'Para decidir sobre sus datos debe verificar su identidad. Abra el enlace que le envió '
+                . 'la institución y solicite el código de verificación.',
+                403
+            );
+        }
+
+        if (!VerificacionPublicaController::paseValido($pase, $tipo, $institucionId, $identificacion)) {
             Response::error(
                 'La verificación de su identidad caducó. Vuelva a abrir el enlace y solicite un código nuevo.',
                 409
             );
         }
 
-        $existente = $this->localizar($tipo, $institucionId, $identificacion);
+        $verificado = true;
 
-        /* Con verificación no se dan altas: si la persona no está registrada,
-           el enlace verificado no es el camino. */
-        if ($verificado && $existente === null) {
+        /* No se dan altas: quien no consta en la institución no llega a decidir.
+           El padrón se puebla únicamente desde la Carga de Información. */
+        $existente = $this->localizar($tipo, $institucionId, $identificacion);
+        if ($existente === null) {
             Response::error('No encontramos su registro en la institución.', 404);
         }
 
         // La regla de revocatoria se aplica también aquí, no solo en la pantalla
-        if ($existente !== null && $decision === 'REVOCA') {
+        if ($decision === 'REVOCA') {
             $estado = $this->estadoConsentimiento($institucionId, (int)$existente['PersonaId']);
             if ($estado !== null && $estado['Estado'] === 'ACTIVO') {
                 Response::error(
@@ -167,14 +175,10 @@ final class ConsentimientoPublicoController extends Controller
 
         $ip      = $this->ipCliente();
         $estado  = $decision === 'OTORGA' ? 'ACTIVO' : 'INACTIVO';
-        $persona = [];
+        $persona = $existente;
 
         try {
             $this->db->beginTransaction();
-
-            $persona = $existente !== null
-                ? $existente
-                : $this->darDeAlta($tipo, $institucionId, $identificacion);
 
             $personaId       = (int)$persona['PersonaId'];
             $representanteId = isset($persona['RepresentanteId']) && $persona['RepresentanteId'] !== null
@@ -207,7 +211,6 @@ final class ConsentimientoPublicoController extends Controller
         Response::exito([
             'decision'         => $decision,
             'estado'           => $estado,
-            'nuevo_registro'   => $existente === null,
             'consentimiento_id' => $consentimientoId,
             'fecha'            => date('Y-m-d H:i:s'),
             'correo'           => $correo,
@@ -275,31 +278,36 @@ final class ConsentimientoPublicoController extends Controller
     }
 
     /** Comprueba el formato del documento según el tipo de persona. */
+    /**
+     * Comprueba el documento que escribió el titular con la MISMA regla que
+     * aplican las pantallas internas: api/core/Documento.php. Antes había aquí
+     * una copia más laxa —el RUC admitía de diez a trece dígitos— y eso hacía
+     * que un número entrara por el enlace público y fuera rechazado después.
+     */
     private function normalizarIdentificacion(string $valor, string $tipo): string
     {
-        $valor = preg_replace('/[^0-9A-Za-z]/', '', trim($valor)) ?? '';
+        $documento = self::DOCUMENTO[$tipo];
+        $crudo     = trim($valor);
 
-        if ($valor === '') {
+        if ($crudo === '') {
             Response::validacion([
-                self::DOCUMENTO[$tipo] === 'RUC'
+                $documento === 'RUC'
                     ? 'Ingrese el número de RUC.'
                     : 'Ingrese el número de cédula.',
             ]);
         }
 
-        if (self::DOCUMENTO[$tipo] === 'RUC') {
-            if (!preg_match('/^\d{10,13}$/', $valor)) {
-                Response::validacion(['El RUC debe tener entre 10 y 13 dígitos.']);
-            }
-        } elseif (!preg_match('/^\d{10}$/', $valor)) {
-            Response::validacion(['La cédula debe tener 10 dígitos.']);
+        $problemas = Documento::validar($documento, $crudo, '');
+        if ($problemas) {
+            Response::validacion($problemas);
         }
 
-        return $valor;
+        return Documento::normalizar($documento, $crudo, $this->db,
+                                     $documento === 'RUC' ? 'proveedor' : 'persona');
     }
 
     /* ================================================================== */
-    /* Búsqueda y alta                                                     */
+    /* Búsqueda                                                            */
     /* ================================================================== */
 
     /** Busca a la persona en la tabla que corresponde a su tipo. */
@@ -351,135 +359,6 @@ final class ConsentimientoPublicoController extends Controller
         $fila['NombreCompleto'] = trim((string)$fila['Apellidos'] . ' ' . (string)$fila['Nombres']);
 
         return $fila;
-    }
-
-    /**
-     * Crea a la persona y su vínculo con la institución a partir de los datos
-     * que llenó en la pantalla. En estudiantes crea también al representante.
-     */
-    private function darDeAlta(string $tipo, int $institucionId, string $identificacion): array
-    {
-        $datos = $this->peticion->dato('datos', []);
-        if (!is_array($datos)) {
-            $datos = [];
-        }
-
-        $campo = static fn(string $clave): string => trim((string)($datos[$clave] ?? ''));
-
-        $nombres   = $campo('nombres');
-        $apellidos = $campo('apellidos');
-        $email     = $campo('email');
-        $telefono  = $campo('telefono');
-
-        $errores = [];
-        if ($nombres === '')   { $errores[] = 'Ingrese los nombres.'; }
-        if ($apellidos === '') { $errores[] = 'Ingrese los apellidos.'; }
-
-        // El correo es obligatorio salvo en estudiantes, donde se usa el del representante
-        if ($tipo !== 'ESTUDIANTE') {
-            if ($email === '') {
-                $errores[] = 'Ingrese el correo electrónico.';
-            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errores[] = 'El correo electrónico no es válido.';
-            }
-        } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errores[] = 'El correo electrónico del estudiante no es válido.';
-        }
-
-        if ($tipo === 'PROVEEDOR' && $campo('razon_social') === '') {
-            $errores[] = 'Ingrese la razón social.';
-        }
-
-        /* --- Representante, solo para estudiantes --- */
-        $rep = [];
-        if ($tipo === 'ESTUDIANTE') {
-            $repCampo = static fn(string $clave): string => trim((string)($datos['representante'][$clave] ?? ''));
-
-            $rep = [
-                'identificacion' => preg_replace('/[^0-9A-Za-z]/', '', $repCampo('identificacion')) ?? '',
-                'nombres'        => $repCampo('nombres'),
-                'apellidos'      => $repCampo('apellidos'),
-                'email'          => $repCampo('email'),
-                'telefono'       => $repCampo('telefono'),
-                'relacion'       => strtoupper($repCampo('relacion')),
-            ];
-
-            if ($rep['identificacion'] === '')                  { $errores[] = 'Ingrese la cédula del representante.'; }
-            elseif (!preg_match('/^\d{10}$/', $rep['identificacion'])) { $errores[] = 'La cédula del representante debe tener 10 dígitos.'; }
-            if ($rep['identificacion'] === $identificacion)     { $errores[] = 'El estudiante no puede ser su propio representante.'; }
-            if ($rep['nombres'] === '' || $rep['apellidos'] === '') { $errores[] = 'Ingrese los nombres y apellidos del representante.'; }
-            if ($rep['email'] === '') {
-                $errores[] = 'Ingrese el correo del representante: allí se enviará la confirmación.';
-            } elseif (!filter_var($rep['email'], FILTER_VALIDATE_EMAIL)) {
-                $errores[] = 'El correo del representante no es válido.';
-            }
-            if (!in_array($rep['relacion'], EstudiantesController::relacionesDisponibles($this->db), true)) {
-                $errores[] = 'Indique la relación del representante con el estudiante.';
-            }
-        }
-
-        if ($errores) {
-            Response::validacion($errores);
-        }
-
-        /* --- Persona titular --- */
-        $personaId = Padron::crearOActualizar($this->db, $institucionId, [
-            'identificacion' => $identificacion,
-            'tipo'           => self::DOCUMENTO[$tipo],
-            'nombres'        => mb_substr($nombres, 0, 100),
-            'apellidos'      => mb_substr($apellidos, 0, 100),
-            'email'          => $email,
-            'telefono'       => $telefono,
-            'estado'         => 'ACTIVO',
-        ]);
-
-        /* --- Vínculo con la institución --- */
-        if ($tipo === 'ESTUDIANTE') {
-            $representanteId = Padron::crearOActualizar($this->db, $institucionId, [
-                'identificacion' => $rep['identificacion'],
-                'tipo'           => 'CEDULA',
-                'nombres'        => mb_substr($rep['nombres'], 0, 100),
-                'apellidos'      => mb_substr($rep['apellidos'], 0, 100),
-                'email'          => $rep['email'],
-                'telefono'       => $rep['telefono'],
-                'estado'         => 'ACTIVO',
-            ]);
-
-            $this->ejecutar(
-                'INSERT INTO estudiante
-                    (InstitucionEducativaId, PersonaId, CodigoEstudiante,
-                     RepresentanteId, RepresentanteRelacion, Estado)
-                 VALUES (?,?,?,?,?,\'ACTIVO\')',
-                [
-                    $institucionId, $personaId,
-                    $campo('codigo_estudiante') ?: null,
-                    $representanteId, $rep['relacion'],
-                ]
-            );
-        } elseif ($tipo === 'EMPLEADO') {
-            $representanteId = null;
-            $this->ejecutar(
-                'INSERT INTO empleado (InstitucionEducativaId, PersonaId, Estado)
-                 VALUES (?,?,\'ACTIVO\')',
-                [$institucionId, $personaId]
-            );
-        } else {
-            $representanteId = null;
-            $this->ejecutar(
-                'INSERT INTO proveedor (InstitucionEducativaId, PersonaId, Ruc, RazonSocial, Estado)
-                 VALUES (?,?,?,?,\'ACTIVO\')',
-                [$institucionId, $personaId, $identificacion, mb_substr($campo('razon_social'), 0, 150)]
-            );
-        }
-
-        $persona = $this->localizar($tipo, $institucionId, $identificacion);
-
-        if ($persona === null) {
-            // No debería ocurrir: se acaba de insertar
-            throw new PDOException('No se pudo recuperar el registro recién creado.');
-        }
-
-        return $persona;
     }
 
 
@@ -644,7 +523,7 @@ final class ConsentimientoPublicoController extends Controller
             ? trim((string)($persona['RepEmail'] ?? '')) ?: trim((string)($persona['Email'] ?? ''))
             : trim((string)($persona['Email'] ?? ''));
 
-        if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
+        if (!CorreoElectronico::esValido($destino)) {
             return [
                 'enviado' => false,
                 'destino' => '',

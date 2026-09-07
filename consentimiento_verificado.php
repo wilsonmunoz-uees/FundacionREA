@@ -262,6 +262,18 @@ $etiquetaTipo = match ($tipo) {
 
 $etiquetaDocumento = $documento === 'RUC' ? 'Número de RUC' : 'Número de cédula';
 
+/* Reglas del documento para el campo del primer paso. Son las mismas que aplica
+   el servidor —api/core/Documento.php—; aquí van en el propio HTML porque esta
+   pantalla es pública y no tiene sesión con la que pedirlas a la API. Comprobar
+   la cédula antes de enviar le ahorra a la persona un viaje y un mensaje de «no
+   consta» que no explicaría nada: el número estaba mal, no su registro. */
+$reglasDocumentoPublico = [
+    'CEDULA' => ['patron' => '[^0-9]', 'maximo' => 10, 'exacto' => 10,
+                 'ayuda'  => 'Diez dígitos, sin guiones ni espacios.'],
+    'RUC'    => ['patron' => '[^0-9]', 'maximo' => 13, 'exacto' => 13,
+                 'ayuda'  => 'Trece dígitos, sin guiones ni espacios.'],
+];
+
 $urlBase = 'consentimiento_verificado.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst=' . $institucionId;
 ?>
 <!DOCTYPE html>
@@ -380,12 +392,18 @@ $urlBase = 'consentimiento_verificado.php?tipo=' . urlencode(mb_strtolower($tipo
                 <div class="campo">
                     <label for="identificacion"><?= $e($etiquetaDocumento) ?> <span class="obligatorio">*</span></label>
                     <input type="text" id="identificacion" name="identificacion" required
-                           inputmode="numeric" autocomplete="off" maxlength="20"
+                           inputmode="numeric" autocomplete="off"
+                           maxlength="<?= $documento === 'RUC' ? 13 : 10 ?>"
+                           data-tipo-fijo="<?= $e($documento) ?>"
+                           data-ayuda-campo="identificacion_ayuda"
+                           data-reglas="<?= $e(json_encode($reglasDocumentoPublico, JSON_UNESCAPED_UNICODE)) ?>"
                            value="<?= $e($_POST['identificacion'] ?? $documentoPrecargado) ?>">
-                    <div class="campo-ayuda">
+                    <div class="campo-ayuda" id="identificacion_ayuda">
                         <?= $documentoPrecargado !== '' && !isset($_POST['identificacion'])
                             ? 'Lo tomamos del enlace que le enviamos. Si no es el suyo, corríjalo.'
-                            : 'Escriba solo los números, sin guiones ni espacios.' ?>
+                            : ($documento === 'RUC'
+                                ? 'Trece dígitos, sin guiones ni espacios.'
+                                : 'Diez dígitos, sin guiones ni espacios.') ?>
                     </div>
                 </div>
 
@@ -677,5 +695,9 @@ $urlBase = 'consentimiento_verificado.php?tipo=' . urlencode(mb_strtolower($tipo
     </footer>
 </div>
 
+<?php /* La misma comprobación de cédula y RUC que hacen las pantallas internas,
+         para avisar aquí en vez de después. Quien decide sigue siendo el
+         servidor: sin JavaScript la pantalla funciona igual. */ ?>
+<script src="js/documento.js" defer></script>
 </body>
 </html>

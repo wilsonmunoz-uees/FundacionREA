@@ -82,9 +82,15 @@ include __DIR__ . '/../includes/layout_top.php';
     </div>
 </div>
 
+<div class="alerta alerta-info">
+    Este catálogo lo comparten <strong>las 21 instituciones de la red</strong>: lo que se cambie aquí
+    lo verán todas, y los consentimientos ya otorgados apuntan a estos registros. Por eso solo lo
+    mantiene el SuperAdmin.
+</div>
+
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Registrar Finalidad' : 'Editar Finalidad' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Registrar Finalidad' : 'Editar Finalidad', 'finalidades.php'); ?>
         <?php foreach ($errores as $err): ?><div class="alerta alerta-error"><?= e($err) ?></div><?php endforeach; ?>
         <form method="POST" action="finalidades.php?accion=<?= e($accion) ?>">
             <?= csrfCampo() ?>

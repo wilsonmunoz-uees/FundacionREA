@@ -30,11 +30,13 @@ final class InstitucionesController extends Controller
         [$pagina, $porPagina, $offset] = $this->paginacion(10);
 
         $datos = $this->consultar(
-            "SELECT * $where ORDER BY nombre LIMIT $offset, $porPagina",
+            "SELECT * $where ORDER BY id LIMIT $offset, $porPagina",
             $params
         );
 
-        // Identificador sugerido para el formulario de alta
+        /* Identificador que le tocaría a la próxima institución. Es solo para
+           mostrarlo en el formulario de alta: quien lo asigna de verdad es la
+           base, con AUTO_INCREMENT, en el momento de insertar. */
         $siguienteId = (int)$this->contar(
             'SELECT COALESCE(MAX(id),0)+1 AS total FROM institucion_educativa'
         );
@@ -63,20 +65,25 @@ final class InstitucionesController extends Controller
         $this->requiereAcceso(self::MODULO);
         $datos = $this->validar(true);
 
+        /* El identificador NO se recibe: lo genera la base. Antes se escribía a
+           mano en el formulario, con lo que dos altas simultáneas podían pelear
+           por el mismo número y cualquiera podía inventarse uno. */
         try {
             $this->ejecutar(
-                'INSERT INTO institucion_educativa (id, nombre, direccion, telefono, nombre_logotipo, estado)
-                 VALUES (?,?,?,?,?,?)',
-                [$datos['id'], $datos['nombre'], $datos['direccion'], $datos['telefono'], $datos['logotipo'], $datos['estado']]
+                'INSERT INTO institucion_educativa (nombre, direccion, telefono, estado)
+                 VALUES (?,?,?,?)',
+                [$datos['nombre'], $datos['direccion'], $datos['telefono'], $datos['estado']]
             );
+            $id = (int)$this->db->lastInsertId();
         } catch (PDOException $ex) {
-            $this->errorBaseDatos($ex, 'Ya existe una institución con ese identificador o nombre.');
+            $this->errorBaseDatos($ex, 'Ya existe una institución con ese nombre.');
+            return;
         }
 
-        $this->auditarInsercion('institucion_educativa', 'id', (int)$datos['id']);
+        $this->auditarInsercion('institucion_educativa', 'id', $id);
 
         Response::exito(
-            ['id' => (int)$datos['id'], 'mensaje' => 'Institución educativa registrada correctamente.'],
+            ['id' => $id, 'mensaje' => 'Institución educativa registrada correctamente.'],
             [],
             201
         );
@@ -97,9 +104,9 @@ final class InstitucionesController extends Controller
         try {
             $this->ejecutar(
                 'UPDATE institucion_educativa
-                    SET nombre = ?, direccion = ?, telefono = ?, nombre_logotipo = ?, estado = ?
+                    SET nombre = ?, direccion = ?, telefono = ?, estado = ?
                   WHERE id = ?',
-                [$datos['nombre'], $datos['direccion'], $datos['telefono'], $datos['logotipo'], $datos['estado'], $id]
+                [$datos['nombre'], $datos['direccion'], $datos['telefono'], $datos['estado'], $id]
             );
         } catch (PDOException $ex) {
             $this->errorBaseDatos($ex, 'Ya existe una institución con ese identificador o nombre.');
@@ -136,29 +143,24 @@ final class InstitucionesController extends Controller
     private function validar(bool $esNuevo): array
     {
         $errores   = [];
-        $id        = $this->peticion->texto('id');
         $nombre    = $this->peticion->texto('nombre');
         $direccion = $this->peticion->texto('direccion');
         $telefono  = $this->peticion->texto('telefono');
-        $logotipo  = $this->peticion->texto('nombre_logotipo');
 
-        if ($esNuevo && ($id === '' || !ctype_digit($id))) {
-            $errores[] = 'El identificador debe ser numérico.';
-        }
         if ($nombre === '')    $errores[] = 'El nombre es obligatorio.';
         if ($direccion === '') $errores[] = 'La dirección es obligatoria.';
-        if ($telefono === '')  $errores[] = 'El teléfono es obligatorio.';
+
+        // El teléfono sigue la misma regla que en el resto del sistema
+        $errores = array_merge($errores, Telefono::validar($telefono, 'la institución', true));
 
         if ($errores) {
             Response::validacion($errores);
         }
 
         return [
-            'id'        => $id,
             'nombre'    => $nombre,
             'direccion' => $direccion,
-            'telefono'  => $telefono,
-            'logotipo'  => $this->oNulo($logotipo),
+            'telefono'  => Telefono::normalizar($telefono),
             'estado'    => $this->estado($this->peticion->texto('estado', 'ACTIVO')),
         ];
     }

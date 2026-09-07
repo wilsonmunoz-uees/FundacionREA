@@ -264,7 +264,7 @@ el enlace público.
 
 `persona` es la entidad **padre** de empleados, estudiantes, representantes y
 proveedores: **no hay POST, PUT ni PATCH**. Las fichas se crean desde esos
-módulos, desde los enlaces públicos o desde la PreCarga Inicial, y toda la
+módulos, desde los enlaces públicos o desde la Carga de Información, y toda la
 escritura vive en `api/core/Padron.php`, que aplica una sola regla: la
 identificación es la llave dentro de la institución, de modo que una persona ya
 registrada se reutiliza en lugar de duplicarse.
@@ -284,11 +284,17 @@ con prefijo `rep_` para el representante de un estudiante— en vez de un
 Las reglas viven en `api/core/Documento.php` y valen para **todos** los módulos
 que piden un documento:
 
-| Tipo | Admite |
+| Tipo | Qué se comprueba |
 |---|---|
-| `CEDULA` | solo dígitos |
-| `RUC` | solo dígitos |
-| `PASAPORTE` | letras y dígitos |
+| `CEDULA` | Exactamente 10 dígitos. Provincia (01-24, o 30 para los consulados), tercer dígito de 0 a 5 y **dígito verificador por módulo 10**. |
+| `RUC` | Exactamente 13 dígitos. Provincia, y según el tercer dígito: 0-5 lleva dentro una cédula válida; 6 es sector público (módulo 11, verificador en la 9.ª); 9 es sociedad (módulo 11, verificador en la 10.ª). Los últimos dígitos son el establecimiento, desde 001. |
+| `PASAPORTE` | Letras y dígitos. No hay un formato internacional único, así que solo manda el largo de la columna. |
+
+Comprobar el dígito verificador **no es cosmético**. Antes bastaba con que
+fueran dígitos y cupieran en la columna, de modo que `0000000000` o
+`1234567890` entraban sin protestar. Un padrón con cédulas inventadas no se nota
+al cargarlo: se nota meses después, cuando hay que responder por el
+consentimiento de una persona que no se puede identificar.
 
 El largo máximo **no está escrito en el código**: se lee de la columna donde el
 valor va a terminar guardado —`persona`.`Identificacion`—, de modo que el
@@ -305,6 +311,49 @@ El endpoint solo sirve para que los formularios adapten el campo mientras se
 escribe (`js/documento.js`). **Quien decide es el servidor:** una petición hecha
 por fuera del navegador se rechaza igual.
 
+La misma llamada devuelve, en la metadata, las reglas del **teléfono**
+(`api/core/Telefono.php`) y las del **correo** (`api/core/CorreoElectronico.php`):
+el formulario que pregunta por el documento es siempre el mismo que captura esos
+dos campos, y así no hace falta una segunda vuelta por unos datos que tampoco
+cambian.
+
+### Correo electrónico
+
+No tiene endpoint propio: la regla vive en `api/core/CorreoElectronico.php` y la
+aplican **todos** los puntos por los que entra o sale una dirección —el padrón,
+la Carga de Información, la configuración del correo saliente, el envío masivo y
+el propio cliente SMTP—.
+
+El correo no es un dato más de la ficha: es el único camino por el que el
+sistema alcanza al titular. Por ahí van el código que comprueba su identidad, la
+invitación a consentir y la confirmación de lo que decidió. Una dirección mal
+escrita no falla al guardarla; falla semanas después, cuando la persona no
+aparece en la cobertura y nadie sabe por qué.
+
+Antes cada sitio la comprobaba con un `filter_var(..., FILTER_VALIDATE_EMAIL)`
+suelto. Esa función es correcta pero generosa: acepta `juan@localhost`, `a@b` y
+`x@dominio.c`, direcciones que la norma admite y que ningún proveedor va a
+entregar. Sobre ella se exige además:
+
+| Se exige | Rechaza |
+|---|---|
+| Una sola arroba, con algo a cada lado | `a@@b.com`, `@rea.com` |
+| Sin espacios en ninguna parte | `ana mora@rea.com` |
+| Parte local de hasta 64 caracteres, sin puntos al principio, al final ni dos seguidos | `.ana@`, `ana..b@` |
+| Dominio con al menos un punto, etiquetas de 1 a 63 caracteres, sin guiones en los extremos | `juan@localhost`, `ana@-rea.com` |
+| Extensión final de 2 a 24 **letras** | `x@dominio.c`, `x@dominio.123` |
+| Hasta 150 caracteres, el largo de `persona`.`Email` | |
+
+Al guardar, la dirección se pasa a minúsculas: la misma escrita de dos maneras
+dejaría de parecer dos correos. Los espacios de dentro **no** se quitan; se
+avisan. Quitar un espacio en silencio convertiría `ana mora@rea.com` en una
+dirección distinta de la que quiso escribir quien la puso, sin que nadie se
+enterara.
+
+`js/correo.js` repite la misma comprobación mientras se escribe —se engancha
+solo a todo `input[type=email]`, sin marcar nada en el HTML—, pero quien decide
+es el servidor.
+
 ### Verificación pública por código (SIN token)
 | Método | Ruta |
 |---|---|
@@ -312,8 +361,8 @@ por fuera del navegador se rechaza igual.
 | POST | `/api/verificacion-publica/enviar-codigo` |
 | POST | `/api/verificacion-publica/validar-codigo` |
 
-Atienden los **Enlaces de Consentimiento** —los que se difunden desde
-*Administración › Enlaces de Consentimiento* y desde el Envío Masivo—, que
+Atienden los **Enlaces con Verificación** —los que se difunden desde
+*Registro de Datos › Enlaces con Verificación* y desde el Envío Masivo—, que
 consume `consentimiento_verificado.php`.
 
 `consultar` no escribe nada: dice si la cédula o el RUC constan en la
@@ -337,13 +386,14 @@ Toda la aritmética de tiempos (emisión, caducidad y espera entre envíos) la h
 MySQL con `NOW()`, no PHP: en un hospedaje compartido las dos zonas horarias
 rara vez coinciden y la comparación daría un resultado equivocado.
 
-### PreCarga inicial
+### Carga de Información
 | Método | Ruta | Acceso |
 |---|---|---|
-| POST | `/api/precarga/previsualizar` | Solo SuperAdmin |
-| POST | `/api/precarga/procesar` | Solo SuperAdmin |
+| POST | `/api/carga-informacion/previsualizar` | Solo SuperAdmin |
+| POST | `/api/carga-informacion/procesar` | Solo SuperAdmin |
 
 Puebla de una vez el padrón de la institución activa desde la plantilla Excel.
+No borra nada: da de alta lo que no consta y actualiza lo que ya estaba.
 El archivo viaja dentro del JSON, en base64, y se lee con
 `api/core/LectorXlsx.php` —un lector propio sobre `ZipArchive` y `SimpleXML`,
 sin librerías externas—.
@@ -436,7 +486,7 @@ los datos de las demás instituciones de la red. La operación deja una anotaci�
 de balance en la bitácora de auditoría.
 
 Junto con el Envío Masivo, es una de las dos opciones sin permiso asignable:
-`precarga` declara `'permisos' => []` en `includes/accesos.php`, de modo que la
+`carga_informacion` declara `'permisos' => []` en `includes/accesos.php`, de modo que la
 abre únicamente el rol SuperAdmin.
 
 ### Envío masivo de invitaciones
@@ -489,23 +539,28 @@ Cada envío deja una anotación de balance en la bitácora de auditoría.
 
 Son las únicas rutas sin autenticación además de `/instituciones/activas` y
 `/estado`. Las consume `consentimiento.php`, que es **la última pantalla de los
-Enlaces de Consentimiento**: allí desemboca quien superó la verificación por
+Enlaces con Verificación**: allí desemboca quien superó la verificación por
 código, ya con la identidad confirmada.
 
-`consentimiento.php` sigue atendiendo además el recorrido de autoservicio
-—identificarse, darse de alta si no consta y decidir— para quien llegue a su
-dirección directamente. **Ese recorrido ya no se publica desde ninguna pantalla
-del sistema**: la opción que difundía esos enlaces se retiró, y lo que se
-reparte hoy son los enlaces con verificación. Si quiere cerrarlo del todo, el
-punto único es `consentimiento.php`: bastaría con exigir el pase de verificación
-para continuar.
+**`registrar` exige el pase de verificación.** Sin él responde `403`; si el pase
+caducó, `409`. Y no da de alta a nadie: si el documento no consta en la
+institución responde `404`. Antes esta ruta creaba la ficha de quien no
+constaba, de modo que el autoservicio abierto poblaba el padrón sin que nadie lo
+hubiera cargado; el alta es hoy competencia exclusiva de la Carga de
+Información. `consentimiento.php` reenvía a `consentimiento_verificado.php` a
+quien llegue sin haber pasado la verificación, pero la puerta de verdad está
+aquí: la comprobación no depende de ninguna pantalla.
 
-`registrar` responde `409` cuando se intenta revocar un consentimiento ya
-otorgado: esa vía se tramita por correo con la institución.
+`registrar` responde `409` también cuando se intenta revocar un consentimiento
+ya otorgado: esa vía se tramita por correo con la institución.
 
 ### Instalación
-`POST /api/setup/admin` crea la primera cuenta SuperAdmin. Solo funciona si la
-institución aún no tiene usuarios.
+**No hay endpoint de instalación.** Existió `POST /api/setup/admin`, sin
+autenticación, que creaba un SuperAdmin en cualquier institución que todavía no
+tuviera usuarios: bastaba registrar una institución nueva y adelantarse a su
+primer usuario para quedarse con ella. El primer administrador se crea con la
+carga inicial de `BaseDatos/02_DML_datos.sql`; los siguientes, desde *Usuarios
+del Sistema*.
 
 ## URLs sin mod_rewrite
 

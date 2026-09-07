@@ -79,8 +79,9 @@ final class Correo
     {
         $this->ultimoError = '';
 
-        if (!filter_var($para, FILTER_VALIDATE_EMAIL)) {
-            $this->ultimoError = 'La dirección de correo no es válida.';
+        if (!CorreoElectronico::esValido($para)) {
+            $this->ultimoError = 'La dirección de correo no es válida: '
+                               . (CorreoElectronico::problema($para) ?? '');
             return false;
         }
 

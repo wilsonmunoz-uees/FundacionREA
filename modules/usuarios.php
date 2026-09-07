@@ -20,14 +20,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar
     if (!csrfValido()) {
         $errores[] = 'Token de seguridad inválido. Intente nuevamente.';
     } else {
+        /* Ni correo ni contraseña viajan desde aquí: el correo es el de la
+           persona y la clave la genera y envía la API. Ver el aviso de la
+           pantalla y api/core/ClaveTemporal.php. */
         $datos = [
-            'persona_id'       => (int)($_POST['persona_id'] ?? 0),
-            'username'         => trim($_POST['username'] ?? ''),
-            'email'            => trim($_POST['email'] ?? ''),
-            'password'         => $_POST['password'] ?? '',
-            'password_confirm' => $_POST['password_confirm'] ?? '',
-            'estado'           => $_POST['estado'] ?? 'ACTIVO',
-            'roles'            => array_map('intval', $_POST['roles'] ?? []),
+            'persona_id'        => (int)($_POST['persona_id'] ?? 0),
+            'username'          => trim($_POST['username'] ?? ''),
+            'estado'            => $_POST['estado'] ?? 'ACTIVO',
+            'roles'             => array_map('intval', $_POST['roles'] ?? []),
+            'restablecer_clave' => !empty($_POST['restablecer_clave']),
         ];
 
         if ($accion === 'crear') {
@@ -40,13 +41,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($accion, ['crear', 'editar
         }
 
         if ($respuesta['ok']) {
-            flashSet('exito', $mensajeOk);
+            /* Si el alta —o el restablecimiento— disparó el correo con la clave,
+               se dice cómo fue: es lo único que quien administra sabrá de ella. */
+            $credencial = apiDatos($respuesta, [])['credencial'] ?? null;
+
+            if (is_array($credencial) && ($credencial['mensaje'] ?? '') !== '') {
+                flashSet(
+                    !empty($credencial['enviado']) ? 'exito' : 'advertencia',
+                    $mensajeOk . ' ' . $credencial['mensaje']
+                );
+            } else {
+                flashSet('exito', $mensajeOk);
+            }
             redirigir('usuarios.php');
         }
 
         /* Falló: NO se redirige ni se vuelve a leer de la base. El formulario se
-           vuelve a pintar con lo que la persona acababa de escribir —salvo las
-           contraseñas, que nunca se devuelven al navegador— y se le marca
+           vuelve a pintar con lo que la persona acababa de escribir y se le marca
            exactamente qué campos corregir. */
         $errores   = apiErrores($respuesta);
         $camposMal = apiCampos($respuesta);
@@ -98,23 +109,6 @@ if ($reintento) {
     $rolesDelUsuario = array_map('intval', $_POST['roles'] ?? []);
 }
 
-/* Condiciones de la contraseña, tal como las define el servidor. Si la API no
-   responde se usan las mismas por escrito: el formulario sigue siendo usable y
-   quien valida de verdad es la API al guardar. */
-$reglasClave = [];
-if (in_array($accion, ['crear', 'editar'], true)) {
-    $reglasClave = apiDatos(apiGet('usuarios/politica-clave'), []);
-}
-if (!$reglasClave) {
-    $reglasClave = [
-        ['clave' => 'largo',      'texto' => 'Al menos 8 caracteres',                  'patron' => '.{8,}'],
-        ['clave' => 'mayuscula',  'texto' => 'Una letra mayúscula',                    'patron' => '[A-Z]'],
-        ['clave' => 'minuscula',  'texto' => 'Una letra minúscula',                    'patron' => '[a-z]'],
-        ['clave' => 'digito',     'texto' => 'Un número',                              'patron' => '[0-9]'],
-        ['clave' => 'permitidos', 'texto' => 'Solo letras, números y *!-_ (opcionales)','patron' => '^[A-Za-z0-9*!\\-_]+$'],
-    ];
-}
-
 // Roles disponibles para el formulario de creación.
 // Las personas ya no se listan aquí: se buscan en la subpantalla, que solo
 // muestra a quienes todavía no tienen cuenta en esta institución.
@@ -160,7 +154,7 @@ include __DIR__ . '/../includes/layout_top.php';
 
 <?php if ($accion === 'crear' || $accion === 'editar'): ?>
     <div class="card">
-        <h3><?= $accion === 'crear' ? 'Crear Usuario' : 'Editar Usuario' ?></h3>
+        <?php encabezadoFormulario($accion === 'crear' ? 'Crear Usuario' : 'Editar Usuario', 'usuarios.php'); ?>
         <?php if ($errores): ?>
             <?php /* Un solo recuadro con la lista: cinco recuadros seguidos se
                       leen como cinco problemas distintos y ocupan la pantalla. */ ?>
@@ -171,12 +165,6 @@ include __DIR__ . '/../includes/layout_top.php';
                         <li><?= e($err) ?></li>
                     <?php endforeach; ?>
                 </ul>
-                <?php if (isset($camposMal['password']) || isset($camposMal['password_confirm'])): ?>
-                    <div class="form-ayuda" style="margin-top:6px;">
-                        Por seguridad, la contraseña no se conserva: vuelva a escribirla.
-                        El resto de los datos quedó como los dejó.
-                    </div>
-                <?php endif; ?>
             </div>
         <?php endif; ?>
         <form method="POST" action="usuarios.php?accion=<?= e($accion) ?>" autocomplete="off">
@@ -215,78 +203,39 @@ include __DIR__ . '/../includes/layout_top.php';
                            class="<?= trim($marcaError('username')) ?>"
                            value="<?= e($valorCampo('username', 'Username')) ?>" autocomplete="off">
                 </div>
-                <div class="form-group">
-                    <label for="email">Correo Electrónico</label>
-                    <input type="email" name="email" id="email" maxlength="150"
-                           class="<?= trim($marcaError('email')) ?>"
-                           value="<?= e($valorCampo('email', 'Email')) ?>" autocomplete="off">
+                <div class="form-group" style="flex:0 1 180px;">
+                    <label for="estado">Estado</label>
+                    <?php $estadoActual = $valorCampo('estado', 'Estado') ?: 'ACTIVO'; ?>
+                    <select name="estado" id="estado">
+                        <option value="ACTIVO"   <?= $estadoActual === 'ACTIVO'   ? 'selected' : '' ?>>ACTIVO</option>
+                        <option value="INACTIVO" <?= $estadoActual === 'INACTIVO' ? 'selected' : '' ?>>INACTIVO</option>
+                    </select>
                 </div>
             </div>
 
-            <?php
-            /* Las contraseñas NUNCA se reponen tras un error: no se devuelven al
-               navegador ni siquiera lo que se acaba de escribir. Es el único par
-               de campos que se vuelve a pedir, y se dice por qué. */
-            $estadoActual = $valorCampo('estado', 'Estado') ?: 'ACTIVO';
-            ?>
             <fieldset class="bloque-clave">
-                <legend>Contraseña<?= $accion === 'editar' ? ' (opcional)' : '' ?></legend>
+                <legend>Contraseña</legend>
 
-                <?php if ($accion === 'editar'): ?>
-                    <p class="form-ayuda">Deje ambos campos en blanco para conservar la contraseña actual.</p>
-                <?php endif; ?>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="password"<?= $accion === 'crear' ? ' class="campo-requerido"' : '' ?>>Contraseña</label>
-                        <input type="password" name="password" id="password" autocomplete="new-password"
-                               class="<?= trim($marcaError('password')) ?>"
-                               data-reglas="<?= e(json_encode($reglasClave, JSON_UNESCAPED_UNICODE)) ?>"
-                               data-lista="reglasClave"
-                               data-confirmar="password_confirm"
-                               data-aviso-confirmar="avisoConfirmar"
-                               data-generar="btnGenerarClave"
-                               data-generada="claveGenerada"
-                               data-ver="btnVerClave">
-                        <div class="flex-gap" style="margin-top:8px;">
-                            <button type="button" class="btn btn-sm btn-secundario" id="btnGenerarClave">
-                                🎲 Generar contraseña
-                            </button>
-                            <button type="button" class="btn btn-sm btn-secundario" id="btnVerClave">Ver</button>
+                <?php if ($accion === 'crear'): ?>
+                    <p class="form-ayuda">
+                        🔒 La contraseña <strong>la genera el sistema</strong> y se envía por correo a la
+                        persona, a la dirección que consta en su ficha del padrón. Nadie más la conoce:
+                        no aparece en esta pantalla ni queda registrada en ningún sitio legible.
+                        Al ingresar por primera vez, el sistema le exigirá cambiarla.
+                    </p>
+                <?php else: ?>
+                    <div class="form-group form-check">
+                        <label>
+                            <input type="checkbox" name="restablecer_clave" value="1">
+                            Restablecer la contraseña y enviarle una nueva por correo
+                        </label>
+                        <div class="form-ayuda">
+                            Úselo cuando la persona no pueda entrar. Se genera otra contraseña temporal,
+                            se le envía y se le vuelve a exigir el cambio en su próximo ingreso. Ni usted
+                            ni nadie llega a verla.
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="password_confirm">Confirmar Contraseña</label>
-                        <input type="password" name="password_confirm" id="password_confirm"
-                               class="<?= trim($marcaError('password_confirm')) ?>"
-                               autocomplete="new-password">
-                        <div class="form-ayuda campo-aviso" id="avisoConfirmar" hidden></div>
-                    </div>
-                    <div class="form-group" style="flex:0 1 180px;">
-                        <label for="estado">Estado</label>
-                        <select name="estado" id="estado">
-                            <option value="ACTIVO"   <?= $estadoActual === 'ACTIVO'   ? 'selected' : '' ?>>ACTIVO</option>
-                            <option value="INACTIVO" <?= $estadoActual === 'INACTIVO' ? 'selected' : '' ?>>INACTIVO</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="clave-generada" id="claveGenerada" hidden>
-                    <span class="clave-generada-etiqueta">Contraseña generada:</span>
-                    <code class="clave-generada-valor"></code>
-                    <button type="button" class="btn btn-sm btn-secundario btn-copiar-clave">Copiar</button>
-                    <div class="form-ayuda">
-                        Anótela o cópiela ahora y entréguesela a su titular: una vez guardada, el sistema
-                        no vuelve a mostrarla.
-                    </div>
-                </div>
-
-                <p class="form-ayuda" style="margin-bottom:4px;">La contraseña debe cumplir:</p>
-                <ul class="lista-reglas" id="reglasClave">
-                    <?php foreach ($reglasClave as $regla): ?>
-                        <li class="regla-clave"><span class="regla-marca">○</span> <?= e($regla['texto']) ?></li>
-                    <?php endforeach; ?>
-                </ul>
+                <?php endif; ?>
             </fieldset>
 
             <fieldset>
@@ -365,9 +314,5 @@ include __DIR__ . '/../includes/layout_top.php';
     </table>
 </div>
 <?php renderPaginacion($numPagina, $totalPaginas); ?>
-
-<?php if (in_array($accion, ['crear', 'editar'], true)): ?>
-    <script src="<?= e(APP_ROOT) ?>js/password.js" defer></script>
-<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/layout_bottom.php'; ?>

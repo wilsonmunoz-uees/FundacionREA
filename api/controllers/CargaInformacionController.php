@@ -446,8 +446,9 @@ final class CargaInformacionController extends Controller
 
         $nombres   = $this->campo($fila, 'nombres', 100);
         $apellidos = $this->campo($fila, 'apellidos', 100);
-        $email     = $this->campo($fila, 'email', 150);
-        $telefono  = $this->campo($fila, 'telefono', 20);
+        $emailCrudo = $this->campo($fila, 'email', 200);
+        $email      = CorreoElectronico::normalizar($emailCrudo);
+        $telefono  = Telefono::normalizar($this->campo($fila, 'telefono', 30));
         $razon     = $this->campo($fila, 'razon social', 150);
 
         // Fila completamente vacía: no es un error, simplemente no hay nada
@@ -456,13 +457,10 @@ final class CargaInformacionController extends Controller
             return null;
         }
 
+        $crudo          = $identificacion;
         $identificacion = $this->soloAlfanumerico($identificacion);
         if ($identificacion === '') {
             $errores[] = $donde . 'falta la identificación.';
-            return null;
-        }
-        if (mb_strlen($identificacion) > 50) {
-            $errores[] = $donde . 'la identificación es demasiado larga.';
             return null;
         }
 
@@ -471,9 +469,29 @@ final class CargaInformacionController extends Controller
             return null;
         }
 
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errores[] = $donde . 'el correo «' . $email . '» no es válido.';
-            return null;
+        /* El correo se revisa con la MISMA regla que aplican las pantallas
+           —api/core/CorreoElectronico.php—, y sobre el valor tal como venía en la
+           celda: así se avisa de que lleva un espacio en medio en vez de
+           quitárselo en silencio y cargar una dirección que nadie escribió.
+
+           Una dirección mal escrita descarta la fila, y es deliberado: el correo
+           es el único camino por el que se le pide el consentimiento al titular,
+           de modo que cargarlo sin él sería meter en el padrón a alguien a quien
+           el sistema no puede preguntar nada. El aviso sale en la
+           previsualización, antes de grabar, con el motivo concreto. */
+        if ($emailCrudo !== '') {
+            $problema = CorreoElectronico::problema($emailCrudo);
+            if ($problema !== null) {
+                $errores[] = $donde . 'el correo «' . $emailCrudo . '» no es válido: ' . $problema;
+                return null;
+            }
+        }
+
+        /* El teléfono se normaliza arriba; aquí solo se avisa si lo que venía en
+           la celda no era un teléfono. No se descarta la fila por eso: el dato
+           importante es la persona, y el teléfono se puede corregir después. */
+        foreach (Telefono::validar($this->campo($fila, 'telefono', 30), 'la persona') as $aviso) {
+            $errores[] = $donde . lcfirst($aviso);
         }
 
         $tipo = mb_strtoupper($this->campo($fila, 'tipo de identificacion', 20));
@@ -484,6 +502,20 @@ final class CargaInformacionController extends Controller
         if (!in_array($tipo, self::TIPOS_ID, true)) {
             $errores[] = $donde . 'el tipo de identificación «' . $tipo . '» no es válido. Use: '
                 . implode(', ', self::TIPOS_ID) . '.';
+            return null;
+        }
+
+        /* El documento se revisa con la MISMA regla que aplican las pantallas
+           —api/core/Documento.php—, sobre el valor tal como venía en la celda:
+           diez dígitos la cédula, trece el RUC. Antes aquí solo se miraba que
+           cupiera en la columna, con lo que una cédula de doce dígitos entraba
+           por la carga y era rechazada después, al editarla. */
+        $problemas = Documento::validar($tipo, $crudo, 'la persona', $this->db,
+                                        $hoja === 'Proveedores' ? 'proveedor' : 'persona');
+        if ($problemas) {
+            foreach ($problemas as $problema) {
+                $errores[] = $donde . lcfirst($problema);
+            }
             return null;
         }
 

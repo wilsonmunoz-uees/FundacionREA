@@ -100,6 +100,37 @@ final class PlantillaCorreo
         return self::respaldoInvitacion($datos);
     }
 
+    /**
+     * Correo con la contraseña temporal de una cuenta nueva o restablecida.
+     *
+     * @param array $datos institucion, username, clave, es_nueva, enlace
+     */
+    public static function claveTemporal(array $datos): string
+    {
+        $ruta = dirname(__DIR__, 2) . '/plantillas/correo_clave_temporal.php';
+
+        if (is_file($ruta)) {
+            $html = self::renderizar($ruta, $datos);
+            if (trim($html) !== '') {
+                return $html;
+            }
+        }
+
+        return self::respaldoClave($datos);
+    }
+
+    /** Texto mínimo por si la plantilla de la clave temporal no está disponible. */
+    private static function respaldoClave(array $datos): string
+    {
+        $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+
+        return '<p>Se ha creado su cuenta en el sistema de protección de datos de '
+             . $e($datos['institucion'] ?? '') . '.</p>'
+             . '<p>Usuario: <strong>' . $e($datos['username'] ?? '') . '</strong><br>'
+             . 'Contraseña temporal: <strong>' . $e($datos['clave'] ?? '') . '</strong></p>'
+             . '<p>Deberá cambiarla la primera vez que ingrese.</p>';
+    }
+
     /** Texto mínimo por si la plantilla de invitación no está disponible. */
     private static function respaldoInvitacion(array $datos): string
     {
