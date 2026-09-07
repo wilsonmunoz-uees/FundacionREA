@@ -159,8 +159,7 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
         <form method="POST" action="login.php" autocomplete="off">
             <?php if ($recordado['usuario'] !== '' && ($_POST['username'] ?? '') === ''): ?>
                 <p class="form-ayuda recordado">
-                    Se recuerdan su usuario y su institución del ingreso anterior.
-                    La contraseña nunca se guarda.
+                    Se recuerdan su usuario y su institución. La contraseña nunca se guarda.
                 </p>
             <?php endif; ?>
             <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
@@ -179,15 +178,6 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                 <input type="password" id="password" name="password" required
                        autocomplete="off" placeholder="••••••••"
                        autocapitalize="off" autocorrect="off" spellcheck="false">
-            </div>
-
-            <!-- El buscador viene oculto y lo muestra js/buscador_institucion.js:
-                 sin JavaScript el desplegable sigue funcionando por sí solo. -->
-            <div class="form-group" hidden>
-                <label for="buscar_institucion">Buscar institución</label>
-                <input type="text" id="buscar_institucion" hidden autocomplete="off"
-                       placeholder="Escriba parte del nombre…">
-                <div class="form-ayuda" id="institucion_conteo"></div>
             </div>
 
             <div class="form-group">
