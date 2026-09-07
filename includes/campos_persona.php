@@ -100,37 +100,6 @@ function reglasTelefono(): array
 }
 
 /**
- * Reglas del correo electrónico, publicadas por la misma llamada.
- *
- * El patrón es el que el navegador aplica antes de enviar; la comprobación de
- * verdad la hace api/core/CorreoElectronico.php al guardar, y js/correo.js la
- * repite mientras se escribe para que el aviso no llegue tarde.
- *
- * @return array{patron:string, maximo:int, ayuda:string}
- */
-function reglasCorreo(): array
-{
-    static $cache = null;
-
-    if ($cache !== null) {
-        return $cache;
-    }
-
-    $meta = apiMeta(apiGet('documento/reglas'), 'correo', []);
-
-    if (!is_array($meta) || !isset($meta['patron'])) {
-        $meta = [
-            'patron' => "[^@\\s]+@[^@\\s.]+(\\.[^@\\s.]+)*\\.[A-Za-z]{2,24}",
-            'maximo' => 150,
-            'ayuda'  => 'Con la forma nombre@dominio.ext, sin espacios. Es la dirección a la que '
-                      . 'el sistema le escribe.',
-        ];
-    }
-
-    return $cache = $meta;
-}
-
-/**
  * Imprime una sola vez el script que adapta el campo del documento al tipo
  * elegido. Se llama solo desde camposPersona().
  */
@@ -192,9 +161,6 @@ function camposPersona(array $opciones): void
     /* El teléfono se captura siempre, también con la identidad bloqueada: es de
        los dos campos que estas pantallas sí pueden corregir. */
     $reglasTel = reglasTelefono();
-    /* El correo se captura siempre, bloqueada o no la identidad: es el único
-       camino por el que el sistema alcanza al titular. */
-    $reglasCor = reglasCorreo();
     $idCampo   = $prefijo . 'identificacion';
     ?>
     <fieldset class="bloque-persona<?= $bloqueado ? ' bloque-persona-bloqueado' : '' ?>">
@@ -277,14 +243,15 @@ function camposPersona(array $opciones): void
                     Correo electrónico
                 </label>
                 <input type="email" name="<?= e($prefijo) ?>email" id="<?= e($prefijo) ?>email"
-                       maxlength="<?= (int)$reglasCor['maximo'] ?>" <?= $correo ? 'required' : '' ?>
-                       autocomplete="email" spellcheck="false" inputmode="email"
-                       pattern="<?= e($reglasCor['patron']) ?>"
-                       title="<?= e($reglasCor['ayuda']) ?>"
+                       maxlength="150" <?= $correo ? 'required' : '' ?>
+                       autocomplete="email" spellcheck="false"
+                       pattern="[^@\s]+@[^@\s]+\.[A-Za-z]{2,}"
+                       title="Escriba una dirección con la forma nombre@dominio"
                        value="<?= e($valor('email', 'Email')) ?>">
                 <div class="form-ayuda">
-                    <?= e($reglasCor['ayuda']) ?>
-                    <?= $correo ? ' Sin ella no se le puede pedir el consentimiento.' : '' ?>
+                    <?= $correo
+                        ? 'Es la dirección a la que llegan los avisos de consentimiento.'
+                        : 'Con la forma nombre@dominio. Es la dirección a la que llega el aviso de consentimiento.' ?>
                 </div>
             </div>
             <div class="form-group">

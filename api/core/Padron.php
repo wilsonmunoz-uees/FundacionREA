@@ -110,12 +110,7 @@ final class Padron
             'tipo'           => $tipo,
             'nombres'        => mb_substr($campo('nombres'), 0, 100),
             'apellidos'      => mb_substr($campo('apellidos'), 0, 100),
-            /* El correo se guarda en minúsculas y sin los espacios de los
-               extremos; el crudo se conserva, como el del documento y el del
-               teléfono, para poder avisar en vez de corregir a escondidas. */
-            'email'          => mb_substr(CorreoElectronico::normalizar($campo('email')), 0,
-                                          CorreoElectronico::LARGO_MAXIMO),
-            'email_crudo'    => $campo('email'),
+            'email'          => mb_substr($campo('email'), 0, 150),
             /* El crudo se conserva por el mismo motivo que el del documento:
                para poder avisar de que escribió letras en vez de borrárselas. */
             'telefono'       => Telefono::normalizar($campo('telefono')),
@@ -151,9 +146,7 @@ final class Padron
             'tipo'                 => (string)($ficha['TipoIdentificacion'] ?? 'CEDULA'),
             'nombres'              => (string)($ficha['Nombres'] ?? ''),
             'apellidos'            => (string)($ficha['Apellidos'] ?? ''),
-            'email'                => mb_substr(CorreoElectronico::normalizar($campo('email')), 0,
-                                                 CorreoElectronico::LARGO_MAXIMO),
-            'email_crudo'          => $campo('email'),
+            'email'                => mb_substr($campo('email'), 0, 150),
             'telefono'             => Telefono::normalizar($campo('telefono')),
             'telefono_crudo'       => $campo('telefono'),
             'estado'               => (string)($ficha['Estado'] ?? 'ACTIVO'),
@@ -191,18 +184,26 @@ final class Padron
      * dirección mal escrita no da error al guardar, simplemente hace que el
      * titular nunca reciba su enlace de consentimiento, y eso se descubre tarde.
      *
-     * La regla vive en api/core/CorreoElectronico.php, que es el único sitio
-     * donde se decide qué es una dirección utilizable.
-     *
      * @return string[]
      */
     public static function validarCorreo(array $datos, string $etiqueta, bool $exigeCorreo): array
     {
-        /* Se revisa el valor CRUDO, no el normalizado: así se avisa de que la
-           dirección lleva un espacio en medio en vez de quitárselo en silencio. */
-        $correo = (string)($datos['email_crudo'] ?? $datos['email'] ?? '');
+        $de     = ' ' . Documento::contraer($etiqueta);
+        $correo = trim((string)($datos['email'] ?? ''));
 
-        return CorreoElectronico::validar($correo, $etiqueta, $exigeCorreo);
+        if ($correo === '') {
+            return $exigeCorreo ? ['Ingrese el correo electrónico' . $de . '.'] : [];
+        }
+
+        if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            return ['El correo electrónico' . $de . ' no es válido: revise que tenga la forma nombre@dominio.'];
+        }
+
+        if (mb_strlen($correo) > 150) {
+            return ['El correo electrónico' . $de . ' es demasiado largo.'];
+        }
+
+        return [];
     }
 
     /**

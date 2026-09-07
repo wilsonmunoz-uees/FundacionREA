@@ -17,17 +17,9 @@ if (function_exists('selectorEntidadModal')) {
     selectorEntidadModal();
 }
 ?>
-<?php /* Reglas de captura para toda pantalla del sistema. Avisan mientras se
-         escribe, pero quien decide al guardar es el servidor:
-
-           · teléfono  -> marcar el campo con data-telefono   (api/core/Telefono.php)
-           · correo    -> se engancha solo a input[type=email] (api/core/CorreoElectronico.php)
-
-         El documento lo carga campos_persona.php, que es quien lo dibuja. */ ?>
+<?php /* Regla del teléfono para toda pantalla que capture uno: basta con marcar
+         el campo con data-telefono. Ver api/core/Telefono.php, que es quien
+         decide al guardar. */ ?>
 <script src="<?= e(APP_ROOT) ?>js/telefono.js" defer></script>
-<script src="<?= e(APP_ROOT) ?>js/correo.js" defer></script>
-<?php /* El menú lateral como cajón en tableta y teléfono: fondo para cerrar,
-         tecla Esc y bloqueo del desplazamiento de detrás. */ ?>
-<script src="<?= e(APP_ROOT) ?>js/menu_movil.js" defer></script>
 </body>
 </html>

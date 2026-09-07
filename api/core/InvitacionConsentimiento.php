@@ -37,7 +37,7 @@ final class InvitacionConsentimiento
     {
         $destino = trim((string)($datos['destino'] ?? ''));
 
-        if (!CorreoElectronico::esValido($destino)) {
+        if ($destino === '' || !filter_var($destino, FILTER_VALIDATE_EMAIL)) {
             return self::conMensaje([
                 'enviado' => false,
                 'destino' => $destino,
