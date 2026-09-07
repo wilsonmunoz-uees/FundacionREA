@@ -355,7 +355,7 @@ final class EnvioMasivoController extends Controller
 
     private function correoValido(string $correo): bool
     {
-        return $correo !== '' && filter_var($correo, FILTER_VALIDATE_EMAIL) !== false;
+        return CorreoElectronico::esValido($correo);
     }
 
     private function resumenPersona(array $fila): array

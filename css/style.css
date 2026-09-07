@@ -117,17 +117,23 @@ hr { border: none; border-top: 1px solid var(--rea-gris-200); margin: 1.5rem 0; 
     align-items: center;
     min-height: 100vh;
     margin: 0;
-    padding: 32px 20px;
+    padding: 20px 16px;
     position: relative;
     overflow-x: hidden;
 }
+/* Los dos halos del fondo van FIJOS a la ventana, no al documento.
+   Colocados en absolute con desplazamientos negativos —como estaban— el de
+   abajo sobresalía 220 px por debajo del cuerpo y estiraba la página: aparecía
+   barra de desplazamiento y el botón de Ingresar quedaba fuera de la vista,
+   aunque la tarjeta cabía de sobra. Fijos adornan igual y no ocupan sitio. */
 .login-body::before,
 .login-body::after {
     content: '';
-    position: absolute;
+    position: fixed;
     border-radius: 50%;
     filter: blur(10px);
     pointer-events: none;
+    z-index: 0;
 }
 .login-body::before {
     width: 620px; height: 620px;
@@ -142,7 +148,7 @@ hr { border: none; border-top: 1px solid var(--rea-gris-200); margin: 1.5rem 0; 
 
 .login-shell {
     width: 100%;
-    max-width: 430px;
+    max-width: 410px;
     position: relative;
     z-index: 1;
     animation: subir .5s cubic-bezier(.2, .8, .2, 1) both;
@@ -157,14 +163,14 @@ hr { border: none; border-top: 1px solid var(--rea-gris-200); margin: 1.5rem 0; 
    no flotando como un recuadro blanco sobre el fondo oscuro. */
 .login-logo-wrap {
     text-align: center;
-    margin: 2px 0 20px;
-    padding-bottom: 18px;
+    margin: 0 0 14px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--rea-gris-200);
 }
 .login-logo-wrap img {
     display: block;
-    width: 74%;
-    max-width: 250px;
+    width: 60%;
+    max-width: 190px;
     height: auto;
     margin: 0 auto;
 }
@@ -180,7 +186,7 @@ hr { border: none; border-top: 1px solid var(--rea-gris-200); margin: 1.5rem 0; 
 
 .login-container {
     background: rgba(255, 255, 255, .98);
-    padding: 38px 34px 34px;
+    padding: 24px 28px 26px;
     border-radius: var(--radio-lg);
     box-shadow: var(--sombra-lg);
     border: 1px solid rgba(255, 255, 255, .5);
@@ -217,8 +223,61 @@ hr { border: none; border-top: 1px solid var(--rea-gris-200); margin: 1.5rem 0; 
     text-align: center;
     color: rgba(255, 255, 255, .62);
     font-size: .76rem;
-    margin-top: 22px;
+    margin-top: 12px;
     letter-spacing: .01em;
+}
+
+/* ---------- El formulario de ingreso, apretado ----------
+   Solo aquí: los formularios del sistema conviven con tablas y avisos y
+   agradecen el aire; esta pantalla tiene que entrar entera de una vez, porque
+   tener que desplazarse para encontrar el botón de Ingresar es lo primero que
+   ve quien llega. */
+.login-container .form-group { margin-bottom: 12px; }
+.login-container .form-group:last-of-type { margin-bottom: 16px; }
+.login-container label { margin-bottom: 4px; }
+
+.login-container input[type=text],
+.login-container input[type=password],
+.login-container select {
+    padding: 9px 12px;
+}
+
+.login-container .form-ayuda { margin-top: 4px; font-size: .74rem; }
+
+/* El buscador vive DENTRO del grupo de la institución, sobre el desplegable al
+   que filtra: como campo aparte se llevaba una etiqueta y un margen enteros
+   para algo que no es un dato del formulario, sino una ayuda para elegirlo. */
+.login-buscador { margin-bottom: 7px; }
+.login-buscador[hidden] { display: none !important; }
+
+.login-container .btn-submit { padding: 11px 16px; }
+
+/* Ventanas bajas —un portátil con la barra de marcadores abierta— o teléfonos
+   apaisados: se recorta lo prescindible antes que dejar el botón fuera. */
+@media (max-height: 700px) {
+    .login-body { padding: 12px 16px; }
+    .login-container { padding: 18px 24px 20px; }
+    .login-logo-wrap { margin-bottom: 10px; padding-bottom: 9px; }
+    .login-logo-wrap img { max-width: 150px; }
+    .login-container .form-group { margin-bottom: 9px; }
+    .login-footer-nota { margin-top: 9px; font-size: .72rem; }
+}
+
+/* Teléfono en horizontal: quedan poco más de 400 px de alto. Se retira lo que
+   solo acompaña —la nota del pie— para no dejar el botón debajo del borde. */
+@media (max-height: 520px) {
+    .login-body { padding: 8px 12px; align-items: flex-start; }
+    .login-container { padding: 12px 20px 14px; }
+    .login-logo-wrap { margin-bottom: 8px; padding-bottom: 7px; }
+    .login-logo-wrap img { max-width: 120px; }
+    .login-container .form-group { margin-bottom: 7px; }
+    .login-container .form-group:last-of-type { margin-bottom: 11px; }
+    .login-container label { margin-bottom: 3px; font-size: .78rem; }
+    .login-container input[type=text],
+    .login-container input[type=password],
+    .login-container select { padding: 7px 11px; }
+    .login-container .btn-submit { padding: 9px 16px; }
+    .login-footer-nota { display: none; }
 }
 
 /* =========================================================================
@@ -269,6 +328,23 @@ input:focus, select:focus, textarea:focus {
 }
 
 .form-ayuda { font-size: .78rem; color: var(--rea-gris-600); margin-top: 5px; }
+
+/* Aviso de un campo mal escrito: lo ponen js/documento.js y js/correo.js justo
+   debajo del campo, para que el motivo se lea sin buscarlo arriba. */
+.form-error-campo {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--color-peligro);
+    margin-top: 5px;
+    line-height: 1.35;
+}
+.form-error-campo[hidden] { display: none !important; }
+
+.campo-invalido,
+input.campo-invalido:focus {
+    border-color: var(--color-peligro) !important;
+    box-shadow: 0 0 0 4px rgba(200, 16, 46, .12) !important;
+}
 .campo-requerido::after { content: " *"; color: var(--rea-rojo); }
 
 fieldset {
@@ -494,8 +570,12 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
 
 .main-area { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
+/* `min-height`, no `height`: con una altura fija el nombre de una institución
+   larga se partía en dos líneas y se salía de la barra, encima de la miga de
+   pan. Ahora la barra crece lo que haga falta y el nombre se recorta con
+   puntos suspensivos cuando no cabe. */
 .topbar {
-    height: var(--topbar-alto);
+    min-height: var(--topbar-alto);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -508,15 +588,31 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
     top: 0;
     z-index: 30;
 }
+.topbar > .flex-gap { min-width: 0; flex: 1 1 auto; }
+.topbar > .flex-gap > div { min-width: 0; overflow: hidden; }
+
 .topbar-titulo {
     font-family: var(--fuente-titulos);
     font-weight: 700;
     color: var(--rea-tinta);
     font-size: 1.02rem;
     letter-spacing: -.01em;
+    /* Bloque, no flex: `text-overflow: ellipsis` no funciona sobre un contenedor
+       flexible, y aquí lo que hace falta es justamente que el nombre de una
+       institución larga termine en puntos suspensivos en vez de cortarse a
+       mitad de letra. La pastilla de «otra institución» va en línea. */
+    display: block;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 6px;
 }
 .topbar-eyebrow {
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--fuente-base);
     font-size: .66rem;
     font-weight: 700;
@@ -525,7 +621,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
     color: var(--rea-rojo);
     margin-bottom: 1px;
 }
-.topbar-usuario { display: flex; align-items: center; gap: 14px; }
+.topbar-usuario { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
 .avatar-usuario {
     width: 38px; height: 38px; border-radius: 50%;
     background: var(--gradiente-rojo); color: #fff;
@@ -662,9 +758,25 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
 .kpi-card.kpi-alt-3::before { background: linear-gradient(180deg, #d99420, var(--color-advertencia)); }
 
 /* ---------- Tablas ---------- */
+/* Las tablas de datos tienen más columnas de las que caben en un teléfono. Se
+   desplazan de lado, y para que se note —una tabla cortada sin aviso parece una
+   tabla incompleta— llevan una sombra en el borde por el que continúan, que
+   desaparece sola al llegar al extremo. Es puro CSS: las dos primeras capas van
+   ancladas al contenido (`local`) y las dos sombras al marco (`scroll`), de modo
+   que una tapa a la otra según cuánto se haya desplazado. */
 .tabla-wrap {
     overflow-x: auto;
-    background: var(--rea-blanco);
+    -webkit-overflow-scrolling: touch;
+    background-color: var(--rea-blanco);
+    background-image:
+        linear-gradient(to right, var(--rea-blanco) 30%, rgba(255, 255, 255, 0)),
+        linear-gradient(to left,  var(--rea-blanco) 30%, rgba(255, 255, 255, 0)),
+        radial-gradient(farthest-side at 0 50%,   rgba(20, 22, 28, .16), rgba(20, 22, 28, 0)),
+        radial-gradient(farthest-side at 100% 50%, rgba(20, 22, 28, .16), rgba(20, 22, 28, 0));
+    background-repeat: no-repeat;
+    background-size: 38px 100%, 38px 100%, 13px 100%, 13px 100%;
+    background-position: left center, right center, left center, right center;
+    background-attachment: local, local, scroll, scroll;
     border-radius: var(--radio-md);
     border: 1px solid var(--rea-gris-200);
     box-shadow: var(--sombra-sm);
@@ -813,17 +925,142 @@ select.campo-bloqueado:disabled {
     border-top: 1px solid var(--rea-gris-200);
 }
 
-/* ---------- Responsive ---------- */
+/* =========================================================================
+   RESPONSIVE
+   =========================================================================
+   El sistema se usa en el escritorio de la secretaría, pero también desde el
+   teléfono de quien está de pie en el patio comprobando un dato. Lo que sigue
+   es lo que cambia cuando la pantalla se estrecha.
+   ========================================================================= */
+
+/* ---------- Tableta y teléfono: el menú pasa a ser un cajón ---------- */
 @media (max-width: 900px) {
-    .sidebar { position: fixed; left: -100%; z-index: 40; box-shadow: var(--sombra-lg); transition: left .22s ease; }
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        height: 100dvh;              /* dvh: descuenta la barra del navegador móvil */
+        max-width: 86vw;
+        z-index: 60;
+        box-shadow: var(--sombra-lg);
+        transition: left .22s ease;
+    }
     .sidebar.abierto { left: 0; }
     .app-shell { display: block; }
     .content-wrap { padding: 20px 16px 4px; }
-    .topbar { padding: 0 16px; }
+    .topbar { padding: 8px 14px; }
     .menu-toggle { display: inline-flex !important; }
     .usuario-meta { display: none; }
     .page-header h1 { font-size: 1.3rem; }
     .kpi-card .kpi-valor { font-size: 1.8rem; }
+
+    /* Fondo oscurecido bajo el cajón: lo crea js/menu_movil.js y es lo que se
+       toca para cerrarlo. Sin él el menú tapaba la pantalla sin salida visible. */
+    .menu-fondo {
+        position: fixed;
+        inset: 0;
+        z-index: 55;
+        background: rgba(20, 22, 28, .5);
+        backdrop-filter: blur(2px);
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        animation: aparecer .18s ease-out;
+    }
+    .menu-fondo[hidden] { display: none !important; }
+    body.menu-abierto { overflow: hidden; }
+}
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Teléfono ---------- */
+@media (max-width: 640px) {
+    .topbar { gap: 10px; }
+    /* El botón del menú y el nombre de la institución, en la misma línea: con el
+       ajuste automático el título caía debajo y la barra ocupaba el doble.
+       El antetítulo «PROTECCIÓN DE DATOS» se retira: en un teléfono se lleva una
+       línea entera para decir algo que ya dice la pantalla en la que se está. */
+    .topbar > .flex-gap { flex-wrap: nowrap; }
+    .topbar-eyebrow { display: none; }
+    .topbar-eyebrow { font-size: .6rem; letter-spacing: .09em; }
+    .topbar-titulo { font-size: .92rem; }
+    .topbar-usuario { gap: 8px; }
+    .avatar-usuario { width: 32px; height: 32px; font-size: .78rem; }
+    /* El texto de los botones de la barra sobra: quedan el icono y el título */
+    .logout-btn { padding: 7px 10px; font-size: .76rem; }
+
+    .content-wrap { padding: 16px 12px 4px; }
+    .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
+    .page-header h1 { font-size: 1.18rem; }
+    .page-header .flex-gap > .btn { flex: 1 1 auto; justify-content: center; }
+
+    /* Los filtros dejan de competir por el ancho y se apilan */
+    .filtros-bar { padding: 14px; gap: 10px; }
+    .filtros-bar .form-group { min-width: 100%; }
+    .filtros-bar .btn { width: 100%; justify-content: center; }
+    .filtros-bar form.flex-gap { width: 100%; }
+
+    .card { padding: 16px 14px; }
+
+    /* Una columna. Se nombra a TODOS los hijos, no solo a los .form-group: en la
+       ficha 360° las parejas etiqueta/valor son divs sueltos, y al compartir
+       línea el correo y el teléfono aparecían pegados uno detrás de otro. */
+    .form-row { gap: 10px 16px; }
+    .form-row > * { flex: 1 1 100%; min-width: 0; }
+    .form-row .form-group { margin-bottom: 6px; }
+    /* Un correo largo parte donde haga falta antes que desbordar la tarjeta. */
+    .ficha-identidad .form-row strong { overflow-wrap: anywhere; }
+
+    table.tabla-datos { font-size: .8rem; }
+    table.tabla-datos th, table.tabla-datos td { padding: 9px 10px; }
+
+    /* La columna de acciones se queda pegada al borde derecho mientras el resto
+       de la tabla se desplaza por debajo. En un teléfono, «Editar» quedaba fuera
+       de la pantalla y había que arrastrar la tabla a ciegas para encontrarlo;
+       así está siempre donde el pulgar la espera.
+
+       Solo en las tablas que tienen acciones: en las que terminan en «Estado»
+       fijar la última columna no aportaría nada. */
+    table.tabla-datos:has(.tabla-acciones) th:last-child,
+    table.tabla-datos:has(.tabla-acciones) td:last-child {
+        position: sticky;
+        right: 0;
+        z-index: 1;
+        background: var(--rea-blanco);
+        box-shadow: -9px 0 12px -9px rgba(20, 22, 28, .28);
+    }
+    table.tabla-datos:has(.tabla-acciones) th:last-child { background: var(--rea-gris-50); }
+    table.tabla-datos tr.fila-activa td:last-child { background: var(--rea-rojo-claro); }
+
+    .sp-modal__cabecera h3 { font-size: .9rem; }
+    .ficha-modal .sp-modal__cuerpo { padding: 12px; }
+    .footer-app { padding: 18px 0 14px; font-size: .7rem; }
+}
+
+/* ---------- Dedos, no ratón ----------
+   28 px de alto se aciertan con el cursor y se fallan con el pulgar.
+
+   Se pregunta por el TIPO DE PUNTERO —una tableta de 1024 px se toca igual que
+   un teléfono— y TAMBIÉN por el ancho, porque no todos los navegadores informan
+   bien del puntero y quedarse sin la regla es peor que aplicarla de más: en una
+   ventana estrecha de escritorio, unos botones algo mayores no estorban. */
+@media (pointer: coarse), (max-width: 900px) {
+    .btn-sm { padding: 9px 13px; font-size: .8rem; }
+    .btn-icono { padding: 10px 12px; }
+    .paginacion a, .paginacion span { padding: 10px 14px; }
+    .tab-link { padding: 12px 16px; }
+    .nav-link { padding: 11px 12px; }
+
+    /* En los listados, las acciones de cada fila se reparten en dos líneas
+       antes que encogerse: es preferible una fila más alta a un botón que se
+       falla. */
+    .tabla-acciones { flex-wrap: wrap; gap: 6px; }
+
+    /* La barra de formato del disclaimer: son los botones más pequeños del
+       sistema y los que peor se aciertan con el pulgar. Se nombra también al
+       contenedor `.editor` porque la regla base se declara más abajo en este
+       mismo archivo y, a igual especificidad, ganaría la última. */
+    .editor .editor-barra button { padding: 9px 12px; }
+    .editor .editor-barra { gap: 6px; }
 }
 
 .menu-toggle {
@@ -989,6 +1226,49 @@ select.campo-bloqueado:disabled {
     .selector-persona { flex-wrap: wrap; }
 }
 
+/* ---------- Ficha 360° como subpantalla (consultas/buscar_persona.php) -------
+   Reutiliza el modal de arriba. Lo que cambia: la caja es más ancha porque la
+   ficha lleva cuatro tarjetas y una tabla, y tanto el cerrar como el fondo son
+   ENLACES —no botones—, para que la pantalla siga funcionando sin JavaScript. */
+.sp-modal__caja--ancha { width: min(1040px, 100%); max-height: min(92vh, 860px); }
+
+a.sp-modal__cerrar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+a.sp-modal__cerrar:hover { color: #fff; }
+
+.ficha-modal .sp-modal__cuerpo { padding: 18px 20px 20px; background: var(--rea-gris-50); }
+.ficha-modal .sp-modal__cuerpo > .card,
+.ficha-modal .sp-modal__cuerpo > .menu-grid { margin-bottom: 16px; }
+
+/* Las cuatro tarjetas de rol en dos filas de dos: con el ancho de la caja,
+   auto-fit dejaba tres arriba y una sola abajo. */
+.ficha-modal .menu-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.ficha-modal .menu-grid .card { margin: 0; padding: 14px 16px; }
+.ficha-modal .menu-grid .card h3 { font-size: .95rem; }
+.ficha-modal .menu-grid .card p { margin: 6px 0; }
+
+@media (max-width: 720px) {
+    .ficha-modal .menu-grid { grid-template-columns: 1fr; }
+}
+.ficha-modal .sp-modal__cuerpo > :last-child { margin-bottom: 0; }
+
+.ficha-identidad {
+    background: var(--rea-blanco);
+    border: 1px solid var(--rea-gris-200);
+    border-left: 4px solid var(--rea-rojo);
+    border-radius: var(--radio-md, 12px);
+    padding: 16px 18px;
+    margin-bottom: 16px;
+}
+
+/* La fila del listado que está abierta en la ficha, para no perder el sitio
+   al cerrar la subpantalla. */
+.fila-activa > td { background: var(--rea-rojo-claro); }
+
 /* =========================================================================
    Carga Inicial (modules/carga_inicial.php)
    ========================================================================= */
@@ -1152,7 +1432,7 @@ input[type="file"]:hover { border-color: var(--rea-rojo); background: #fff; }
 .vista-previa ul, .vista-previa ol { padding-left: 24px; }
 
 /* =========================================================================
-   Enlaces públicos de consentimiento (modules/enlaces_consentimiento.php)
+   Enlaces públicos con verificación (modules/enlaces_verificados.php)
    ========================================================================= */
 
 .caja-enlace {

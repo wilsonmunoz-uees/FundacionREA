@@ -59,8 +59,9 @@ final class CorreoConfiguracionController extends Controller
         if ($activo === 'SI' && $servidor === null) {
             $errores[] = 'Indique el servidor SMTP o desactive el envío por SMTP.';
         }
-        if ($remitente !== null && !filter_var($remitente, FILTER_VALIDATE_EMAIL)) {
-            $errores[] = 'La dirección del remitente no es válida.';
+        if ($remitente !== null && !CorreoElectronico::esValido($remitente)) {
+            $errores[] = 'La dirección del remitente no es válida: '
+                       . (CorreoElectronico::problema($remitente) ?? '');
         }
         if ($puerto < 1 || $puerto > 65535) {
             $errores[] = 'El puerto debe estar entre 1 y 65535.';
@@ -103,9 +104,12 @@ final class CorreoConfiguracionController extends Controller
     {
         $this->requiereAcceso(self::MODULO);
 
-        $destino = $this->peticion->texto('correo');
-        if (!filter_var($destino, FILTER_VALIDATE_EMAIL)) {
-            Response::validacion(['Indique una dirección de correo válida para la prueba.']);
+        $destino = CorreoElectronico::normalizar($this->peticion->texto('correo'));
+        if (!CorreoElectronico::esValido($destino)) {
+            Response::validacion([
+                'Indique una dirección de correo válida para la prueba: '
+                . (CorreoElectronico::problema($destino) ?? ''),
+            ]);
         }
 
         $correo = Correo::desdeConfiguracion(self::configuracionDe($this->db, $this->institucion()));

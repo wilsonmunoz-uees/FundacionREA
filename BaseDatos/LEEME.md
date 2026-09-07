@@ -55,6 +55,20 @@ DELETE FROM usuario WHERE Username IN ('seguridades','registro','consultas','rep
 
 Si no las quiere ni siquiera al instalar, no ejecute la sección 9 del DML.
 
+## El correo saliente se configura, no viene puesto
+
+La carga inicial deja preparada la ficha de `correo_configuracion` —servidor,
+puerto, usuario y remitente— pero **con la contraseña en blanco**: hasta que se
+escriba desde *Registro de Datos › Configuración de Correo*, el sistema no
+puede enviar códigos de verificación ni confirmaciones.
+
+Antes esa contraseña viajaba escrita en el propio archivo. Un archivo de carga
+inicial se copia, se sube al repositorio y se manda por correo; una contraseña
+ahí dentro es una contraseña publicada. Si su base todavía tiene la que venía
+en versiones anteriores, cámbiela en el proveedor de correo y vuelva a
+escribirla desde la pantalla: el sistema la guarda y no la devuelve nunca a
+ninguna pantalla ni a la bitácora.
+
 ## Cómo está organizado cada script
 
 Ambos están divididos en secciones numeradas y comentadas.
@@ -149,23 +163,25 @@ base ya instalada a este modelo, ejecute `07_ALTER_auditoria_sin_valores.sql`,
 que se entrega aparte. **Respalde antes:** al eliminar las columnas se pierde
 también lo que ya estaba grabado en ellas.
 
-En los **datos** cambió un nombre. La opción que publicaba los enlaces abiertos
-de consentimiento se retiró, y la que quedó —los enlaces con verificación de
-identidad— pasó a llamarse **Enlaces de Consentimiento**. El permiso conserva su
-código `ADM_ENLACES_VERIF`, que es un identificador interno: cambiarlo dejaría
+En los **datos** cambió un nombre. La opción que publicaba los enlaces
+abiertos de consentimiento se retiró del menú y del fuente, y la que quedó —la
+que verifica la identidad con un código enviado al correo registrado— se llama
+**Enlaces con Verificación**. El permiso conserva su código
+`ADM_ENLACES_VERIF`, que es un identificador interno: cambiarlo dejaría
 huérfanas las asignaciones de rol ya hechas. Lo que cambia es el nombre que se
 ve en *Permisos* y en *Roles*:
 
 ```sql
 UPDATE permiso
-   SET Nombre = 'Enlaces de Consentimiento'
+   SET Nombre = 'Enlaces con Verificación'
  WHERE Codigo = 'ADM_ENLACES_VERIF';
 ```
 
 Está incluido en `02_DML_datos.sql`, que puede volver a ejecutarse sin
-duplicar nada. La opción retirada no tenía permiso propio —se apoyaba en
-`ADM_CORREO`, el de la configuración de correo—, de modo que no hay ninguna fila
-que eliminar.
+duplicar nada; sobre una base ya instalada se aplica con
+`10_RENOMBRA_enlaces_con_verificacion.sql`, que se entrega aparte. La opción
+retirada no tenía permiso propio —se apoyaba en `ADM_CORREO`, el de la
+configuración de correo—, de modo que no hay ninguna fila que eliminar.
 
 ### Si una pantalla falla con «Unknown column»
 
@@ -181,8 +197,8 @@ las tres columnas antes de eliminarlas. Respalde la base antes de ejecutarlo:
 eliminar una columna elimina también su contenido.
 
 Las pantallas del sistema ya no piden ni muestran esos tres campos, y la
-plantilla de la **PreCarga Inicial** (*Registro de Datos › PreCarga Inicial*,
-solo para SuperAdmin) tampoco los incluye.
+plantilla de la **Carga de Información** (*Registro de Datos › Carga de
+Información*, solo para SuperAdmin) tampoco los incluye.
 
 El sistema tolera que la base esté un paso atrás en un punto concreto: las
 relaciones del representante que ofrecen las pantallas se leen del propio enum
@@ -191,7 +207,8 @@ base no pueda guardar. Si intenta grabar una relación que su base todavía no
 reconoce, el sistema lo dice con claridad en vez de dejar que MySQL responda con
 un error de truncamiento.
 
-`verificacion_codigo` guarda los códigos de los **Enlaces de Consentimiento**. De cada código solo se conserva su huella SHA-256, nunca su
+`verificacion_codigo` guarda los códigos de los **Enlaces con Verificación**.
+De cada código solo se conserva su huella SHA-256, nunca su
 valor; caduca a los 10 minutos y las filas de más de un día se borran solas en
 la siguiente consulta. La tabla puede vaciarse en cualquier momento sin
 consecuencias: no tiene valor histórico.
@@ -231,8 +248,8 @@ institución** sin duplicarse.
 
 Es una entidad **padre**, y como tal **no tiene mantenimiento propio**: no hay
 opción de menú para personas. Sus fichas nacen desde Empleados, Estudiantes
-—titular y representante—, Proveedores, los enlaces públicos o la PreCarga
-Inicial, y se reutilizan cuando el documento ya consta. Toda la escritura pasa
+—titular y representante—, Proveedores, los enlaces públicos o la Carga de
+Información, y se reutilizan cuando el documento ya consta. Toda la escritura pasa
 por un único punto del código, `api/core/Padron.php`.
 
 Entre instituciones no se comparte nada: si la misma persona se relaciona con dos

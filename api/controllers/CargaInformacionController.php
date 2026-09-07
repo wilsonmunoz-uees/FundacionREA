@@ -446,7 +446,8 @@ final class CargaInformacionController extends Controller
 
         $nombres   = $this->campo($fila, 'nombres', 100);
         $apellidos = $this->campo($fila, 'apellidos', 100);
-        $email     = $this->campo($fila, 'email', 150);
+        $emailCrudo = $this->campo($fila, 'email', 200);
+        $email      = CorreoElectronico::normalizar($emailCrudo);
         $telefono  = Telefono::normalizar($this->campo($fila, 'telefono', 30));
         $razon     = $this->campo($fila, 'razon social', 150);
 
@@ -468,9 +469,22 @@ final class CargaInformacionController extends Controller
             return null;
         }
 
-        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errores[] = $donde . 'el correo «' . $email . '» no es válido.';
-            return null;
+        /* El correo se revisa con la MISMA regla que aplican las pantallas
+           —api/core/CorreoElectronico.php—, y sobre el valor tal como venía en la
+           celda: así se avisa de que lleva un espacio en medio en vez de
+           quitárselo en silencio y cargar una dirección que nadie escribió.
+
+           Una dirección mal escrita descarta la fila, y es deliberado: el correo
+           es el único camino por el que se le pide el consentimiento al titular,
+           de modo que cargarlo sin él sería meter en el padrón a alguien a quien
+           el sistema no puede preguntar nada. El aviso sale en la
+           previsualización, antes de grabar, con el motivo concreto. */
+        if ($emailCrudo !== '') {
+            $problema = CorreoElectronico::problema($emailCrudo);
+            if ($problema !== null) {
+                $errores[] = $donde . 'el correo «' . $emailCrudo . '» no es válido: ' . $problema;
+                return null;
+            }
         }
 
         /* El teléfono se normaliza arriba; aquí solo se avisa si lo que venía en

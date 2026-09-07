@@ -36,6 +36,13 @@ final class Documento
     ];
 
     /**
+     * Provincias del Ecuador: los dos primeros dígitos de toda cédula y de todo
+     * RUC. 01 a 24 son las provincias; 30 identifica a los ecuatorianos
+     * registrados en consulados del exterior.
+     */
+    private const PROVINCIAS = [30];   // más el rango 1..24, que se comprueba aparte
+
+    /**
      * Largos que se usan si no se puede consultar la base (por ejemplo, en una
      * instalación a medio actualizar). Son los del DDL vigente.
      */
@@ -188,7 +195,10 @@ final class Documento
     ): array {
         $tipo     = self::tipoValido($tipo);
         $nombre   = self::ETIQUETAS[$tipo];
-        $de       = ' ' . self::contraer($etiqueta);
+        /* Con la etiqueta vacía los mensajes van sin complemento: es lo que
+           quieren los enlaces públicos, donde quien lee es el propio titular y
+           un «de la persona» sonaría a que se habla de otro. */
+        $de       = $etiqueta === '' ? '' : ' ' . self::contraer($etiqueta);
         $errores  = [];
         $maximo   = self::largoMaximo($db, $contexto, $tipo);
         $limpio   = (string)preg_replace('/[\s.\-]/', '', trim($valorCrudo));
@@ -212,7 +222,200 @@ final class Documento
             $errores[] = 'El número de ' . $nombre . $de . ' es demasiado corto.';
         }
 
+        /* Si ya hay algo mal en la forma, no se sigue: decirle a alguien que
+           escribió letras Y que además el dígito verificador no cuadra es ruido,
+           porque lo segundo es consecuencia de lo primero. */
+        if ($errores !== []) {
+            return $errores;
+        }
+
+        $problema = self::validarEstructura($tipo, $limpio);
+        if ($problema !== null) {
+            $errores[] = 'El número de ' . $nombre . $de . ' no es válido: ' . $problema;
+        }
+
         return $errores;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Cédula y RUC ecuatorianos: la estructura, no solo el largo           */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Comprueba que el número sea realmente una cédula o un RUC del Ecuador.
+     *
+     * Antes bastaba con que fueran dígitos y cupieran en la columna, de modo que
+     * `0000000000` o `1234567890` entraban sin protestar. Un padrón con cédulas
+     * inventadas no se nota al cargarlo: se nota meses después, cuando hay que
+     * responder por el consentimiento de una persona que no se puede identificar.
+     *
+     * @return string|null Motivo del rechazo, o null si el número es correcto.
+     */
+    public static function validarEstructura(string $tipo, string $numero): ?string
+    {
+        switch (self::tipoValido($tipo)) {
+            case 'CEDULA':
+                return self::problemaCedula($numero);
+            case 'RUC':
+                return self::problemaRuc($numero);
+            default:
+                return null;      // el pasaporte no tiene una forma que comprobar
+        }
+    }
+
+    /** ¿Es una cédula ecuatoriana válida? */
+    public static function esCedula(string $numero): bool
+    {
+        return self::problemaCedula($numero) === null;
+    }
+
+    /** ¿Es un RUC ecuatoriano válido? */
+    public static function esRuc(string $numero): bool
+    {
+        return self::problemaRuc($numero) === null;
+    }
+
+    /**
+     * Cédula: diez dígitos, provincia conocida, tercer dígito menor que seis y
+     * dígito verificador por el algoritmo de módulo 10.
+     */
+    private static function problemaCedula(string $numero): ?string
+    {
+        if (!preg_match('/^\d{10}$/', $numero)) {
+            return 'la cédula tiene exactamente 10 dígitos.';
+        }
+
+        $problema = self::problemaProvincia($numero);
+        if ($problema !== null) {
+            return $problema;
+        }
+
+        /* El tercer dígito distingue al tipo de registro. De 0 a 5 es una persona
+           natural; 6 y 9 corresponden a entidades y solo aparecen en un RUC. */
+        if ((int)$numero[2] > 5) {
+            return 'el tercer dígito de una cédula de persona natural va de 0 a 5, y aquí es '
+                . $numero[2] . '. Si es una empresa, elija RUC.';
+        }
+
+        if (!self::modulo10Correcto($numero)) {
+            return 'el dígito verificador no corresponde. Revise que no haya un número cambiado.';
+        }
+
+        return null;
+    }
+
+    /**
+     * RUC: trece dígitos, y su estructura depende del tercero, que dice de quién
+     * es el registro.
+     *
+     *   0-5  persona natural   → los diez primeros dígitos son su cédula
+     *   6    entidad pública   → verificador en la novena posición, módulo 11
+     *   9    sociedad privada  → verificador en la décima posición, módulo 11
+     *
+     * Los tres últimos dígitos son el establecimiento: 001 la matriz, y de ahí
+     * hacia arriba las sucursales. En el sector público son cuatro (0001).
+     */
+    private static function problemaRuc(string $numero): ?string
+    {
+        if (!preg_match('/^\d{13}$/', $numero)) {
+            return 'el RUC tiene exactamente 13 dígitos.';
+        }
+
+        $problema = self::problemaProvincia($numero);
+        if ($problema !== null) {
+            return $problema;
+        }
+
+        $tercero = (int)$numero[2];
+
+        if ($tercero <= 5) {
+            // Persona natural: su RUC es la cédula más el establecimiento
+            if (!self::modulo10Correcto(substr($numero, 0, 10))) {
+                return 'el dígito verificador de la cédula que lleva dentro no corresponde.';
+            }
+            if ((int)substr($numero, 10, 3) < 1) {
+                return 'los tres últimos dígitos son el establecimiento y empiezan en 001.';
+            }
+            return null;
+        }
+
+        if ($tercero === 6) {
+            // Entidad pública: verificador en la posición 9
+            if (!self::modulo11Correcto($numero, [3, 2, 7, 6, 5, 4, 3, 2], 8)) {
+                return 'el dígito verificador no corresponde a un RUC del sector público.';
+            }
+            if ((int)substr($numero, 9, 4) < 1) {
+                return 'los cuatro últimos dígitos son el establecimiento y empiezan en 0001.';
+            }
+            return null;
+        }
+
+        if ($tercero === 9) {
+            // Sociedad privada o extranjera: verificador en la posición 10
+            if (!self::modulo11Correcto($numero, [4, 3, 2, 7, 6, 5, 4, 3, 2], 9)) {
+                return 'el dígito verificador no corresponde a un RUC de sociedad.';
+            }
+            if ((int)substr($numero, 10, 3) < 1) {
+                return 'los tres últimos dígitos son el establecimiento y empiezan en 001.';
+            }
+            return null;
+        }
+
+        return 'el tercer dígito solo puede ser de 0 a 5 (persona natural), 6 (sector público) '
+             . 'o 9 (sociedad), y aquí es ' . $tercero . '.';
+    }
+
+    /** Los dos primeros dígitos: 01 a 24, o 30 para los consulados. */
+    private static function problemaProvincia(string $numero): ?string
+    {
+        $provincia = (int)substr($numero, 0, 2);
+
+        if (($provincia >= 1 && $provincia <= 24) || in_array($provincia, self::PROVINCIAS, true)) {
+            return null;
+        }
+
+        return 'los dos primeros dígitos son el código de provincia, del 01 al 24 '
+             . '(o 30 para los registrados en el exterior), y aquí son '
+             . substr($numero, 0, 2) . '.';
+    }
+
+    /**
+     * Módulo 10, el de la cédula: se duplican las posiciones impares, a lo que
+     * pase de 9 se le restan 9, y el verificador completa la decena.
+     */
+    private static function modulo10Correcto(string $diez): bool
+    {
+        $suma = 0;
+
+        for ($i = 0; $i < 9; $i++) {
+            $valor = (int)$diez[$i] * (($i % 2 === 0) ? 2 : 1);
+            if ($valor > 9) {
+                $valor -= 9;
+            }
+            $suma += $valor;
+        }
+
+        return ((10 - $suma % 10) % 10) === (int)$diez[9];
+    }
+
+    /**
+     * Módulo 11, el de los RUC de entidades.
+     *
+     * @param int[] $coeficientes Uno por cada dígito que entra en la suma
+     * @param int   $posicion     Índice (base 0) del dígito verificador
+     */
+    private static function modulo11Correcto(string $numero, array $coeficientes, int $posicion): bool
+    {
+        $suma = 0;
+
+        foreach ($coeficientes as $i => $coeficiente) {
+            $suma += (int)$numero[$i] * $coeficiente;
+        }
+
+        $residuo     = $suma % 11;
+        $verificador = $residuo === 0 ? 0 : 11 - $residuo;
+
+        return $verificador === (int)$numero[$posicion];
     }
 
     /**
@@ -225,17 +428,28 @@ final class Documento
     {
         $reglas = [];
 
+        $ayudas = [
+            'CEDULA' => 'Diez dígitos, sin guiones ni espacios. Se comprueba la provincia y el '
+                      . 'dígito verificador.',
+            'RUC'    => 'Trece dígitos, sin guiones ni espacios: el número de la empresa o de la '
+                      . 'persona más el establecimiento (001 la matriz).',
+        ];
+
         foreach (self::TIPOS as $tipo) {
             $letras = self::admiteLetras($tipo);
             $maximo = self::largoMaximo($db, $contexto, $tipo);
+            /* En la cédula y el RUC el largo no es un tope, es una medida exacta:
+               el navegador puede avisar en cuanto se completa. */
+            $exacto = self::LARGO_POR_TIPO[$tipo] ?? 0;
 
             $reglas[$tipo] = [
-                'patron'   => $letras ? '[^0-9A-Za-z]' : '[^0-9]',
-                'maximo'   => $maximo,
-                'etiqueta' => self::ETIQUETAS[$tipo],
-                'ayuda'    => $letras
-                    ? 'Letras y números, sin guiones ni espacios. Máximo ' . $maximo . ' caracteres.'
-                    : 'Solo números, sin guiones ni espacios. Máximo ' . $maximo . ' dígitos.',
+                'patron'      => $letras ? '[^0-9A-Za-z]' : '[^0-9]',
+                'maximo'      => $maximo,
+                'exacto'      => ($exacto > 0 && $exacto <= $maximo) ? $exacto : 0,
+                'verificador' => !$letras,   // hay dígito verificador que comprobar
+                'etiqueta'    => self::ETIQUETAS[$tipo],
+                'ayuda'       => $ayudas[$tipo]
+                    ?? 'Letras y números, sin guiones ni espacios. Máximo ' . $maximo . ' caracteres.',
             ];
         }
 

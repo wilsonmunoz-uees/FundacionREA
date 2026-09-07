@@ -301,7 +301,7 @@ TXT,
         ['name' => 'Reportes',        'description' => 'Indicadores, reportes de cumplimiento y exportación'],
         ['name' => 'Correo',          'description' => 'Servidor de correo saliente de la institución'],
         ['name' => 'Disclaimers',     'description' => 'Textos de política de datos: versión, vigencia y tipo de persona'],
-        ['name' => 'Consentimiento Público', 'description' => 'Rutas SIN token de los tres enlaces abiertos de autoservicio'],
+        ['name' => 'Consentimiento Público', 'description' => 'Rutas SIN token de los Enlaces con Verificación'],
         ['name' => 'Verificación Pública', 'description' => 'Rutas SIN token de los enlaces de consentimiento con verificación de identidad'],
         ['name' => 'Carga de Información', 'description' => 'Alta y actualización del padrón de la institución desde la plantilla Excel'],
         ['name' => 'Envío Masivo',    'description' => 'Invitaciones por correo al consentimiento con verificación'],
@@ -1099,7 +1099,7 @@ $spec['paths']['/personas'] = [
 $spec['paths']['/documento/reglas'] = [
     'get' => [
         'tags' => ['Catálogos'], 'summary' => 'Reglas del documento de identidad',
-        'description' => "Qué caracteres admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos; `PASAPORTE` admite además letras. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nLo consumen los formularios para adaptar el campo mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
+        'description' => "Qué admite cada tipo de documento y hasta dónde llega la columna de la base de datos.\n\n`CEDULA` y `RUC` solo admiten dígitos y se comprueban de verdad: largo exacto (10 y 13), código de provincia y dígito verificador —módulo 10 en la cédula, módulo 11 en los RUC de entidades—. `PASAPORTE` admite además letras y no tiene una forma que comprobar. El largo se lee de `persona`.`Identificacion`, o de la más corta entre esa y `proveedor`.`Ruc` cuando el contexto es `proveedor`.\n\nEn la metadata viajan también las reglas del **teléfono** y las del **correo**, que son los otros dos campos que captura el mismo formulario.\n\nLo consumen los formularios para adaptar el campo y avisar mientras se escribe. **Quien decide sigue siendo el servidor** al guardar: esto es una comodidad para quien captura, no un control.\n\n**Acceso:** autenticado.",
         'operationId' => 'reglasDocumento',
         'parameters'  => [[
             'name' => 'contexto', 'in' => 'query',
@@ -1956,12 +1956,10 @@ $spec['paths']['/reportes/exportar'] = [
     ],
 ];
 
-/* ---------- Instalación ---------- */
-
 $spec['paths']['/consentimiento-publico/inicio'] = [
     'get' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Apertura de un enlace de consentimiento',
-        'description' => "**Ruta pública: no requiere token.** La consume `consentimiento.php`, la pantalla de autoservicio que abren los tres enlaces que difunde la institución.\n\nDevuelve el nombre de la institución, qué documento se pide en el primer paso (cédula o RUC, según el tipo) y el disclaimer vigente de ese tipo de persona.",
+        'description' => "**Ruta pública: no requiere token.** La consumen `consentimiento_verificado.php` y `consentimiento.php`, las pantallas de los Enlaces con Verificación que difunde la institución.\n\nDevuelve el nombre de la institución, qué documento se pide en el primer paso (cédula o RUC, según el tipo) y el disclaimer vigente de ese tipo de persona.",
         'operationId' => 'inicioConsentimientoPublico',
         'security' => [],
         'parameters' => [
@@ -1978,7 +1976,7 @@ $spec['paths']['/consentimiento-publico/inicio'] = [
 $spec['paths']['/consentimiento-publico/identificar'] = [
     'post' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Buscar a la persona por su documento',
-        'description' => "**Ruta pública: no requiere token.**\n\nSegundo paso del recorrido: busca la cédula —o el RUC, si es proveedor— en la tabla que corresponde al tipo, dentro de la institución del enlace.\n\nSi existe devuelve sus datos y el estado de su consentimiento; si no, `existe` viene en false y la pantalla pide los datos para el alta. `puede_revocar` viene en false cuando la persona ya tiene el consentimiento otorgado: en ese caso debe escribir a la institución.",
+        'description' => "**Ruta pública: no requiere token.**\n\nSegundo paso del recorrido: busca la cédula —o el RUC, si es proveedor— en la tabla que corresponde al tipo, dentro de la institución del enlace.\n\nSi existe devuelve sus datos y el estado de su consentimiento; si no, `existe` viene en false y el recorrido termina ahí: **estos enlaces no dan de alta a nadie**. `puede_revocar` viene en false cuando la persona ya tiene el consentimiento otorgado: en ese caso debe escribir a la institución.",
         'operationId' => 'identificarConsentimientoPublico',
         'security' => [],
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
@@ -2000,30 +1998,27 @@ $spec['paths']['/consentimiento-publico/identificar'] = [
 $spec['paths']['/consentimiento-publico/registrar'] = [
     'post' => [
         'tags' => ['Consentimiento Público'], 'summary' => 'Registrar la decisión del titular',
-        'description' => "**Ruta pública: no requiere token.**\n\nTercer paso. Si la persona no existía, la da de alta junto con su vínculo institucional —en estudiantes crea también al representante— a partir del bloque `datos`.\n\nLuego registra la decisión en `consentimiento` (creándola o actualizándola), marca el detalle por tipo de dato, deja constancia en `consentimientohistorial` con la IP y `UsuarioId` nulo, y envía el correo de confirmación. En estudiantes ese correo va al representante e indica de qué representado se trata.\n\nResponde `409` si se intenta revocar un consentimiento ya otorgado: esa vía debe tramitarse por correo con la institución.",
+        'description' => "**Ruta pública: no requiere token.**\n\nTercer paso. **Exige el `pase`** devuelto por `/verificacion-publica/validar-codigo`: sin él responde `403`, y si caducó, `409`. Es lo que distingue a quien demostró ser el titular de quien solo conoce una cédula ajena.\n\n**No da de alta a nadie:** si el documento no consta en la institución responde `404`. El padrón se puebla únicamente desde la Carga de Información.\n\nRegistra la decisión en `consentimiento` (creándola o actualizándola), marca el detalle por tipo de dato, deja constancia en `consentimientohistorial` con la IP y `UsuarioId` nulo, y envía el correo de confirmación. En estudiantes ese correo va al representante e indica de qué representado se trata.\n\nResponde `409` también si se intenta revocar un consentimiento ya otorgado: esa vía debe tramitarse por correo con la institución.",
         'operationId' => 'registrarConsentimientoPublico',
         'security' => [],
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
-            'type' => 'object', 'required' => ['tipo', 'inst', 'identificacion', 'decision'],
+            'type' => 'object', 'required' => ['tipo', 'inst', 'identificacion', 'decision', 'pase'],
             'properties' => [
                 'tipo'           => ['type' => 'string', 'enum' => ['ESTUDIANTE', 'EMPLEADO', 'PROVEEDOR']],
                 'inst'           => ['type' => 'integer'],
                 'identificacion' => ['type' => 'string'],
                 'decision'       => ['type' => 'string', 'enum' => ['OTORGA', 'REVOCA']],
-                'datos'          => [
-                    'type'        => 'object',
-                    'description' => 'Solo cuando la persona no existe: nombres, apellidos, email, telefono y, según el tipo, razon_social, codigo_estudiante y el objeto representante.',
-                ],
                 'pase' => [
                     'type' => 'string',
-                    'description' => 'Solo si se llega desde un enlace CON VERIFICACIÓN: pase firmado devuelto por /verificacion-publica/validar-codigo. Si viene y no es válido, la petición se rechaza con 409.',
+                    'description' => 'Pase firmado devuelto por /verificacion-publica/validar-codigo. Obligatorio: sin él la petición se rechaza con 403, y si caducó, con 409.',
                 ],
             ],
         ]]]],
         'responses' => [
             '200' => $respuesta('Decisión registrada.', $sobre(['type' => 'object'])),
-            '404' => $respuesta('Enlace o institución no válidos.', ['$ref' => '#/components/schemas/Error']),
-            '409' => $respuesta('Revocatoria no permitida en línea, o falta configurar la finalidad.', ['$ref' => '#/components/schemas/Error']),
+            '403' => $respuesta('Falta el pase de verificación.', ['$ref' => '#/components/schemas/Error']),
+            '404' => $respuesta('Enlace o institución no válidos, o la persona no consta en la institución.', ['$ref' => '#/components/schemas/Error']),
+            '409' => $respuesta('Verificación caducada, revocatoria no permitida en línea, o falta configurar la finalidad.', ['$ref' => '#/components/schemas/Error']),
             '422' => $respuesta('Datos incompletos o no válidos.', ['$ref' => '#/components/schemas/Error']),
         ],
     ],
@@ -2134,49 +2129,6 @@ $spec['paths']['/disclaimers/{id}/activar'] = [
         'operationId' => 'activarDisclaimer',
         'parameters' => [['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer']]],
         'responses' => $erroresComunes(['200' => $respuestaEscritura('Disclaimer vigente.', 'DisclaimerId')]),
-    ],
-];
-
-$spec['paths']['/setup/admin'] = [
-    'post' => [
-        'tags'        => ['Instalación'],
-        'summary'     => 'Crear el primer usuario SuperAdmin',
-        'description' => 'Solo funciona mientras la institución no tenga ningún usuario. Después queda cerrado permanentemente.',
-        'operationId' => 'crearAdministrador',
-        'security'    => [],
-        'requestBody' => [
-            'required' => false,
-            'content'  => ['application/json' => ['schema' => [
-                'type'       => 'object',
-                'properties' => [
-                    'institucion_id' => ['type' => 'integer', 'default' => 1],
-                    'username'       => ['type' => 'string', 'default' => 'admin'],
-                    'password'       => ['type' => 'string', 'format' => 'password', 'default' => 'admin123'],
-                    'rol_id'         => ['type' => 'integer', 'default' => 1],
-                    'nombres'        => ['type' => 'string', 'default' => 'Admin'],
-                    'apellidos'      => ['type' => 'string', 'default' => 'Sistema'],
-                    'identificacion' => ['type' => 'string'],
-                    'email'          => ['type' => 'string', 'format' => 'email'],
-                ],
-            ]]],
-        ],
-        'responses' => [
-            '201' => $respuesta('Administrador creado.', $sobre([
-                'type'       => 'object',
-                'properties' => [
-                    'PersonaId'    => ['type' => 'integer'],
-                    'UsuarioId'    => ['type' => 'integer'],
-                    'username'     => ['type' => 'string'],
-                    'rol_asignado' => ['type' => 'boolean'],
-                    'mensaje'      => ['type' => 'string'],
-                ],
-            ])),
-            '409' => [
-                'description' => 'La institución ya tiene usuarios registrados.',
-                'content'     => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/Error']]],
-            ],
-            '422' => ['$ref' => '#/components/responses/ErrorValidacion'],
-        ],
     ],
 ];
 
@@ -2563,7 +2515,7 @@ $spec['paths']['/verificacion-publica/validar-codigo'] = [
 $spec['paths']['/reportes/cobertura-correo'] = [
     'get' => [
         'tags' => ['Reportes'], 'summary' => 'Cuántas personas tienen correo para el código',
-        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Enlaces de Consentimiento para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
+        'description' => "Por cada tipo de persona: total de registros activos, cuántos tienen un correo al que enviarles el código de verificación y cuántos no. En estudiantes cuenta el correo del **representante**, que es a quien se le escribe.\n\nLa usa la pantalla de Enlaces con Verificación para avisar a quién no alcanzaría ese enlace.\n\n**Acceso:** SuperAdmin o permiso `ADM_ENLACES_VERIF`",
         'operationId' => 'coberturaCorreo',
         'responses' => $erroresComunes(['200' => $respuesta('Cobertura por tipo de persona.', $sobre([
             'type'       => 'object',

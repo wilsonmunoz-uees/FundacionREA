@@ -447,6 +447,6 @@ final class UsuariosController extends Controller
         $ficha = Padron::porId($this->db, $institucionId, $personaId);
         $correo = trim((string)($ficha['Email'] ?? ''));
 
-        return ($correo !== '' && filter_var($correo, FILTER_VALIDATE_EMAIL)) ? $correo : null;
+        return CorreoElectronico::esValido($correo) ? CorreoElectronico::normalizar($correo) : null;
     }
 }

@@ -24,15 +24,16 @@ final class DocumentoController extends Controller
             $contexto = 'persona';
         }
 
-        /* Las reglas del teléfono viajan en la misma respuesta, dentro de la
-           metadata: el formulario que pregunta por el documento es siempre el
-           mismo que captura el teléfono, y así no hace falta una segunda vuelta
-           a la API por un dato que tampoco cambia. */
+        /* Las reglas del teléfono y las del correo viajan en la misma respuesta,
+           dentro de la metadata: el formulario que pregunta por el documento es
+           siempre el mismo que captura el teléfono y el correo, y así no hace
+           falta una segunda vuelta a la API por unos datos que tampoco cambian. */
         Response::exito(
             Documento::reglasParaFormulario($this->db, $contexto),
             [
                 'contexto' => $contexto,
                 'telefono' => Telefono::reglasParaFormulario(),
+                'correo'   => CorreoElectronico::reglasParaFormulario(),
             ]
         );
     }

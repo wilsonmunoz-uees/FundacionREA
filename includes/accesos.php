@@ -47,8 +47,8 @@ function accesosSistema(): array
             'permisos' => ['ADM_DISCLAIMERS'],
         ],
         /**
-         * Configuración del correo saliente y enlaces públicos de
-         * consentimiento. Ambas pantallas comparten el mismo permiso.
+         * Configuración del correo saliente de la institución: servidor,
+         * puerto, credenciales y remitente.
          */
         'correo_configuracion' => [
             'etiqueta' => 'Configuración de Correo',
@@ -57,14 +57,14 @@ function accesosSistema(): array
         ],
 
         /**
-         * Links de consentimiento con verificación: los enlaces públicos de
-         * solo consulta que confirman la identidad con un código enviado al
-         * correo registrado. Es una opción administrativa: la abren el
+         * Enlaces con Verificación: los enlaces públicos de solo consulta
+         * que confirman la identidad con un código enviado al correo
+         * registrado. Son los únicos enlaces públicos del sistema. Es una opción administrativa: la abren el
          * SuperAdmin y quien tenga el permiso, que de fábrica lleva el rol
          * administrativo del sistema.
          */
         'enlaces_verificados' => [
-            'etiqueta' => 'Links de Consentimiento con Verificación',
+            'etiqueta' => 'Enlaces con Verificación',
             'roles'    => ['SuperAdmin', 'Seguridades'],
             'permisos' => ['ADM_ENLACES_VERIF'],
         ],

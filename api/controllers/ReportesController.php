@@ -624,7 +624,7 @@ final class ReportesController extends Controller
      * de los enlaces con verificación. En estudiantes cuenta el correo del
      * REPRESENTANTE, que es a quien se le escribe.
      *
-     * La usa la pantalla de Links de Consentimiento con Verificación para
+     * La usa la pantalla de Enlaces con Verificación para
      * avisar a quién no alcanzaría ese enlace.
      */
     public function coberturaCorreo(array $ruta = []): void

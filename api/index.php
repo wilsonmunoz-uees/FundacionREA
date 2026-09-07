@@ -247,8 +247,13 @@ $router->get('consentimiento-publico/inicio',      [ConsentimientoPublicoControl
 $router->post('consentimiento-publico/identificar', [ConsentimientoPublicoController::class, 'identificar']);
 $router->post('consentimiento-publico/registrar',   [ConsentimientoPublicoController::class, 'registrar']);
 
-// --- Instalación inicial ------------------------------------------------------------
-$router->post('setup/admin', [SetupController::class, 'crearAdmin']);
+/* La instalación inicial NO tiene endpoint. Antes existía `setup/admin`, sin
+   autenticación: creaba un SuperAdmin en cualquier institución que todavía no
+   tuviera usuarios, con el nombre y la contraseña que le pasaran. Bastaba
+   registrar una institución nueva y adelantarse a su primer usuario para
+   quedarse con ella. El primer administrador se crea hoy con la carga inicial
+   de `BaseDatos/02_DML_datos.sql`, y los siguientes desde Usuarios del Sistema,
+   que sí exige sesión y permiso. */
 
 /* --------------------------------------------------------------------------
    Despacho

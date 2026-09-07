@@ -348,6 +348,23 @@ p  { margin: 0 0 14px; }
     color: var(--gris-600);
 }
 
+/* Aviso de un número mal escrito: lo pone js/documento.js debajo del campo, para
+   que el motivo se lea sin tener que enviar el formulario. */
+.form-error-campo {
+    margin: 5px 0 0;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--rea-rojo-oscuro);
+    line-height: 1.35;
+}
+.form-error-campo[hidden] { display: none !important; }
+
+.campo input.campo-invalido,
+.campo input.campo-invalido:focus {
+    border-color: var(--rea-rojo);
+    box-shadow: 0 0 0 3px var(--rea-rojo-claro);
+}
+
 .boton-principal {
     background: var(--rea-rojo);
     color: #fff;

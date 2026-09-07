@@ -22,7 +22,7 @@ $archivosRegistro = [
     'instituciones.php', 'empleados.php', 'estudiantes.php',
     'proveedores.php', 'finalidades.php', 'tipos_dato.php', 'consentimientos.php',
     'usuarios.php', 'roles.php', 'permisos.php',
-    'disclaimers.php', 'correo_configuracion.php', 'enlaces_consentimiento.php',
+    'disclaimers.php', 'correo_configuracion.php',
     'enlaces_verificados.php', 'envio_masivo.php', 'carga_informacion.php',
 ];
 $archivosConsultas = ['buscar_persona.php', 'historial_consentimientos.php', 'consentimientos_vigentes.php'];
@@ -112,16 +112,13 @@ $archivosReportes  = ['reporte_cobertura.php', 'reporte_red_educativa.php',
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('correo_configuracion')): ?>
-                    <a class="nav-link<?= esActivo('enlaces_consentimiento.php') ?>" href="<?= e(APP_ROOT) ?>modules/enlaces_consentimiento.php">
-                        <span class="icono">🔗</span> Enlaces de Consentimiento
-                    </a>
                     <a class="nav-link<?= esActivo('correo_configuracion.php') ?>" href="<?= e(APP_ROOT) ?>modules/correo_configuracion.php">
                         <span class="icono">⚙️</span> Configuración de Correo
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('enlaces_verificados')): ?>
                     <a class="nav-link<?= esActivo('enlaces_verificados.php') ?>" href="<?= e(APP_ROOT) ?>modules/enlaces_verificados.php">
-                        <span class="icono">🔐</span> Links con Verificación
+                        <span class="icono">🔐</span> Enlaces con Verificación
                     </a>
                     <?php endif; ?>
                     <?php if (puedeAcceder('envio_masivo')): ?>

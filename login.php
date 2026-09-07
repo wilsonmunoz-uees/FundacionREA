@@ -143,9 +143,8 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
 
         <form method="POST" action="login.php" autocomplete="off">
             <?php if ($recordado['usuario'] !== '' && ($_POST['username'] ?? '') === ''): ?>
-                <p class="form-ayuda" style="text-align:center; margin-bottom:10px;">
-                    Se recuerdan su usuario y su institución del ingreso anterior.
-                    La contraseña nunca se guarda.
+                <p class="form-ayuda" style="text-align:center; margin:0 0 10px;">
+                    Se recuerdan su usuario y su institución. La contraseña nunca se guarda.
                 </p>
             <?php endif; ?>
             <input type="hidden" name="csrf_token" value="<?= e($_SESSION['csrf_token']) ?>">
@@ -166,17 +165,20 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                        autocapitalize="off" autocorrect="off" spellcheck="false">
             </div>
 
-            <!-- El buscador viene oculto y lo muestra js/buscador_institucion.js:
-                 sin JavaScript el desplegable sigue funcionando por sí solo. -->
-            <div class="form-group" hidden>
-                <label for="buscar_institucion">Buscar institución</label>
-                <input type="text" id="buscar_institucion" hidden autocomplete="off"
-                       placeholder="Escriba parte del nombre…">
-                <div class="form-ayuda" id="institucion_conteo"></div>
-            </div>
-
             <div class="form-group">
                 <label for="institucion_id" class="campo-requerido">Institución Educativa</label>
+
+                <?php /* El buscador va DENTRO de este grupo, justo encima del
+                         desplegable al que filtra: no es un dato del formulario,
+                         es una ayuda para elegirlo, y como campo aparte se
+                         llevaba una etiqueta y un margen enteros.
+
+                         Viene oculto y lo muestra js/buscador_institucion.js:
+                         sin JavaScript el desplegable funciona por sí solo. */ ?>
+                <input type="text" id="buscar_institucion" class="login-buscador" hidden
+                       autocomplete="off" aria-label="Filtrar la lista de instituciones"
+                       placeholder="Escriba parte del nombre para filtrar…">
+
                 <select name="institucion_id" id="institucion_id" required>
                     <option value="">-- Seleccione una institución --</option>
                     <?php foreach ($instituciones as $institucion): ?>
@@ -186,6 +188,7 @@ if (!$respuestaInstituciones['ok'] && $error === '') {
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <div class="form-ayuda" id="institucion_conteo" hidden></div>
             </div>
 
             <button type="submit" class="btn btn-submit">Ingresar</button>

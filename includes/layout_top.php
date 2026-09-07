@@ -37,7 +37,12 @@ $flash = flashGet();
     <div class="main-area">
         <header class="topbar">
             <div class="flex-gap">
-                <button class="menu-toggle" onclick="document.getElementById('sidebarApp').classList.toggle('abierto')">☰</button>
+                <?php /* El alternar lo toma js/menu_movil.js, que añade además el
+                         fondo para cerrar, la tecla Esc y el manejo del foco. El
+                         onclick se mantiene como respaldo por si ese archivo no
+                         llegara a cargarse: abrir el menú es lo mínimo. */ ?>
+                <button type="button" class="menu-toggle" aria-controls="sidebarApp"
+                        onclick="document.getElementById('sidebarApp').classList.toggle('abierto')">☰</button>
                 <div>
                     <span class="topbar-eyebrow">Protección de Datos</span>
                     <div class="topbar-titulo">

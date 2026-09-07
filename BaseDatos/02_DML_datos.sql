@@ -69,12 +69,12 @@ INSERT INTO `permiso` (`InstitucionEducativaId`, `PermisoId`, `Codigo`, `Nombre`
 (1, 26, 'REP_EXPORTAR_CSV', 'Exportar Datos (CSV)', 'REPORTES_EXPORTACION', 'Descarga de la información de la institución en formato CSV', 'ACTIVO'),
 (1, 30, 'REP_AUDITORIA', 'Bitácora de Auditoría', 'REPORTES_EXPORTACION', 'Consulta de todos los movimientos registrados en la base de datos', 'ACTIVO'),
 (1, 32, 'ADM_DISCLAIMERS', 'Disclaimers de Datos', 'ADMINISTRACION', 'Redacción y vigencia de las políticas de protección de datos que se muestran al dar el consentimiento.', 'ACTIVO'),
-(1, 33, 'ADM_CORREO', 'Configuración de Correo', 'ADMINISTRACION', 'Servidor de correo saliente y enlaces públicos de consentimiento.', 'ACTIVO'),
-(1, 34, 'ADM_ENLACES_VERIF', 'Links con VerificaciÃ³n', 'ADMINISTRACION', 'Enlaces pÃºblicos de solo consulta que verifican la identidad con un cÃ³digo enviado por correo.', 'ACTIVO'),
-(2, 35, 'ADM_ENLACES_VERIF', 'Links con VerificaciÃ³n', 'ADMINISTRACION', 'Enlaces pÃºblicos de solo consulta que verifican la identidad con un cÃ³digo enviado por correo.', 'ACTIVO');
+(1, 33, 'ADM_CORREO', 'Configuración de Correo', 'ADMINISTRACION', 'Servidor de correo saliente de la institución: dirección, puerto, credenciales y remitente.', 'ACTIVO'),
+(1, 34, 'ADM_ENLACES_VERIF', 'Enlaces con Verificación', 'ADMINISTRACION', 'Enlaces públicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO'),
+(2, 35, 'ADM_ENLACES_VERIF', 'Enlaces con Verificación', 'ADMINISTRACION', 'Enlaces públicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO');
 
 INSERT INTO `correo_configuracion` (`InstitucionEducativaId`, `Servidor`, `Puerto`, `Seguridad`, `Usuario`, `Clave`, `RemitenteCorreo`, `RemitenteNombre`, `Activo`, `Actualizado`) VALUES
-(1, 'smtp.hostinger.com', 587, 'TLS', 'wmunoz@saberempresarial.com', 'sNrO18855935+*', 'wmunoz@saberempresarial.com', 'REA', 'SI', '2026-08-24 12:35:08');
+(1, 'smtp.hostinger.com', 587, 'TLS', 'wmunoz@saberempresarial.com', '', 'wmunoz@saberempresarial.com', 'REA', 'SI', '2026-08-24 12:35:08');
 
 INSERT INTO `disclaimer` (`InstitucionEducativaId`, `DisclaimerId`, `TipoPersona`, `Version`, `Titulo`, `Texto`, `Estado`, `FechaCreacion`, `FechaVigencia`, `UsuarioId`, `Username`) VALUES
 (1, 1, 'ESTUDIANTE', '1.0', 'Consentimiento para el tratamiento de datos personales', '<p>De conformidad con la <strong>Ley Org&aacute;nica de Protecci&oacute;n de Datos Personales</strong> y su reglamento...</p>', 'ACTIVO', '2026-08-24 20:58:55', '2026-08-24 20:58:55', NULL, 'instalacion'),
