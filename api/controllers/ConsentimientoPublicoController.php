@@ -89,7 +89,13 @@ final class ConsentimientoPublicoController extends Controller
             'documento'       => self::DOCUMENTO[$tipo],
             'identificacion'  => $identificacion,
             'existe'          => $registro !== null,
-            'datos'           => $registro,
+            // Endpoint público (sin token): solo se devuelven los nombres que la
+            // pantalla necesita mostrar para que el titular confirme que fue
+            // identificado. NUNCA correos, teléfonos ni identificaciones —ni del
+            // titular ni del representante—: de lo contrario, cualquiera que
+            // acierte una cédula ajena cosecha datos de contacto sin autenticarse.
+            // Decidir sí exige verificar la identidad por código (véase registrar()).
+            'datos'           => $registro !== null ? $this->soloDatosParaMostrar($registro) : null,
             'estado_actual'   => $estado,
             // Quien ya consintió no puede revocar desde aquí
             'puede_revocar'   => !($estado !== null && $estado['Estado'] === 'ACTIVO'),
@@ -97,6 +103,24 @@ final class ConsentimientoPublicoController extends Controller
                 DisclaimersController::vigente($this->db, $institucionId, $tipo)
             ),
         ]);
+    }
+
+    /**
+     * Recorta el registro a lo único que las pantallas públicas muestran: los
+     * nombres, para que el titular (o su representante) confirme que el sistema
+     * lo identificó antes de decidir. Deja fuera a propósito PersonaId y todo
+     * dato de contacto o de identificación (Email, Telefono, RepEmail,
+     * RepTelefono, RepIdentificacion, Identificacion), que ninguna vista pública
+     * necesita y que no deben salir de una petición sin autenticar.
+     *
+     * @param array<string,mixed> $registro
+     * @return array<string,mixed>
+     */
+    private function soloDatosParaMostrar(array $registro): array
+    {
+        $visibles = ['NombreCompleto', 'RepNombres', 'RepApellidos'];
+
+        return array_intersect_key($registro, array_flip($visibles));
     }
 
     /* ================================================================== */
