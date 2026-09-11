@@ -19,90 +19,52 @@
     'use strict';
 
     /* ------------------------------------------------------------------ */
-    /* Cédula y RUC: la misma comprobación que hace el servidor             */
+    /* La misma comprobación que hace el servidor                          */
     /* ------------------------------------------------------------------ */
-    /* Ver api/core/Documento.php. Se repite aquí, y solo aquí, porque el
-       aviso llega mucho antes: en cuanto se completa el número, no al
-       guardar el formulario entero. */
+    /* Ver api/core/Documento.php. Se comprueba LA FORMA —qué caracteres se
+       admiten y qué largo debe tener—, no la validez del número: el dígito
+       verificador se retiró a petición de la Fundación, porque el padrón trae
+       documentos que no lo superan y que sí deben poder cargarse.
 
-    function provinciaValida(numero) {
-        var p = parseInt(numero.substring(0, 2), 10);
-        return (p >= 1 && p <= 24) || p === 30;
-    }
+         Cédula y RUC   solo dígitos, largo exacto (10 y 13)
+         Pasaporte      letras y dígitos, entre 6 y 12 caracteres
 
-    function modulo10(diez) {
-        var suma = 0;
-        for (var i = 0; i < 9; i++) {
-            var v = parseInt(diez.charAt(i), 10) * (i % 2 === 0 ? 2 : 1);
-            if (v > 9) { v -= 9; }
-            suma += v;
+       Los largos no se escriben aquí: llegan en data-reglas, calculados por el
+       servidor, de modo que este archivo no pueda quedarse desfasado.
+
+       Se repite aquí, y solo aquí, porque el aviso llega mucho antes: en cuanto
+       se completa el número, no al guardar el formulario entero. */
+
+    /**
+     * @param {{exacto:number, minimo:number, maximo:number, patron:string}} regla
+     * @return {string|null} motivo del rechazo, o null si el número es correcto
+     */
+    function problemaDocumento(regla, valor) {
+        if (valor === '') { return null; }        // vacío lo decide el «required»
+
+        var letras = regla.patron.indexOf('A-Za-z') !== -1;
+
+        if (!letras && /[^0-9]/.test(valor)) {
+            return 'Solo se admiten dígitos numéricos.';
         }
-        return ((10 - suma % 10) % 10) === parseInt(diez.charAt(9), 10);
-    }
-
-    function modulo11(numero, coeficientes, posicion) {
-        var suma = 0;
-        for (var i = 0; i < coeficientes.length; i++) {
-            suma += parseInt(numero.charAt(i), 10) * coeficientes[i];
+        if (letras && /[^0-9A-Za-z]/.test(valor)) {
+            return 'Solo se admiten letras y números.';
         }
-        var residuo = suma % 11;
-        return (residuo === 0 ? 0 : 11 - residuo) === parseInt(numero.charAt(posicion), 10);
-    }
 
-    function problemaCedula(d) {
-        if (!/^\d{10}$/.test(d))  { return 'La cédula tiene exactamente 10 dígitos.'; }
-        if (!provinciaValida(d))  { return 'Los dos primeros dígitos son el código de provincia, del 01 al 24 (o 30).'; }
-        if (parseInt(d.charAt(2), 10) > 5) {
-            return 'El tercer dígito de una cédula de persona natural va de 0 a 5. Si es una empresa, elija RUC.';
+        if (regla.exacto > 0) {
+            if (valor.length !== regla.exacto) {
+                return 'Debe tener exactamente ' + regla.exacto + ' dígitos.';
+            }
+            return null;
         }
-        if (!modulo10(d)) {
-            return 'El dígito verificador no corresponde. Revise que no haya un número cambiado.';
+
+        if (regla.maximo > 0 && valor.length > regla.maximo) {
+            return 'No puede superar los ' + regla.maximo + ' caracteres.';
+        }
+        if (regla.minimo > 0 && valor.length < regla.minimo) {
+            return 'Debe tener al menos ' + regla.minimo + ' caracteres.';
         }
         return null;
-    }
-
-    function problemaRuc(d) {
-        if (!/^\d{13}$/.test(d))  { return 'El RUC tiene exactamente 13 dígitos.'; }
-        if (!provinciaValida(d))  { return 'Los dos primeros dígitos son el código de provincia, del 01 al 24 (o 30).'; }
-
-        var tercero = parseInt(d.charAt(2), 10);
-
-        if (tercero <= 5) {
-            if (!modulo10(d.substring(0, 10))) {
-                return 'El dígito verificador de la cédula que lleva dentro no corresponde.';
-            }
-            if (parseInt(d.substring(10, 13), 10) < 1) {
-                return 'Los tres últimos dígitos son el establecimiento y empiezan en 001.';
-            }
-            return null;
-        }
-        if (tercero === 6) {
-            if (!modulo11(d, [3, 2, 7, 6, 5, 4, 3, 2], 8)) {
-                return 'El dígito verificador no corresponde a un RUC del sector público.';
-            }
-            if (parseInt(d.substring(9, 13), 10) < 1) {
-                return 'Los cuatro últimos dígitos son el establecimiento y empiezan en 0001.';
-            }
-            return null;
-        }
-        if (tercero === 9) {
-            if (!modulo11(d, [4, 3, 2, 7, 6, 5, 4, 3, 2], 9)) {
-                return 'El dígito verificador no corresponde a un RUC de sociedad.';
-            }
-            if (parseInt(d.substring(10, 13), 10) < 1) {
-                return 'Los tres últimos dígitos son el establecimiento y empiezan en 001.';
-            }
-            return null;
-        }
-        return 'El tercer dígito solo puede ser de 0 a 5 (persona natural), 6 (sector público) o 9 (sociedad).';
-    }
-
-    /** @return {string|null} motivo del rechazo, o null si el número es correcto */
-    function problemaDocumento(tipo, valor) {
-        if (valor === '') { return null; }        // vacío lo decide el «required»
-        if (tipo === 'CEDULA') { return problemaCedula(valor); }
-        if (tipo === 'RUC')    { return problemaRuc(valor); }
-        return null;                              // el pasaporte no tiene forma que comprobar
     }
 
     function iniciar(campo) {
@@ -134,7 +96,17 @@
         }
 
         function reglaActual() {
-            return reglas[tipoActual()] || reglas.CEDULA;
+            var regla = reglas[tipoActual()] || reglas.CEDULA || {};
+
+            /* Una instalación a medio actualizar puede devolver reglas sin los
+               largos nuevos; con ceros, la comprobación simplemente no opina. */
+            return {
+                patron: regla.patron || '[^0-9]',
+                maximo: regla.maximo || 50,
+                minimo: regla.minimo || 0,
+                exacto: regla.exacto || 0,
+                ayuda:  regla.ayuda || ''
+            };
         }
 
         /**
@@ -145,7 +117,7 @@
          *                dígito de una cédula a medio escribir es ruido.
          */
         function revisar(mostrar) {
-            var motivo = problemaDocumento(tipoActual(), campo.value.trim());
+            var motivo = problemaDocumento(reglaActual(), campo.value.trim());
 
             campo.setCustomValidity(motivo || '');
             campo.classList.toggle('campo-invalido', mostrar && motivo !== null);
@@ -171,6 +143,15 @@
             campo.setAttribute('maxlength', regla.maximo);
             campo.setAttribute('inputmode', regla.patron === '[^0-9]' ? 'numeric' : 'text');
 
+            /* El mínimo también cambia con el tipo: 10 en la cédula, 6 en el
+               pasaporte. Si no se actualizara, al pasar de cédula a pasaporte el
+               navegador seguiría exigiendo diez caracteres por su cuenta. */
+            if (regla.minimo > 0) {
+                campo.setAttribute('minlength', regla.minimo);
+            } else {
+                campo.removeAttribute('minlength');
+            }
+
             if (ayuda) { ayuda.textContent = regla.ayuda; }
 
             // Al cambiar de tipo se depura lo ya escrito: pasar de pasaporte a
@@ -193,10 +174,13 @@
                 try { campo.setSelectionRange(inicio - salto, inicio - salto); } catch (e) { /* campo sin selección */ }
             }
 
-            /* En cuanto el número está completo se comprueba de verdad: es el
-               momento en que el aviso vale para algo y no interrumpe. */
-            var regla = reglaActual();
-            revisar(regla.exacto > 0 && campo.value.length >= regla.exacto);
+            /* En cuanto el número alcanza el largo que se le pide se comprueba
+               de verdad: es el momento en que el aviso vale para algo y no
+               interrumpe. Antes de eso, un pasaporte de tres letras todavía se
+               está escribiendo. */
+            var regla  = reglaActual();
+            var umbral = regla.exacto > 0 ? regla.exacto : regla.minimo;
+            revisar(umbral > 0 && campo.value.length >= umbral);
         });
 
         campo.addEventListener('blur', function () { revisar(true); });

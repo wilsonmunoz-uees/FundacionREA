@@ -1003,10 +1003,15 @@ select.campo-bloqueado:disabled {
 
     /* Una columna. Se nombra a TODOS los hijos, no solo a los .form-group: en la
        ficha 360° las parejas etiqueta/valor son divs sueltos, y al compartir
-       línea el correo y el teléfono aparecían pegados uno detrás de otro. */
+       línea el correo y el teléfono aparecían pegados uno detrás de otro.
+
+       `.form-row .form-group` se repite aparte a propósito: la regla base le da
+       `flex: 1 1 220px` con dos clases de especificidad, y un `.form-row > *`
+       —que solo lleva una— perdería. Sin esto, los filtros de los informes se
+       quedaban en 47 px de ancho y desbordaban la página. */
     .form-row { gap: 10px 16px; }
     .form-row > * { flex: 1 1 100%; min-width: 0; }
-    .form-row .form-group { margin-bottom: 6px; }
+    .form-row .form-group { flex: 1 1 100%; min-width: 0; margin-bottom: 6px; }
     /* Un correo largo parte donde haga falta antes que desbordar la tarjeta. */
     .ficha-identidad .form-row strong { overflow-wrap: anywhere; }
 

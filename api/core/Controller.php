@@ -224,10 +224,78 @@ abstract class Controller
     protected function errorBaseDatos(PDOException $ex, string $mensajeDuplicado): void
     {
         if ((string)$ex->getCode() === '23000') {
-            Response::error($mensajeDuplicado, 409);
+            error_log('[API] ' . $ex->getMessage());
+            /* Un choque de unicidad casi siempre significa «ese dato ya está».
+               Pero hay un caso en que no es culpa de quien captura, sino de la
+               base: ver avisoIndiceHeredado(). */
+            Response::error($this->avisoIndiceHeredado($ex) ?? $mensajeDuplicado, 409);
         }
         error_log('[API] ' . $ex->getMessage());
-        Response::error('Error al guardar: ' . $ex->getMessage(), 500);
+        Response::error(
+            'No se pudo guardar. Informe al administrador del sistema para que revise el registro del servidor.',
+            500
+        );
+    }
+
+    /**
+     * ¿El choque se debe a un único GLOBAL heredado del diseño de una sola
+     * institución?
+     *
+     * La red tiene 21 instituciones y cada una lleva su propia ficha de la misma
+     * persona: un padre puede ser representante en dos escuelas, y un empleado
+     * puede ser proveedor en otra. El modelo ya lo contempla —los únicos son
+     * (InstitucionEducativaId, Identificacion)—, pero una base que todavía
+     * arrastre el único global sobre `Identificacion` rechaza el segundo
+     * ingreso, y el mensaje que devuelve («Duplicate entry … for key
+     * 'Identificacion'») no le dice nada a quien está frente a la pantalla.
+     *
+     * Aquí se comprueba si el índice culpable sigue existiendo y, de ser así, se
+     * explica qué pasa y cuál es el remedio.
+     *
+     * @return string|null null si el choque es un duplicado corriente
+     */
+    protected function avisoIndiceHeredado(PDOException $ex): ?string
+    {
+        if (!str_contains($ex->getMessage(), 'Duplicate entry')) {
+            return null;
+        }
+        if (preg_match("/for key '(?:.*\.)?(.*?)'/", $ex->getMessage(), $m) !== 1) {
+            return null;
+        }
+        $clave = $m[1];      // MariaDB 10.6+ antepone el nombre de la tabla
+
+        // Solo los nombres heredados; los únicos correctos llevan prefijo uk_
+        if ($clave !== 'Identificacion' && $clave !== 'CodigoEstudiante') {
+            return null;
+        }
+
+        $avisos = $this->avisosIndicesHeredados();
+        return $avisos === [] ? null : implode(' ', $avisos);
+    }
+
+    /**
+     * Únicos globales pendientes de convertir, ya redactados.
+     *
+     * @return string[] vacío si la base está al día
+     */
+    protected function avisosIndicesHeredados(): array
+    {
+        $explicacion = [
+            'persona'    => 'una misma persona no puede constar en dos instituciones '
+                          . '(el caso habitual del representante con hijos en dos escuelas, '
+                          . 'o del empleado que también es proveedor de otra institución)',
+            'estudiante' => 'dos instituciones no pueden usar el mismo código de estudiante, '
+                          . 'aunque cada una lleve su propia numeración',
+        ];
+
+        $avisos = [];
+        foreach (Padron::indicesGlobalesPendientes($this->db) as $indice => $tabla) {
+            $avisos[] = 'La base de datos todavía tiene el índice antiguo «' . $indice . '» en la tabla «'
+                . $tabla . '», heredado de cuando el sistema atendía a una sola institución. Mientras siga ahí, '
+                . ($explicacion[$tabla] ?? 'el dato no puede repetirse entre instituciones')
+                . '. Pida al administrador que ejecute el script 11_ALTER_unicos_por_institucion.sql.';
+        }
+        return $avisos;
     }
 
     /** Normaliza un valor de estado ACTIVO/INACTIVO. */

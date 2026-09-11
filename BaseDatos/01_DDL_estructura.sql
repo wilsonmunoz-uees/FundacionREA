@@ -285,10 +285,13 @@ ALTER TABLE `empleado`
   ADD KEY `PersonaId` (`PersonaId`),
   ADD KEY `fk_empleado_institucion` (`InstitucionEducativaId`);
 
+-- El código de estudiante lo asigna cada institución con su propia numeración:
+-- dos escuelas pueden usar «EST-2026-001» a la vez sin que eso sea un error. El
+-- único es por institución, por el mismo motivo que en `persona`.
 ALTER TABLE `estudiante`
   ADD PRIMARY KEY (`InstitucionEducativaId`,`EstudianteId`),
   ADD UNIQUE KEY `EstudianteId` (`EstudianteId`),
-  ADD UNIQUE KEY `CodigoEstudiante` (`CodigoEstudiante`),
+  ADD UNIQUE KEY `uk_estudiante_codigo` (`InstitucionEducativaId`,`CodigoEstudiante`),
   ADD KEY `fk_estudiante_persona` (`PersonaId`),
   ADD KEY `fk_estudiante_institucion` (`InstitucionEducativaId`),
   ADD KEY `fk_representante_persona` (`RepresentanteId`);
@@ -306,10 +309,14 @@ ALTER TABLE `permiso`
   ADD UNIQUE KEY `uk_permiso_institucion_codigo` (`InstitucionEducativaId`,`Codigo`),
   ADD KEY `fk_permiso_institucion` (`InstitucionEducativaId`);
 
+-- La identificación es única DENTRO de cada institución, no en toda la red: una
+-- misma persona puede ser representante en una escuela y empleada en otra, y
+-- cada institución guarda su propia ficha. Por eso NO hay aquí un único global
+-- sobre `Identificacion`; lo hubo, y era un resto del diseño de institución
+-- única que hacía fallar la Carga de Información con «Duplicate entry».
 ALTER TABLE `persona`
   ADD PRIMARY KEY (`InstitucionEducativaId`,`PersonaId`),
   ADD UNIQUE KEY `uk_persona_id` (`PersonaId`),
-  ADD UNIQUE KEY `Identificacion` (`Identificacion`),
   ADD UNIQUE KEY `uk_persona_identificacion` (`InstitucionEducativaId`,`Identificacion`),
   ADD KEY `ix_persona_nombre` (`InstitucionEducativaId`,`Apellidos`,`Nombres`),
   ADD KEY `ix_persona_estado` (`InstitucionEducativaId`,`Estado`);

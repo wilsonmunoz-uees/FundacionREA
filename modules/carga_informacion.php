@@ -293,11 +293,12 @@ include __DIR__ . '/../includes/layout_top.php';
             si algo está mal, se le indica la hoja y la fila exactas y no se modifica ningún dato.
         </p>
         <p class="texto-mutado">
-            De cada fila se comprueban la <strong>cédula</strong> —diez dígitos, con su provincia y
-            su dígito verificador—, el <strong>RUC</strong> —trece dígitos, con su verificador y el
-            establecimiento—, el <strong>correo</strong> —forma nombre@dominio.ext, sin espacios— y
-            el <strong>teléfono</strong>. Una fila con un dato mal escrito no se carga, y el motivo
-            aparece aquí abajo; las demás entran con normalidad.
+            De cada fila se comprueban la <strong>cédula</strong> —exactamente 10 dígitos—, el
+            <strong>RUC</strong> —exactamente 13 dígitos—, el <strong>pasaporte</strong>
+            —letras y números, entre 6 y 12 caracteres—, el <strong>correo</strong> —forma
+            nombre@dominio.ext, sin espacios— y el <strong>teléfono</strong>. Una fila con un dato
+            mal escrito no se carga, y el motivo aparece aquí abajo; las demás entran con
+            normalidad.
         </p>
 
         <form method="POST" action="carga_informacion.php" enctype="multipart/form-data">
@@ -463,7 +464,25 @@ include __DIR__ . '/../includes/layout_top.php';
             </script>
         <?php else: ?>
             <div class="alerta alerta-advertencia">
-                Corrija los errores señalados en el archivo y vuelva a validarlo. No se ha modificado ningún dato.
+                <?php
+                /* Casi siempre lo que hay que corregir está en el archivo. Pero
+                   si lo que falta es actualizar la base —un índice heredado de
+                   cuando el sistema atendía a una sola institución—, mandar a
+                   revisar el Excel sería mandar a buscar donde no está. */
+                $esDeLaBase = false;
+                foreach ($errores as $error) {
+                    if (str_contains($error, '11_ALTER_unicos_por_institucion.sql')) {
+                        $esDeLaBase = true;
+                        break;
+                    }
+                }
+                ?>
+                <?php if ($esDeLaBase): ?>
+                    El archivo no tiene la culpa: es la base de datos la que debe actualizarse primero.
+                    Avise al administrador del sistema y vuelva a validar después. No se ha modificado ningún dato.
+                <?php else: ?>
+                    Corrija los errores señalados en el archivo y vuelva a validarlo. No se ha modificado ningún dato.
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     <?php endif; ?>

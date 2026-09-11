@@ -125,7 +125,10 @@ final class CargaInformacionController extends Controller
         } catch (Throwable $e) {
             $this->db->rollBack();
             error_log('[API] CargaInformacion: ' . $e->getMessage());
-            Response::error('La carga se canceló y no se modificó ningún dato: ' . $e->getMessage(), 500);
+            Response::error(
+                'La carga se canceló y no se modificó ningún dato. ' . $this->explicarFallo($e),
+                500
+            );
             return;
         }
 
@@ -226,6 +229,16 @@ final class CargaInformacionController extends Controller
     {
         $errores      = [];
         $advertencias = [];
+
+        /* Antes de mirar el archivo: ¿está la base preparada para varias
+           instituciones? Si quedó algún único GLOBAL del diseño antiguo, la
+           carga se romperá en cuanto aparezca una persona que ya consta en OTRA
+           institución —el caso normal de un representante con hijos en dos
+           escuelas—, y lo hará con un mensaje de la base que nadie puede
+           interpretar. Se avisa aquí, en palabras, antes de tocar nada. */
+        foreach ($this->avisosIndicesHeredados() as $aviso) {
+            $errores[] = $aviso;
+        }
 
         /** Quienes constan en dos hojas con nombre y razón social distintos. */
         $dobleRol = [];
@@ -429,6 +442,58 @@ final class CargaInformacionController extends Controller
     }
 
     /**
+     * Traduce el fallo que cortó la carga a algo que se pueda leer y actuar.
+     *
+     * Lo que devuelve la base es, por ejemplo:
+     *     SQLSTATE[23000] … Duplicate entry '0925651671' for key 'Identificacion'
+     * y quien está frente a la pantalla no tiene por qué saber qué es una clave
+     * ni qué hacer con ella. Aquí se dice qué dato chocó y por qué.
+     *
+     * Los mensajes crudos quedan en el registro del servidor (error_log), que es
+     * donde sirven: para quien mantiene el sistema.
+     */
+    private function explicarFallo(Throwable $e): string
+    {
+        $texto = $e->getMessage();
+
+        if (!str_contains($texto, 'Duplicate entry')) {
+            return 'Ocurrió un problema al guardar. Informe al administrador del sistema '
+                 . 'para que revise el registro del servidor.';
+        }
+
+        /* Duplicate entry 'XXXX' for key 'NOMBRE' */
+        $valor = '';
+        $clave = '';
+        if (preg_match("/Duplicate entry '(.*)' for key '(.*?)'/", $texto, $m) === 1) {
+            $valor = $m[1];
+            $clave = $m[2];
+        }
+        $clave = substr($clave, (int)strrpos($clave, '.') + 1);   // MariaDB 10.6+ antepone la tabla
+
+        /* El resto global del diseño de institución única: es el único caso en
+           que el choque NO es culpa del archivo, y tiene remedio conocido. */
+        if ($e instanceof PDOException) {
+            $heredado = $this->avisoIndiceHeredado($e);
+            if ($heredado !== null) {
+                return $heredado;
+            }
+        }
+
+        $porClave = [
+            'uk_persona_identificacion'  => 'la identificación ' . $valor . ' ya está registrada en esta institución',
+            'uk_estudiante_codigo'       => 'el código de estudiante ' . $valor . ' ya lo tiene otro alumno de esta institución',
+            'Identificacion'             => 'la identificación ' . $valor . ' ya está registrada',
+            'CodigoEstudiante'           => 'el código de estudiante ' . $valor . ' ya está en uso',
+        ];
+
+        $motivo = $porClave[$clave]
+            ?? 'el valor ' . ($valor !== '' ? '«' . $valor . '» ' : '') . 'está repetido';
+
+        return 'La base de datos rechazó la operación porque ' . $motivo
+             . '. Revise esa fila del archivo y vuelva a intentarlo.';
+    }
+
+    /**
      * Valida y normaliza los campos comunes a las cuatro hojas.
      * Devuelve null si la fila es de ejemplo, está vacía o no es utilizable.
      */
@@ -507,9 +572,10 @@ final class CargaInformacionController extends Controller
 
         /* El documento se revisa con la MISMA regla que aplican las pantallas
            —api/core/Documento.php—, sobre el valor tal como venía en la celda:
-           diez dígitos la cédula, trece el RUC. Antes aquí solo se miraba que
-           cupiera en la columna, con lo que una cédula de doce dígitos entraba
-           por la carga y era rechazada después, al editarla. */
+           solo dígitos, exactamente diez la cédula y trece el RUC. Antes aquí
+           solo se miraba que cupiera en la columna, con lo que una cédula de
+           doce dígitos entraba por la carga y era rechazada después, al
+           editarla. */
         $problemas = Documento::validar($tipo, $crudo, 'la persona', $this->db,
                                         $hoja === 'Proveedores' ? 'proveedor' : 'persona');
         if ($problemas) {

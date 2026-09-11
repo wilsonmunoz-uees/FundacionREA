@@ -63,9 +63,12 @@ function reglasDocumento(string $contexto = 'persona'): array
        reglas del país, que son las mismas que aplica el servidor al guardar. */
     if (!$reglas) {
         $reglas = [
-            'CEDULA'    => ['patron' => '[^0-9]',       'maximo' => 10, 'ayuda' => 'Solo números, sin guiones ni espacios. Máximo 10 dígitos.'],
-            'RUC'       => ['patron' => '[^0-9]',       'maximo' => 13, 'ayuda' => 'Solo números, sin guiones ni espacios. Máximo 13 dígitos.'],
-            'PASAPORTE' => ['patron' => '[^0-9A-Za-z]', 'maximo' => 50, 'ayuda' => 'Letras y números, sin guiones ni espacios.'],
+            'CEDULA'    => ['patron' => '[^0-9]',       'maximo' => 10, 'minimo' => 10, 'exacto' => 10,
+                            'ayuda'  => 'Exactamente 10 dígitos, sin guiones ni espacios.'],
+            'RUC'       => ['patron' => '[^0-9]',       'maximo' => 13, 'minimo' => 13, 'exacto' => 13,
+                            'ayuda'  => 'Exactamente 13 dígitos, sin guiones ni espacios.'],
+            'PASAPORTE' => ['patron' => '[^0-9A-Za-z]', 'maximo' => 12, 'minimo' => 6,  'exacto' => 0,
+                            'ayuda'  => 'Letras y números, sin guiones ni espacios. Entre 6 y 12 caracteres.'],
         ];
     }
 
@@ -245,7 +248,8 @@ function camposPersona(array $opciones): void
             <div class="form-group" style="flex:1 1 200px;">
                 <label for="<?= e($idCampo) ?>" class="campo-requerido">Identificación</label>
                 <input type="text" name="<?= e($idCampo) ?>" id="<?= e($idCampo) ?>"
-                       maxlength="<?= (int)($reglas[$tipoActual]['maximo'] ?? 50) ?>" required autocomplete="off"
+                       maxlength="<?= (int)($reglas[$tipoActual]['maximo'] ?? 50) ?>"
+                       minlength="<?= (int)($reglas[$tipoActual]['minimo'] ?? 0) ?>" required autocomplete="off"
                        inputmode="<?= $tipoActual === 'PASAPORTE' ? 'text' : 'numeric' ?>"
                        data-tipo-campo="<?= e($prefijo) ?>tipo_identificacion"
                        data-ayuda-campo="<?= e($idCampo) ?>_ayuda"
