@@ -349,4 +349,73 @@ final class Padron
 
         return $stmt->fetchColumn() !== false;
     }
+
+    /* ------------------------------------------------------------------ */
+    /* Estructura heredada                                                 */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Índices únicos GLOBALES que quedaron del diseño de institución única y
+     * que hoy impiden trabajar con varias.
+     *
+     * En este sistema la identificación es única DENTRO de cada institución,
+     * no en toda la red: una misma persona puede ser representante en una
+     * escuela y empleada en otra, y cada institución guarda su propia ficha.
+     * La base lo dice en el comentario de la tabla y el único correcto es
+     * `uk_persona_identificacion (InstitucionEducativaId, Identificacion)`.
+     *
+     * Pero el único ANTERIOR —sobre `Identificacion` a secas— nunca se retiró,
+     * y sigue vivo en las bases instaladas. Mientras esté, cargar en una
+     * segunda institución a alguien que ya consta en otra revienta con
+     * «Duplicate entry», y lo hace en mitad de la transacción: el mensaje que
+     * llega es un SQLSTATE que no le dice nada a quien está cargando un
+     * archivo. Lo mismo ocurre con el código de estudiante, que cada
+     * institución numera por su cuenta.
+     *
+     * Esto se comprueba ANTES de tocar nada para poder avisarlo con palabras.
+     *
+     * @return array<string, string> índice => tabla, vacío si la base está al día
+     */
+    public static function indicesGlobalesPendientes(PDO $db): array
+    {
+        /* tabla => [índice heredado, columna] */
+        $sospechosos = [
+            'persona'    => ['Identificacion', 'Identificacion'],
+            'estudiante' => ['CodigoEstudiante', 'CodigoEstudiante'],
+        ];
+
+        $encontrados = [];
+
+        foreach ($sospechosos as $tabla => [$indice, $columna]) {
+            try {
+                $stmt = $db->prepare(
+                    "SELECT COUNT(*)
+                       FROM information_schema.STATISTICS
+                      WHERE TABLE_SCHEMA = DATABASE()
+                        AND TABLE_NAME   = ?
+                        AND INDEX_NAME   = ?
+                        AND NON_UNIQUE   = 0
+                        AND COLUMN_NAME  = ?
+                        AND SEQ_IN_INDEX = 1
+                        AND (SELECT COUNT(*)
+                               FROM information_schema.STATISTICS s2
+                              WHERE s2.TABLE_SCHEMA = DATABASE()
+                                AND s2.TABLE_NAME   = ?
+                                AND s2.INDEX_NAME   = ?) = 1"
+                );
+                $stmt->execute([$tabla, $indice, $columna, $tabla, $indice]);
+
+                if ((int)$stmt->fetchColumn() > 0) {
+                    $encontrados[$indice] = $tabla;
+                }
+            } catch (PDOException $e) {
+                /* Sin permiso sobre information_schema en algún hospedaje: no se
+                   puede comprobar, y no se inventa un problema que quizá no
+                   exista. Si lo hay, saldrá al guardar con el mensaje traducido. */
+                error_log('[API] No se pudo revisar el índice ' . $indice . ': ' . $e->getMessage());
+            }
+        }
+
+        return $encontrados;
+    }
 }

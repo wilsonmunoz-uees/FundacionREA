@@ -286,21 +286,28 @@ que piden un documento:
 
 | Tipo | Qué se comprueba |
 |---|---|
-| `CEDULA` | Exactamente 10 dígitos. Provincia (01-24, o 30 para los consulados), tercer dígito de 0 a 5 y **dígito verificador por módulo 10**. |
-| `RUC` | Exactamente 13 dígitos. Provincia, y según el tercer dígito: 0-5 lleva dentro una cédula válida; 6 es sector público (módulo 11, verificador en la 9.ª); 9 es sociedad (módulo 11, verificador en la 10.ª). Los últimos dígitos son el establecimiento, desde 001. |
-| `PASAPORTE` | Letras y dígitos. No hay un formato internacional único, así que solo manda el largo de la columna. |
+| `CEDULA` | Solo dígitos, **exactamente 10**. |
+| `RUC` | Solo dígitos, **exactamente 13**. |
+| `PASAPORTE` | Letras y dígitos, **entre 6 y 12 caracteres**. No hay un formato internacional único: cada país emisor usa el suyo, así que lo que se le exige es un rango. Por debajo de 6 no hay pasaporte que valga; lo que suele haber es un campo a medio escribir. |
 
-Comprobar el dígito verificador **no es cosmético**. Antes bastaba con que
-fueran dígitos y cupieran en la columna, de modo que `0000000000` o
-`1234567890` entraban sin protestar. Un padrón con cédulas inventadas no se nota
-al cargarlo: se nota meses después, cuando hay que responder por el
-consentimiento de una persona que no se puede identificar.
+El largo de la columna `persona`.`Identificacion` sigue actuando como último
+techo: si alguien la estrechara, el formulario se entera solo y nunca deja
+escribir algo que la base vaya a recortar en silencio.
 
-El largo máximo **no está escrito en el código**: se lee de la columna donde el
-valor va a terminar guardado —`persona`.`Identificacion`—, de modo que el
-formulario nunca deje escribir algo que la base vaya a recortar en silencio, y
-que ampliar la columna baste para ampliar el campo. En proveedores manda la más
-estrecha entre esa columna y `proveedor`.`Ruc`, que es la que recortaría primero.
+Se comprueba **la forma, no la validez del número**. La cédula y el RUC
+ecuatorianos llevan un dígito verificador, y el sistema llegó a comprobarlo;
+esa comprobación se retiró a petición de la Fundación, porque el padrón trae
+documentos de personas extranjeras y registros históricos que no la superan y
+que sí deben poder cargarse. Con la regla actual `0000000000` es una cédula
+aceptable: lo que se garantiza es que el dato tiene la forma que la base espera,
+no que corresponda a una persona real.
+
+El largo de la cédula y del RUC es una regla del país y está escrita en el
+código. El de la columna donde el valor termina guardado
+—`persona`.`Identificacion`— se lee de la propia base y solo manda para el
+pasaporte, que no tiene medida única: así el formulario nunca deja escribir algo
+que la base vaya a recortar en silencio, y ampliar la columna basta para ampliar
+el campo. En proveedores se mira además `proveedor`.`Ruc`, que es más estrecha.
 
 La validación ocurre sobre el valor **tal como se escribió**: si alguien pone
 letras en una cédula, el sistema lo dice en vez de borrarlas sin avisar. Los
@@ -399,12 +406,26 @@ El archivo viaja dentro del JSON, en base64, y se lee con
 sin librerías externas—.
 
 `previsualizar` valida el archivo completo **sin tocar la base** y devuelve los
-conteos por hoja, los errores con hoja y fila, y el inventario de lo que se
-eliminaría. `procesar` repite esa validación y solo actúa si el archivo está
-limpio y el cuerpo trae `confirmacion: "ENCERAR Y CARGAR"`; el encerado y la
-carga van en una sola transacción.
+conteos por hoja, los errores con hoja y fila, y el desglose de cuántas filas
+serían altas y cuántas actualizaciones. `procesar` repite esa validación y solo
+actúa si el archivo está limpio y el cuerpo trae
+`confirmacion: "CARGAR INFORMACION"`; todo va en una sola transacción: o entra
+completo, o no entra nada.
 
-La plantilla **no pide el estado**: una carga inicial parte de cero, de modo que
+**Antes de mirar el archivo se revisa la base.** Si la instalación todavía
+arrastra algún índice único **global** del diseño de institución única
+—`persona`.`Identificacion` o `estudiante`.`CodigoEstudiante`—, la carga se
+rompería en cuanto apareciera alguien que ya consta en otra institución, que es
+el caso corriente del representante con hijos en dos escuelas. `Padron::
+indicesGlobalesPendientes()` lo detecta y `Controller::avisosIndicesHeredados()`
+lo redacta, de modo que la previsualización lo dice en palabras y nombra el
+script que lo corrige (`11_ALTER_unicos_por_institucion.sql`) en vez de dejar
+que llegue a la pantalla un `SQLSTATE[23000] … Duplicate entry`. Por si acaso,
+`Controller::errorBaseDatos()` traduce también el choque en caliente, para todas
+las pantallas y no solo para esta.
+
+La plantilla **no pide el estado**: constar en el archivo es la señal de que la
+persona está vigente, de modo que
 todo lo que entra queda **ACTIVO**. Dar de baja a alguien es una decisión
 posterior y se hace desde la pantalla que le corresponde. Si el archivo trae una
 columna `Estado` —de una plantilla anterior— se ignora, y si alguna fila la traía

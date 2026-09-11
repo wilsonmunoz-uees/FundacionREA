@@ -132,6 +132,39 @@ de modo que dos instituciones pueden tener roles con el mismo nombre. Si su base
 viene de una versión anterior donde eran únicos globales, la sección 12 del DDL
 explica cómo corregirlo.
 
+### La misma persona en varias instituciones
+
+Lo mismo vale para las personas, y conviene tenerlo claro porque es lo que más
+confunde: **la identificación es única dentro de cada institución, no en toda la
+red.** Un padre con hijos en dos escuelas es representante en las dos, y un
+empleado de una institución puede ser proveedor de otra. Cada institución guarda
+entonces su propia ficha de esa persona, con su propio correo y su propio
+teléfono, y sus consentimientos son también los suyos: eso es precisamente lo
+que permite que una institución no vea los datos de otra.
+
+El índice que lo garantiza es `uk_persona_identificacion
+(InstitucionEducativaId, Identificacion)`. Si su base viene de cuando el sistema
+atendía a una sola institución, arrastra además un único **global** llamado
+`Identificacion`, y ese sobra: mientras esté, registrar en la segunda
+institución a alguien que ya consta en la primera falla con
+
+```
+Duplicate entry '0925651671' for key 'Identificacion'
+```
+
+Le ocurre igual a empleados, estudiantes, representantes y proveedores, porque
+todos se apoyan en `persona`. `estudiante`.`CodigoEstudiante` tiene el mismo
+resto —cada institución numera a sus alumnos por su cuenta—. Para corregirlo
+ejecute `11_ALTER_unicos_por_institucion.sql`, que se entrega aparte: solo
+retira restricciones que sobran, no borra ni modifica ninguna fila. La **Carga
+de Información** comprueba esto antes de tocar nada y, si los índices viejos
+siguen ahí, lo dice en palabras y no ejecuta la carga.
+
+`usuario`.`Username` **sí sigue siendo único en toda la red**, y se dejó así a
+propósito: afecta a quién puede entrar al sistema. Si la Fundación quisiera que
+cada institución tuviera su propio `admin`, habría que decidirlo primero y
+migrar las cuentas existentes con cuidado.
+
 ## Actualizar una base de datos ya existente
 
 El DDL no altera lo que ya exista: los `CREATE TABLE` llevan `IF NOT EXISTS`.
@@ -152,6 +185,8 @@ Respecto de la versión anterior del DDL, la estructura cambió en estos puntos:
 | `estudiante` | `RepresentanteRelacion` amplía su lista con `ABUELO`, `ABUELA`, `TIO`, `TIA` y `TUTOR/A`; se elimina `Carrera_Especialidad` |
 | `verificacion_codigo` | **Tabla nueva.** Códigos de un solo uso de los enlaces con verificación |
 | `persona` | **Pasa a ser por institución:** nueva columna `InstitucionEducativaId`, primaria `(InstitucionEducativaId, PersonaId)`, clave foránea contra la institución y la identificación única **dentro de cada institución** |
+| `persona` | Se retira el único **global** `Identificacion`, resto del diseño de institución única (ver *La misma persona en varias instituciones*) |
+| `estudiante` | El único global `CodigoEstudiante` pasa a ser `uk_estudiante_codigo (InstitucionEducativaId, CodigoEstudiante)` |
 
 La bitácora de auditoría deja de guardar el contenido de los datos: se eliminan
 las columnas `ValorAnterior` y `ValorNuevo` de `auditoria`. A partir de aquí

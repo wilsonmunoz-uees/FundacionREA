@@ -264,14 +264,14 @@ $etiquetaDocumento = $documento === 'RUC' ? 'Número de RUC' : 'Número de cédu
 
 /* Reglas del documento para el campo del primer paso. Son las mismas que aplica
    el servidor —api/core/Documento.php—; aquí van en el propio HTML porque esta
-   pantalla es pública y no tiene sesión con la que pedirlas a la API. Comprobar
-   la cédula antes de enviar le ahorra a la persona un viaje y un mensaje de «no
-   consta» que no explicaría nada: el número estaba mal, no su registro. */
+   pantalla es pública y no tiene sesión con la que pedirlas a la API. Avisar del
+   largo antes de enviar le ahorra a la persona un viaje y un mensaje de «no
+   consta» que no explicaría nada: el número estaba a medio escribir. */
 $reglasDocumentoPublico = [
     'CEDULA' => ['patron' => '[^0-9]', 'maximo' => 10, 'exacto' => 10,
-                 'ayuda'  => 'Diez dígitos, sin guiones ni espacios.'],
+                 'ayuda'  => 'Exactamente 10 dígitos, sin guiones ni espacios.'],
     'RUC'    => ['patron' => '[^0-9]', 'maximo' => 13, 'exacto' => 13,
-                 'ayuda'  => 'Trece dígitos, sin guiones ni espacios.'],
+                 'ayuda'  => 'Exactamente 13 dígitos, sin guiones ni espacios.'],
 ];
 
 $urlBase = 'consentimiento_verificado.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst=' . $institucionId;
@@ -402,8 +402,8 @@ $urlBase = 'consentimiento_verificado.php?tipo=' . urlencode(mb_strtolower($tipo
                         <?= $documentoPrecargado !== '' && !isset($_POST['identificacion'])
                             ? 'Lo tomamos del enlace que le enviamos. Si no es el suyo, corríjalo.'
                             : ($documento === 'RUC'
-                                ? 'Trece dígitos, sin guiones ni espacios.'
-                                : 'Diez dígitos, sin guiones ni espacios.') ?>
+                                ? 'Exactamente 13 dígitos, sin guiones ni espacios.'
+                                : 'Exactamente 10 dígitos, sin guiones ni espacios.') ?>
                     </div>
                 </div>
 
