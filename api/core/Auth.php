@@ -143,17 +143,35 @@ final class Auth
      * Valida las credenciales y arma el contexto de la sesión.
      *
      * Regla de institución:
-     *   - Una cuenta corriente solo entra en la institución a la que pertenece.
      *   - Una cuenta con el rol SuperAdmin entra en CUALQUIER institución activa
      *     y lo hace con todos los permisos, porque el rol se propaga a la
      *     institución elegida. Los datos que verá son los de esa institución.
+     *   - Las demás entran en la institución a la que pertenecen y en aquellas
+     *     que se les hayan asignado (`usuario_institucion`). La coordinadora que
+     *     atiende dos escuelas usa una sola cuenta y en cada una ve únicamente
+     *     los datos de esa institución.
+     *
+     * Los roles NO viajan con la persona: se leen de la institución elegida, de
+     * modo que se puede consultar en una y registrar en otra.
      *
      * `usuario.Username` tiene índice único global, así que la cuenta se
      * localiza con una sola consulta, sin ambigüedad entre instituciones.
+     *
+     * @param string|null $motivo Se rellena con 'credenciales' o 'institucion'
+     *                            cuando el ingreso no procede, para que la
+     *                            pantalla pueda decir qué pasó. Ojo: el motivo
+     *                            'institucion' solo se devuelve DESPUÉS de dar
+     *                            por buena la contraseña, de modo que no sirve
+     *                            para averiguar qué cuentas existen.
      */
-    public static function login(string $username, string $password, int $institucionId): ?array
-    {
-        $pdo = Database::conexion();
+    public static function login(
+        string $username,
+        string $password,
+        int $institucionId,
+        ?string &$motivo = null
+    ): ?array {
+        $pdo    = Database::conexion();
+        $motivo = 'credenciales';
 
         $stmt = $pdo->prepare(
             'SELECT UsuarioId, PersonaId, Username, PasswordHash, Email, Estado,
@@ -172,14 +190,19 @@ final class Auth
         $institucionPropia = (int)$usuario['InstitucionEducativaId'];
         $esSuperAdmin      = self::esSuperAdminGlobal($usuarioId);
 
-        // Fuera de su institución solo pasa el SuperAdmin
-        if ($institucionPropia !== $institucionId && !$esSuperAdmin) {
-            return null;
-        }
-
+        /* La contraseña se comprueba ANTES que la institución. Así, a quien no
+           acierta la clave se le responde siempre lo mismo, y el aviso de «no
+           tiene acceso a esa institución» solo lo ve quien ya demostró ser el
+           dueño de la cuenta. */
         if (self::VALIDAR_PASSWORD && !self::passwordCorrecta($password, (string)$usuario['PasswordHash'])) {
             return null;
         }
+
+        if (!self::puedeEntrarEn($usuarioId, $institucionPropia, $institucionId, $esSuperAdmin)) {
+            $motivo = 'institucion';
+            return null;
+        }
+        $motivo = null;
 
         // Roles asignados en la institución elegida (vacíos si es una visita)
         $roles = self::rolesDe($usuarioId, $institucionId);
@@ -206,6 +229,80 @@ final class Auth
             'visita'             => $institucionPropia !== $institucionId,
             'roles'              => array_values($roles),
         ];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* En qué instituciones puede entrar una cuenta                        */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * ¿Puede esta cuenta iniciar sesión en esta institución?
+     *
+     * Tres caminos, en orden:
+     *   1. el rol SuperAdmin, que abre toda la red;
+     *   2. su propia institución, que nunca hay que conceder aparte;
+     *   3. una asignación expresa en `usuario_institucion`.
+     */
+    public static function puedeEntrarEn(
+        int $usuarioId,
+        int $institucionPropia,
+        int $institucionId,
+        ?bool $esSuperAdmin = null
+    ): bool {
+        if ($esSuperAdmin ?? self::esSuperAdminGlobal($usuarioId)) {
+            return true;
+        }
+        if ($institucionPropia === $institucionId) {
+            return true;
+        }
+
+        return in_array($institucionId, self::institucionesAsignadas($usuarioId), true);
+    }
+
+    /**
+     * Instituciones asignadas expresamente a una cuenta.
+     *
+     * Se consulta con tolerancia: una base a la que todavía no se le ha
+     * ejecutado 12_ALTER_usuario_instituciones.sql no tiene la tabla, y en ese
+     * caso lo correcto es comportarse como antes —cada cuenta en su propia
+     * institución— y no dejar a nadie fuera por una actualización pendiente.
+     *
+     * @return int[]
+     */
+    public static function institucionesAsignadas(int $usuarioId): array
+    {
+        try {
+            $stmt = Database::conexion()->prepare(
+                'SELECT ui.InstitucionEducativaId
+                   FROM usuario_institucion ui
+             INNER JOIN institucion_educativa i ON i.id = ui.InstitucionEducativaId
+                  WHERE ui.UsuarioId = ? AND i.estado = ?'
+            );
+            $stmt->execute([$usuarioId, 'ACTIVO']);
+
+            return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        } catch (PDOException $e) {
+            error_log('[API] No se pudieron leer las instituciones asignadas: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Todas las instituciones en las que la cuenta puede entrar, la propia
+     * incluida. Es lo que necesita la pantalla para pintar el formulario.
+     *
+     * @return int[]
+     */
+    public static function institucionesDe(int $usuarioId, int $institucionPropia): array
+    {
+        $todas = self::institucionesAsignadas($usuarioId);
+
+        if (!in_array($institucionPropia, $todas, true)) {
+            $todas[] = $institucionPropia;
+        }
+        sort($todas);
+
+        return $todas;
     }
 
     /**

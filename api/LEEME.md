@@ -153,11 +153,32 @@ Las escrituras se ejecutan dentro de una transacción y registran automáticamen
 | Método | Ruta |
 |---|---|
 | GET | `/api/usuarios?q=&pagina=` · `/api/usuarios/personas-disponibles` |
-| POST · PUT | `/api/usuarios` · `/api/usuarios/{id}` (sincroniza `usuariorol`) |
+| GET | `/api/usuarios/{id}` |
+| POST · PUT | `/api/usuarios` · `/api/usuarios/{id}` (sincroniza `usuariorol` y `usuario_institucion`) |
 | PATCH | `/api/usuarios/{id}/estado` |
 | GET·POST·PUT·PATCH | `/api/roles`, `/api/roles/{id}`, `/api/roles/{id}/estado` (sincroniza `rolpermiso`) |
 | GET·POST·PUT·PATCH | `/api/permisos`, `/api/permisos/{id}`, `/api/permisos/{id}/estado` |
 | GET | `/api/usuarios/politica-clave` |
+
+**Instituciones de una cuenta.** `GET /api/usuarios/{id}` devuelve
+`puede_asignar_instituciones` y, cuando es cierto, `instituciones`: una entrada
+por institución activa de la red con `propia`, `asignada`, sus
+`roles_disponibles` y los `roles_asignados` de esa cuenta **allí**. Al guardar,
+`instituciones` es la lista de las que puede entrar y `roles_por_institucion` un
+mapa `institucionId => [RolId]`.
+
+Quien no tiene el rol **SuperAdmin** no recibe ese mapa y, si lo envía de todas
+formas, se descarta: para él se guarda lo de siempre, los roles de la
+institución en la que está trabajando, y lo que la cuenta tenga en otras queda
+intacto. No basta con que la pantalla oculte las casillas —la petición puede
+armarse a mano—, así que la decisión se toma en el servidor.
+
+Dos detalles con consecuencias: la **institución propia entra siempre**, la
+marque quien edita o no, porque quitarla dejaría la cuenta sin ninguna puerta; y
+al retirar una institución **se borran también sus roles allí**, que si no
+quedarían esperando a que alguien devolviera el acceso sin querer. Los `RolId`
+recibidos se comprueban contra la institución donde se piden, de modo que un
+formulario manipulado no puede colar en una escuela el rol de otra.
 
 **Contraseñas.** La política vive en `api/core/Password.php`: mínimo 8
 caracteres, al menos una mayúscula, una minúscula y un número, y solo letras,
@@ -221,12 +242,31 @@ vaciarlo. Es opcional: los endpoints que no lo envían siguen funcionando igual.
 
 `POST /api/auth/login` recibe `username`, `password` e `institucion_id`.
 
-- Una cuenta corriente solo se autentica contra **su** institución; con otra
-  `institucion_id` la respuesta es `401`.
 - Una cuenta con el rol **SuperAdmin** (en cualquier institución) se autentica
   contra **cualquier institución activa**. El token se emite con la institución
   elegida y con el rol `SuperAdmin`, de modo que `Auth::puede()` abre todas las
   opciones y las consultas se filtran por esa institución.
+- Cualquier otra cuenta entra en **su** institución y en las que se le hayan
+  asignado en `usuario_institucion`. Con una institución que no le corresponde,
+  la respuesta es `403`.
+
+**Los roles se leen de la institución elegida**, no de la cuenta: la misma
+persona puede tener *Consultas* en una escuela y *Registro de Datos* en otra.
+`Auth::rolesDe()` ya trabajaba así; lo que cambia es que ahora hay cuentas
+corrientes que llegan a más de una institución.
+
+El orden de las comprobaciones importa: **primero la contraseña, después la
+institución**. Así, a quien no acierta la clave se le responde siempre lo mismo
+(`401`, «Credenciales incorrectas o cuenta inactiva»), y el aviso de «su cuenta
+no tiene acceso a esa institución» solo lo ve quien ya demostró ser el dueño de
+la cuenta. Decírselo le ahorra intentarlo tres veces convencido de que se
+equivocó al teclear.
+
+Si la base todavía no tiene la tabla —falta ejecutar
+`12_ALTER_usuario_instituciones.sql`—, `Auth::institucionesAsignadas()` lo anota
+en el registro del servidor y devuelve una lista vacía: el sistema se comporta
+como antes, cada cuenta en su institución, en vez de dejar a nadie fuera por una
+actualización pendiente.
 
 La respuesta incluye `institucion_propia` y `visita`, para que el cliente pueda
 avisar cuando se está trabajando en una institución ajena.

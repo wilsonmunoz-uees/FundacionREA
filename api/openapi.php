@@ -763,8 +763,28 @@ $spec['components'] = [
                 'Roles'                  => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Nombres de los roles asignados (solo en el listado).'],
                 'roles_asignados'        => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'RolId asignados (solo en la consulta individual).'],
                 'roles_disponibles'      => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Rol']],
+                'Instituciones'          => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Nombres de las instituciones en las que la cuenta puede entrar (solo en el listado).'],
+                'puede_asignar_instituciones' => ['type' => 'boolean', 'description' => 'Cierto solo para el rol SuperAdmin: es quien puede ampliar una cuenta a otra institución.'],
+                'instituciones'          => [
+                    'type'        => 'array',
+                    'description' => 'Mapa completo de la red. Solo se devuelve cuando puede_asignar_instituciones es cierto.',
+                    'items'       => ['$ref' => '#/components/schemas/UsuarioInstitucion'],
+                ],
             ],
             'description' => 'Nunca incluye PasswordHash.',
+        ],
+
+        'UsuarioInstitucion' => [
+            'type'        => 'object',
+            'description' => 'Una institución de la red vista desde una cuenta: si entra en ella y con qué roles. Los roles son los de ESA institución, no los de la persona.',
+            'properties'  => [
+                'id'                => ['type' => 'integer'],
+                'nombre'            => ['type' => 'string', 'example' => 'Escuela Don Bosco'],
+                'propia'            => ['type' => 'boolean', 'description' => 'Institución a la que pertenece la cuenta. Va siempre asignada y no se puede quitar.'],
+                'asignada'          => ['type' => 'boolean', 'description' => 'La cuenta puede iniciar sesión aquí.'],
+                'roles_disponibles' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Rol']],
+                'roles_asignados'   => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'RolId que la cuenta tiene en esta institución.'],
+            ],
         ],
 
         'UsuarioEntrada' => [
@@ -777,7 +797,14 @@ $spec['components'] = [
                 'password'         => ['type' => 'string', 'format' => 'password', 'minLength' => 8, 'description' => 'Obligatoria al crear. Al actualizar, envíe vacío para no cambiarla.'],
                 'password_confirm' => ['type' => 'string', 'format' => 'password'],
                 'estado'           => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO'], 'default' => 'ACTIVO'],
-                'roles'            => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'RolId a asignar; reemplaza la asignación anterior.'],
+                'roles'            => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'RolId a asignar en la institución del token; reemplaza la asignación anterior. Es lo que envía un administrador que no es SuperAdmin.'],
+                'instituciones'    => ['type' => 'array', 'items' => ['type' => 'integer'], 'description' => 'Instituciones en las que la cuenta podrá iniciar sesión. Solo lo atiende el SuperAdmin; a los demás se les descarta. La institución propia se incluye siempre, se envíe o no.'],
+                'roles_por_institucion' => [
+                    'type'                 => 'object',
+                    'additionalProperties' => ['type' => 'array', 'items' => ['type' => 'integer']],
+                    'description'          => 'Mapa institucionId => [RolId]. Solo lo atiende el SuperAdmin. Los RolId se comprueban contra la institución donde se piden. Retirar una institución borra también los roles que la cuenta tenía allí.',
+                    'example'              => ['1' => [4], '2' => [21]],
+                ],
             ],
         ],
 
@@ -1358,7 +1385,10 @@ $spec['paths'] += $crud([
     'clave_id'   => 'UsuarioId',
     'acceso'     => 'SuperAdmin',
     'busqueda'   => 'Busca por nombre de usuario o nombre de la persona.',
-    'meta_extra' => ['roles_disponibles' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Rol']]],
+    'meta_extra' => [
+        'roles_disponibles'           => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Rol']],
+        'puede_asignar_instituciones' => ['type' => 'boolean'],
+    ],
 ]);
 
 $spec['paths']['/usuarios/buscar'] = [

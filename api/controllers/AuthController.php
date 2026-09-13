@@ -31,8 +31,22 @@ final class AuthController extends Controller
             Response::error('La institución educativa seleccionada no está disponible.', 401);
         }
 
-        $usuario = Auth::login($username, $password, $institucionId);
+        $motivo  = null;
+        $usuario = Auth::login($username, $password, $institucionId, $motivo);
+
         if ($usuario === null) {
+            /* Se distingue el caso en que la clave era correcta pero la cuenta
+               no tiene acceso a esa institución. Decírselo no revela nada a un
+               extraño —hay que acertar la contraseña para llegar hasta aquí— y
+               en cambio le ahorra a quien sí es el dueño intentarlo tres veces
+               convencido de que se equivocó al teclear. */
+            if ($motivo === 'institucion') {
+                Response::error(
+                    'Su cuenta no tiene acceso a «' . $institucion['nombre'] . '». '
+                    . 'Elija otra institución o pida al administrador que se lo habilite.',
+                    403
+                );
+            }
             Response::error('Credenciales incorrectas o cuenta inactiva.', 401);
         }
 

@@ -5,7 +5,7 @@ datos con los que el sistema arranca.
 
 | Archivo | Contenido |
 |---|---|
-| `01_DDL_estructura.sql` | **Estructura (DDL).** Base de datos, 19 tablas, claves, índices y las 33 relaciones entre ellas. |
+| `01_DDL_estructura.sql` | **Estructura (DDL).** Base de datos, 20 tablas, claves, índices y las 36 relaciones entre ellas. |
 | `02_DML_datos.sql` | **Datos (DML).** Institución, catálogos, 21 permisos, 5 roles con sus asignaciones, disclaimers y cuentas de acceso. |
 
 Motor: **MySQL 5.7 o superior**, o **MariaDB 10.3 o superior**.
@@ -28,7 +28,7 @@ dejando el juego de caracteres en **utf-8**.
 > Lo mismo vale si edita estos archivos: guárdelos siempre en UTF-8.
 
 Cada script termina con consultas de verificación que muestran lo que quedó
-creado. El DDL debe reportar **19 tablas y 33 claves foráneas**; el DML, los
+creado. El DDL debe reportar **20 tablas y 36 claves foráneas**; el DML, los
 conteos de cada catálogo y qué permisos otorga cada rol.
 
 Después de instalar, revise que `config.php` apunte a la base correcta:
@@ -83,7 +83,7 @@ Ambos están divididos en secciones numeradas y comentadas.
 | 4 | Padrón de personas por institución: `persona` |
 | 5 | Vínculos: `empleado`, `estudiante`, `proveedor` |
 | 6 | Consentimientos: `consentimiento`, `consentimientodato`, `consentimientohistorial` |
-| 7 | Seguridad: `rol`, `permiso`, `rolpermiso`, `usuario`, `usuariorol` |
+| 7 | Seguridad: `rol`, `permiso`, `rolpermiso`, `usuario`, `usuariorol`, `usuario_institucion` |
 | 8 | Parámetros: `disclaimer`, `correo_configuracion`, `verificacion_codigo` |
 | 9 | Auditoría: `auditoria` |
 | 10 | Integridad referencial: todas las claves foráneas juntas |
@@ -165,6 +165,39 @@ propósito: afecta a quién puede entrar al sistema. Si la Fundación quisiera q
 cada institución tuviera su propio `admin`, habría que decidirlo primero y
 migrar las cuentas existentes con cuidado.
 
+### Una cuenta que entra en varias instituciones
+
+`usuario`.`InstitucionEducativaId` dice a qué institución **pertenece** la
+cuenta, y en esa entra siempre. La tabla `usuario_institucion` dice en qué
+**otras** se le ha dado permiso de entrar: una fila por institución.
+
+Es lo que permite que la coordinadora que atiende dos escuelas use un solo
+usuario en vez de dos, sin tener que darle SuperAdmin —que le abriría la red
+entera—. Al ingresar elige la institución, y dentro ve únicamente los datos de
+esa institución, como cualquier otra cuenta.
+
+**Los roles no viajan con la persona.** Se asignan por institución en
+`usuariorol`, que ya llevaba `InstitucionEducativaId`, de modo que la misma
+cuenta puede tener *Consultas* en una escuela y *Registro de Datos* en otra.
+Entrar sin roles en una institución es posible y significa lo que parece: la
+cuenta entra, pero no ve ninguna opción hasta que se le asigne alguno.
+
+El **SuperAdmin no necesita constar** en esta tabla: entra en cualquier
+institución activa por su rol, y allí lo hace con todos los permisos. Eso no
+cambia.
+
+Quien concede estos accesos es **solo el SuperAdmin**, desde *Usuarios del
+Sistema*. Un administrador corriente sigue gestionando las cuentas de su
+institución —crearlas, renombrarlas, inactivarlas, darles roles— pero no puede
+abrirles la puerta de otra: dar acceso a los datos personales de otra comunidad
+educativa no debería poder decidirse sin quien responde por toda la red.
+
+Para incorporarla a una base ya instalada, ejecute
+`12_ALTER_usuario_instituciones.sql`, que se entrega aparte. Siembra una fila
+por cuenta con su propia institución —es decir, exactamente el acceso que cada
+una tiene hoy—, de modo que al terminar nadie entra donde no entraba ni deja de
+entrar donde entraba.
+
 ## Actualizar una base de datos ya existente
 
 El DDL no altera lo que ya exista: los `CREATE TABLE` llevan `IF NOT EXISTS`.
@@ -187,6 +220,7 @@ Respecto de la versión anterior del DDL, la estructura cambió en estos puntos:
 | `persona` | **Pasa a ser por institución:** nueva columna `InstitucionEducativaId`, primaria `(InstitucionEducativaId, PersonaId)`, clave foránea contra la institución y la identificación única **dentro de cada institución** |
 | `persona` | Se retira el único **global** `Identificacion`, resto del diseño de institución única (ver *La misma persona en varias instituciones*) |
 | `estudiante` | El único global `CodigoEstudiante` pasa a ser `uk_estudiante_codigo (InstitucionEducativaId, CodigoEstudiante)` |
+| `usuario_institucion` | **Tabla nueva.** En qué instituciones puede iniciar sesión cada cuenta (ver *Una cuenta que entra en varias instituciones*) |
 
 La bitácora de auditoría deja de guardar el contenido de los datos: se eliminan
 las columnas `ValorAnterior` y `ValorNuevo` de `auditoria`. A partir de aquí

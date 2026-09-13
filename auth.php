@@ -191,8 +191,9 @@ function procesarLogin(string $username, string $password, string $institucion) 
     $_SESSION['institucion_nombre'] = $usuario['institucion_nombre'] ?? '';
     $_SESSION['roles']              = $usuario['roles'] ?? [];
     $_SESSION['permisos']           = $usuario['permisos'] ?? [];
-    // Institución a la que pertenece la cuenta y si está trabajando en otra
-    // (solo ocurre con el SuperAdmin, que entra en todas).
+    // Institución a la que pertenece la cuenta y si está trabajando en otra.
+    // Le pasa al SuperAdmin, que entra en todas, y a cualquier cuenta a la que
+    // se le hayan asignado instituciones además de la suya.
     $_SESSION['institucion_propia'] = $usuario['institucion_propia'] ?? $usuario['institucion_id'];
     $_SESSION['institucion_visita'] = !empty($usuario['visita']);
     /* Entró con la contraseña temporal que le envió el sistema: hasta que fije

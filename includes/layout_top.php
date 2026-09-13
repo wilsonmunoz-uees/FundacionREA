@@ -48,8 +48,9 @@ $flash = flashGet();
                     <div class="topbar-titulo">
                         <?= e($institucionNombre ?: 'Red Educativa Arquidiocesana') ?>
                         <?php if (!empty($_SESSION['institucion_visita'])): ?>
-                            <?php /* El SuperAdmin entra en cualquier institución: se le recuerda
-                                     en cuál está trabajando, porque no es la suya. */ ?>
+                            <?php /* Una cuenta puede entrar en varias instituciones —el SuperAdmin
+                                     en todas; las demás, en las que se les hayan asignado—, así que
+                                     se le recuerda en cuál está trabajando, porque no es la suya. */ ?>
                             <span class="badge-institucion" title="Está trabajando en una institución distinta a la de su cuenta">
                                 otra institución
                             </span>

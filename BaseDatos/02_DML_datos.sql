@@ -141,6 +141,16 @@ INSERT INTO `usuariorol` (`InstitucionEducativaId`, `UsuarioId`, `RolId`) VALUES
 (1, 5, 4),
 (1, 6, 5);
 
+-- Instituciones en las que puede entrar cada cuenta.
+--
+-- Todas arrancan con la suya y nada más: dar acceso a otra institución es dar
+-- acceso a los datos personales de otra comunidad educativa, y eso se concede
+-- una por una desde «Usuarios del Sistema», no de salida. El SuperAdmin no
+-- necesita fila: entra en cualquier institución activa por su rol.
+INSERT INTO `usuario_institucion` (`InstitucionEducativaId`, `UsuarioId`)
+SELECT u.`InstitucionEducativaId`, u.`UsuarioId` FROM `usuario` u
+ON DUPLICATE KEY UPDATE `UsuarioId` = `usuario_institucion`.`UsuarioId`;
+
 INSERT INTO `auditoria` (`InstitucionEducativaId`, `AuditoriaId`, `FechaHora`, `UsuarioId`, `Username`, `IpOrigen`, `Tabla`, `RegistroId`, `Operacion`, `Campo`, `ValorAnterior`, `ValorNuevo`) VALUES
 (1, 3, '2026-08-24 12:32:15', 1, 'admin', '185.27.134.197', 'correo_configuracion', '1', 'UPDATE', 'Usuario', 'wmunozr@gmail.com', 'wilson.munoz@uees.edu.ec'),
 (1, 4, '2026-08-24 12:32:15', 1, 'admin', '185.27.134.197', 'correo_configuracion', '1', 'UPDATE', 'RemitenteCorreo', 'wmunozr@gmail.com', 'wilson.munoz@uees.edu.ec'),
@@ -179,4 +189,4 @@ INSERT INTO `consentimientohistorial` (`InstitucionEducativaId`, `HistorialId`, 
 (1, 2, 1, 'ACTIVO', 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 13:06:18', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde la pantalla pública (CEDULA 0700316284, EMPLEADO).'),
 (1, 3, 2, NULL, 'INACTIVO', 'REVOCACION_WEB', '2026-08-24 21:00:20', NULL, '185.27.134.197', 'Consentimiento revocado por el titular desde el enlace público de la institución. Política versión 1.0.'),
 (1, 4, 3, NULL, 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:07:20', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace público de la institución. Política versión 1.0.'),
-(1, 5, 2, 'INACTIVO', 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:13:31', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace público de la institución. Política versión 1.0.');
+(1, 5, 2, 'INACTIVO', 'ACTIVO', 'CONSENTIMIENTO_WEB', '2026-08-24 21:13:31', NULL, '185.27.134.197', 'Consentimiento otorgado por el titular desde el enlace público de la institución. Política versión 1.0.');
