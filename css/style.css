@@ -383,6 +383,58 @@ fieldset legend {
 }
 .check-item:hover { border-color: var(--rea-gris-300); box-shadow: var(--sombra-xs); }
 .check-item input { width: auto; box-shadow: none; }
+
+/* ---------- Instituciones de una cuenta de usuario ----------
+   Veintiún bloques abiertos a la vez no se leen. Cada institución es un
+   <details> que se abre solo si la cuenta entra en ella, así se ve de un
+   vistazo dónde alcanza y los roles quedan a un clic. Sin JavaScript: el
+   desplegable es del propio navegador. */
+.instituciones-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+.institucion-bloque {
+    border: 1px solid var(--rea-gris-200);
+    border-radius: var(--radio-sm);
+    background: var(--rea-blanco);
+}
+.institucion-bloque > summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: .88rem;
+}
+.institucion-bloque > summary::-webkit-details-marker { display: none; }
+.institucion-bloque > summary::before {
+    content: '▸';
+    color: var(--rea-gris-400, #9aa0a6);
+    font-size: .8rem;
+}
+.institucion-bloque[open] > summary::before { content: '▾'; }
+/* La casilla vive dentro del resumen: se marca sin desplegar el bloque. */
+.institucion-bloque > summary .check-item {
+    border: 0;
+    background: transparent;
+    padding: 0;
+}
+.institucion-bloque > summary .check-item:hover { box-shadow: none; }
+.institucion-bloque[open] > summary { border-bottom: 1px solid var(--rea-gris-200); }
+.institucion-bloque > .check-grid,
+.institucion-bloque > p { padding: 12px; margin: 0; }
+/* Las instituciones a las que la cuenta entra se distinguen de un vistazo, sin
+   tener que leer casilla por casilla cuál está marcada. */
+.institucion-bloque:has(input[name="instituciones[]"]:checked) {
+    border-color: var(--rea-rojo);
+    background: var(--rea-gris-50, #fafafa);
+}
+#filtro_instituciones { margin-bottom: 10px; }
 input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 16px; height: 16px; }
 
 /* ---------- Botones ---------- */

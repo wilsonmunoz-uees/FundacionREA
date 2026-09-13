@@ -186,6 +186,28 @@ CREATE TABLE `usuariorol` (
   `RolId` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
+-- En qué instituciones puede entrar cada cuenta.
+--
+-- `usuario`.`InstitucionEducativaId` dice a cuál PERTENECE la cuenta, y en esa
+-- entra siempre. Esta tabla dice en qué OTRAS se le ha dado permiso: la
+-- coordinadora que atiende dos escuelas entra en las dos con un solo usuario,
+-- y en cada una ve únicamente los datos de esa institución.
+--
+-- Los roles no viajan con la persona: se asignan por institución en
+-- `usuariorol`, de modo que alguien puede consultar en una y registrar en otra.
+-- Entrar sin roles en una institución es posible y significa lo que parece: la
+-- cuenta entra, pero no ve ninguna opción hasta que se le asigne alguno.
+--
+-- El SuperAdmin no necesita constar aquí: entra en cualquier institución activa
+-- por su rol, y así sigue siendo.
+DROP TABLE IF EXISTS `usuario_institucion`;
+CREATE TABLE `usuario_institucion` (
+  `InstitucionEducativaId` int(11) NOT NULL,
+  `UsuarioId` int(11) NOT NULL,
+  `FechaAsignacion` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  COMMENT='Instituciones en las que una cuenta puede iniciar sesión.';
+
 DROP TABLE IF EXISTS `auditoria`;
 CREATE TABLE `auditoria` (
   `InstitucionEducativaId` int(11) NOT NULL COMMENT 'Institución educativa en la que ocurrió el movimiento',
@@ -354,6 +376,10 @@ ALTER TABLE `usuariorol`
   ADD KEY `RolId` (`RolId`),
   ADD KEY `fk_usuariorol_usuario` (`UsuarioId`);
 
+ALTER TABLE `usuario_institucion`
+  ADD PRIMARY KEY (`InstitucionEducativaId`,`UsuarioId`),
+  ADD KEY `fk_usuinst_usuario` (`UsuarioId`);
+
 ALTER TABLE `verificacion_codigo`
   ADD PRIMARY KEY (`InstitucionEducativaId`,`VerificacionId`),
   ADD UNIQUE KEY `uk_verificacion_id` (`VerificacionId`),
@@ -442,6 +468,12 @@ ALTER TABLE `usuario`
   ADD CONSTRAINT `fk_usuario_institucion` FOREIGN KEY (`InstitucionEducativaId`) REFERENCES `institucion_educativa` (`id`) ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_usuario_persona` FOREIGN KEY (`PersonaId`) REFERENCES `persona` (`PersonaId`) ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- Si se elimina la cuenta, sus accesos se van con ella: no tendría sentido
+-- conservar un permiso de entrada para un usuario que ya no existe.
+ALTER TABLE `usuario_institucion`
+  ADD CONSTRAINT `fk_usuinst_institucion` FOREIGN KEY (`InstitucionEducativaId`) REFERENCES `institucion_educativa` (`id`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_usuinst_usuario` FOREIGN KEY (`UsuarioId`) REFERENCES `usuario` (`UsuarioId`) ON DELETE CASCADE ON UPDATE CASCADE;
+
 ALTER TABLE `usuariorol`
   ADD CONSTRAINT `fk_usuariorol_institucion` FOREIGN KEY (`InstitucionEducativaId`) REFERENCES `institucion_educativa` (`id`) ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_usuariorol_rol` FOREIGN KEY (`RolId`) REFERENCES `rol` (`RolId`) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -451,4 +483,4 @@ ALTER TABLE `verificacion_codigo`
   ADD CONSTRAINT `fk_verificacion_institucion` FOREIGN KEY (`InstitucionEducativaId`) REFERENCES `institucion_educativa` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_verificacion_persona` FOREIGN KEY (`PersonaId`) REFERENCES `persona` (`PersonaId`) ON DELETE CASCADE ON UPDATE CASCADE;
 
-COMMIT;
+COMMIT;
