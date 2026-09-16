@@ -6,19 +6,24 @@ datos con los que el sistema arranca.
 | Archivo | Contenido |
 |---|---|
 | `01_DDL_estructura.sql` | **Estructura (DDL).** Base de datos, 20 tablas, claves, índices y las 36 relaciones entre ellas. |
-| `02_DML_datos.sql` | **Datos (DML).** Institución, catálogos, 21 permisos, 5 roles con sus asignaciones, disclaimers y cuentas de acceso. |
+| `02_DML_datos.sql` | **Datos (DML).** Las **21 instituciones** de la red con su dirección y su teléfono, catálogos, permisos y roles replicados a cada institución, disclaimers y la cuenta de administrador. |
 
 Motor: **MySQL 5.7 o superior**, o **MariaDB 10.3 o superior**.
 
 ## Instalación
 
+Los scripts **no crean ni seleccionan la base de datos**: se ejecutan sobre una
+que ya exista y esté elegida. Créela primero y nómbrela en la orden:
+
 ```bash
-mysql -u USUARIO -p --default-character-set=utf8mb4 < 01_DDL_estructura.sql
-mysql -u USUARIO -p --default-character-set=utf8mb4 < 02_DML_datos.sql
+mysql -u USUARIO -p -e "CREATE DATABASE NOMBRE_BASE DEFAULT CHARACTER SET utf8mb4"
+mysql -u USUARIO -p --default-character-set=utf8mb4 NOMBRE_BASE < 01_DDL_estructura.sql
+mysql -u USUARIO -p --default-character-set=utf8mb4 NOMBRE_BASE < 02_DML_datos.sql
 ```
 
-Desde phpMyAdmin: pestaña **Importar**, primero un archivo y luego el otro,
-dejando el juego de caracteres en **utf-8**.
+Desde phpMyAdmin: elija primero la base en el panel de la izquierda y luego
+pestaña **Importar**, primero un archivo y luego el otro, dejando el juego de
+caracteres en **utf-8**.
 
 > **Los dos archivos están guardados en UTF-8.** El `--default-character-set=utf8mb4`
 > del ejemplo no es un adorno: sin él, algunos clientes de MySQL se conectan en
@@ -27,9 +32,16 @@ dejando el juego de caracteres en **utf-8**.
 > se cargó. Si ya le ocurrió, vuelva a cargar el DML con la opción puesta.
 > Lo mismo vale si edita estos archivos: guárdelos siempre en UTF-8.
 
-Cada script termina con consultas de verificación que muestran lo que quedó
-creado. El DDL debe reportar **20 tablas y 36 claves foráneas**; el DML, los
-conteos de cada catálogo y qué permisos otorga cada rol.
+El DDL crea **20 tablas y 36 claves foráneas**. Al terminar el DML debe haber
+**21 instituciones**, y cada una con su propio juego de roles y permisos: el
+script los define una vez para la institución 1 y los replica a las demás.
+
+> **La contraseña del correo saliente va en blanco a propósito.** Este archivo
+> se copia, se sube al repositorio y se manda por correo; una contraseña escrita
+> aquí dentro es una contraseña publicada. Se escribe una sola vez desde
+> *Registro de Datos › Configuración de Correo*, y el sistema la guarda sin
+> devolverla nunca a ninguna pantalla ni a la bitácora. Hasta que se escriba, el
+> sistema no puede enviar códigos de verificación ni confirmaciones.
 
 Después de instalar, revise que `config.php` apunte a la base correcta:
 
@@ -39,21 +51,17 @@ Después de instalar, revise que `config.php` apunte a la base correcta:
 
 ## Cómo entrar la primera vez
 
-| Usuario | Contraseña | Qué ve |
-|---|---|---|
-| `admin` | `Clave2026*` | Todo el sistema, en cualquier institución |
+| Usuario | Qué ve |
+|---|---|
+| `admin` | Todo el sistema, en cualquier institución de la red |
 
-**Cambie esa contraseña en cuanto entre**, desde *Usuarios del Sistema*.
+Es la **única** cuenta que crea el DML, y es de la institución 1. Su contraseña
+va como hash en el script; **cámbiela en cuanto entre**, desde *Usuarios del
+Sistema*.
 
-El DML crea además cuatro cuentas de prueba —`seguridades`, `registro`,
-`consultas` y `reportes`, con la misma contraseña— para comprobar que cada rol
-ve exactamente lo que le corresponde. **Elimínelas en producción:**
-
-```sql
-DELETE FROM usuario WHERE Username IN ('seguridades','registro','consultas','reportes');
-```
-
-Si no las quiere ni siquiera al instalar, no ejecute la sección 9 del DML.
+Las demás cuentas se crean desde la propia aplicación, cada una en su
+institución: el sistema genera su contraseña y se la envía por correo a la
+persona, de modo que quien administra no llega a conocerla.
 
 ## El correo saliente se configura, no viene puesto
 
@@ -97,35 +105,35 @@ detalle).
 
 **`02_DML_datos.sql`**
 
-| Sección | Qué carga |
+| Orden | Qué carga |
 |---|---|
-| 1 | Preparación e institución sobre la que se carga |
-| 2 | Institución educativa |
-| 3 | Catálogos: finalidades y tipos de dato |
-| 4 | Permisos, agrupados por módulo |
-| 5 | Roles |
-| 6 | Asignación de permisos a cada rol |
-| 7 | Disclaimers de política, uno por tipo de persona |
-| 8 | Cuenta de administrador |
-| 9 | Usuarios de prueba (opcional) |
-| 10 | Verificación |
+| 1 | Las 21 instituciones educativas de la red |
+| 2 | Catálogos: finalidades y tipos de dato |
+| 3 | La persona del administrador |
+| 4 | Roles de la institución 1, y su copia a las otras 20 |
+| 5 | Permisos de la institución 1, y su copia a las otras 20 |
+| 6 | Qué permisos tiene cada rol, en cada institución |
+| 7 | Configuración de correo (con la contraseña en blanco) |
+| 8 | Disclaimers de política, uno por tipo de persona |
+| 9 | La cuenta `admin` y su rol |
+| 10 | Las instituciones en las que puede entrar cada cuenta |
 
-**Todo el DML es idempotente:** puede ejecutarlo las veces que quiera sin
-duplicar nada. Cada inserción comprueba antes si el registro existe, y las
-referencias se resuelven por código o por nombre —nunca por un número fijo—, de
-modo que no depende de los valores que haya tomado el `AUTO_INCREMENT`.
+**El DML es para una base recién creada**, no para una que ya tenga datos: las
+inserciones llevan identificadores fijos y se pisarían con lo que hubiera. Para
+actualizar una instalación en marcha están los scripts `03_` a `13_`, que se
+entregan aparte.
 
-## Instalar una segunda institución
+## Añadir una institución más
 
-El DML carga los datos de la institución indicada al inicio del archivo:
+El DML ya deja cargadas las **21 instituciones** de la red, y a cada una le
+replica los roles y los permisos: los define una sola vez para la institución 1
+y los copia al resto con un `INSERT ... SELECT`.
 
-```sql
-SET @institucion := 1;
-```
-
-Para preparar otra, cree primero su fila en `institucion_educativa`, cambie ese
-número y vuelva a ejecutar el script: creará sus propios permisos, roles y
-disclaimers sin tocar los de la primera.
+Para incorporar una institución nueva más adelante, dese de alta su ficha desde
+*Registro de Datos › Instituciones Educativas* y después repita esos dos bloques
+del DML —el de `rol` y el de `permiso` que empiezan con `INSERT ... SELECT`—,
+que copiarán a la nueva lo que ya tienen las demás sin tocar nada de lo
+existente. Recuerde dejar su logotipo en `assets/logos/NN.png`.
 
 Los índices de `rol.Nombre` y `permiso.Codigo` son **únicos por institución**,
 de modo que dos instituciones pueden tener roles con el mismo nombre. Si su base
@@ -198,6 +206,26 @@ por cuenta con su propia institución —es decir, exactamente el acceso que cad
 una tiene hoy—, de modo que al terminar nadie entra donde no entraba ni deja de
 entrar donde entraba.
 
+### El nombre y el teléfono de la institución
+
+Dos columnas de `institucion_educativa` se quedaron cortas y se ampliaron:
+
+| Columna | Antes | Ahora | Por qué |
+|---|---|---|---|
+| `nombre` | 50 | **100** | Los nombres completos de las instituciones de la red no caben en cincuenta caracteres, y había que abreviarlos a mano |
+| `telefono` | 20 | **50** | Cabe el contacto tal como lo publica la escuela: una central con extensión, dos números, un celular de guardia |
+
+El teléfono de la **institución** admite además **letras**: no es el dato
+personal de nadie, es la forma de contacto de la organización, y lo único que se
+le exige es que lleve algún dígito. El teléfono de una **persona** no cambia:
+sigue siendo un número marcable de hasta 16 caracteres, solo dígitos. Son dos
+reglas distintas a propósito, y conviven en `api/core/Telefono.php`.
+
+Para incorporarlo a una base ya instalada, ejecute
+`13_ALTER_institucion_nombre_telefono.sql`, que se entrega aparte. Las columnas
+solo se **amplían**, nunca se estrechan, de modo que no se pierde ni se recorta
+nada de lo que ya estaba grabado.
+
 ## Actualizar una base de datos ya existente
 
 El DDL no altera lo que ya exista: los `CREATE TABLE` llevan `IF NOT EXISTS`.
@@ -221,6 +249,7 @@ Respecto de la versión anterior del DDL, la estructura cambió en estos puntos:
 | `persona` | Se retira el único **global** `Identificacion`, resto del diseño de institución única (ver *La misma persona en varias instituciones*) |
 | `estudiante` | El único global `CodigoEstudiante` pasa a ser `uk_estudiante_codigo (InstitucionEducativaId, CodigoEstudiante)` |
 | `usuario_institucion` | **Tabla nueva.** En qué instituciones puede iniciar sesión cada cuenta (ver *Una cuenta que entra en varias instituciones*) |
+| `institucion_educativa` | `nombre` pasa de 50 a **100** caracteres, y `telefono` de 20 a **50** (ver *El nombre y el teléfono de la institución*) |
 
 La bitácora de auditoría deja de guardar el contenido de los datos: se eliminan
 las columnas `ValorAnterior` y `ValorNuevo` de `auditoria`. A partir de aquí

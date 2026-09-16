@@ -11,10 +11,6 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
--- Base de datos: `ezyro_42650191_protecciondatos`
-CREATE DATABASE IF NOT EXISTS `ezyro_42650191_protecciondatos` DEFAULT CHARACTER SET latin1 COLLATE latin1_swedish_ci;
-USE `ezyro_42650191_protecciondatos`;
-
 -- ==========================================
 -- CREACIÓN DE TABLAS (ORDEN DE DEPENDENCIAS)
 -- ==========================================
@@ -23,9 +19,16 @@ USE `ezyro_42650191_protecciondatos`;
 DROP TABLE IF EXISTS `institucion_educativa`;
 CREATE TABLE `institucion_educativa` (
   `id` int(11) NOT NULL,
-  `nombre` varchar(50) NOT NULL,
+  -- 100 caracteres: los nombres completos de las instituciones de la red no
+  -- caben en 50. «Unidad Educativa Particular Nuestra Señora del Rosario» se
+  -- quedaba a medias y había que abreviarlo a mano.
+  `nombre` varchar(100) NOT NULL,
   `direccion` varchar(100) NOT NULL,
-  `telefono` varchar(20) NOT NULL,
+  -- El teléfono de la INSTITUCIÓN no sigue la regla del teléfono de una
+  -- persona: aquí se guarda una forma de contacto tal como la publica la
+  -- escuela —una central con extensión, dos números, un celular de guardia—,
+  -- así que admite letras y hasta 50 caracteres. Ver api/core/Telefono.php.
+  `telefono` varchar(50) NOT NULL,
   `estado` enum('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 
@@ -483,4 +486,4 @@ ALTER TABLE `verificacion_codigo`
   ADD CONSTRAINT `fk_verificacion_institucion` FOREIGN KEY (`InstitucionEducativaId`) REFERENCES `institucion_educativa` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_verificacion_persona` FOREIGN KEY (`PersonaId`) REFERENCES `persona` (`PersonaId`) ON DELETE CASCADE ON UPDATE CASCADE;
 
-COMMIT;
+COMMIT;

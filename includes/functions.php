@@ -206,3 +206,117 @@ function iniciales(string $texto): string {
     if ($texto === '') return '?';
     return mb_strtoupper(mb_substr($texto, 0, 1));
 }
+
+/* ------------------------------------------------------------------------- */
+/* Identidad visual de la institución                                         */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Logotipo de una institución educativa.
+ *
+ * Los archivos viven en `assets/logos/` y se llaman con el código de la
+ * institución en DOS dígitos: la institución 1 es `01.png`, la 13 es `13.png`.
+ * El código es el mismo identificador que lleva la institución en la base.
+ *
+ * Si una institución todavía no tiene su logotipo cargado, se usa el de la Red
+ * Educativa Arquidiocesana: un reporte sin ninguna marca se ve roto, y el de la
+ * red siempre es cierto porque todas pertenecen a ella.
+ *
+ * Se resuelve aquí, en un solo sitio, porque lo necesitan tanto los reportes en
+ * pantalla —que piden una URL— como los PDF —que piden una ruta de archivo—, y
+ * si cada uno lo armara por su cuenta acabarían discrepando.
+ *
+ * @param int|null $institucionId null = la institución de la sesión
+ * @return array{ruta:string, url:string, propio:bool}
+ *         ruta   camino en disco, para incrustarlo en el PDF
+ *         url    camino para un <img> de la pantalla, ya con APP_ROOT
+ *         propio false cuando se cayó al logotipo de la red
+ */
+function logoInstitucion(?int $institucionId = null): array {
+    $raiz    = dirname(__DIR__);
+    $prefijo = defined('APP_ROOT') ? APP_ROOT : '';
+
+    $institucionId = $institucionId ?? institucionActual();
+    $respaldo = [
+        'ruta'   => $raiz . '/assets/logo.png',
+        'url'    => $prefijo . 'assets/logo.png',
+        'propio' => false,
+    ];
+
+    if (!$institucionId || $institucionId <= 0) {
+        return $respaldo;
+    }
+
+    // Dos dígitos: 1 -> «01». Por encima de 99 se usa el número tal cual, que
+    // es lo que haría falta el día que la red pase de cien instituciones.
+    $codigo = str_pad((string)(int)$institucionId, 2, '0', STR_PAD_LEFT);
+    $ruta   = $raiz . '/assets/logos/' . $codigo . '.png';
+
+    if (!is_file($ruta)) {
+        return $respaldo;
+    }
+
+    return [
+        'ruta'   => $ruta,
+        'url'    => $prefijo . 'assets/logos/' . $codigo . '.png',
+        'propio' => true,
+    ];
+}
+
+/**
+ * Nombre de la institución en la que se está trabajando, para las cabeceras.
+ *
+ * Sale de la sesión, que la guardó al ingresar. El respaldo nombra a la red
+ * entera: es preferible a dejar la cabecera de un reporte en blanco.
+ */
+function nombreInstitucionActual(): string {
+    $nombre = trim((string)($_SESSION['institucion_nombre'] ?? ''));
+
+    return $nombre !== '' ? $nombre : 'Red Educativa Arquidiocesana';
+}
+
+/**
+ * Cabecera de un reporte en pantalla: logotipo, institución y título.
+ *
+ * Es la misma que lleva el PDF, para que lo que se imprime desde el navegador
+ * y lo que se descarga no sean dos documentos distintos.
+ *
+ * El escudo y el nombre de la institución se emiten SIEMPRE, pero la hoja de
+ * estilos solo los dibuja al imprimir: en pantalla ya están en la barra
+ * superior y verlos otra vez tres centímetros más abajo era leer dos veces lo
+ * mismo. En papel esa barra no existe, así que ahí son lo único que dice de
+ * quién es el documento. Por eso se marcan con clase y se ocultan por CSS en
+ * vez de no imprimirlos: la misma cabecera sirve para los dos medios (ver
+ * `.reporte-logo` y `.reporte-institucion` en css/style.css).
+ *
+ * @param bool $deLaRed true en los reportes que abarcan TODAS las instituciones:
+ *                      ahí lo que corresponde es la marca de la Red, no la de
+ *                      una escuela, que sería decir algo falso sobre el alcance
+ *                      del documento.
+ */
+function cabeceraReporte(string $titulo, string $subtitulo = '', bool $deLaRed = false): void {
+    $logo   = $deLaRed
+        ? ['url' => (defined('APP_ROOT') ? APP_ROOT : '') . 'assets/logo.png']
+        : logoInstitucion();
+    $titular = $deLaRed ? 'Red Educativa Arquidiocesana' : nombreInstitucionActual();
+    ?>
+    <div class="reporte-cabecera">
+        <?php /* Igual que en la barra: la medida va también en atributos, porque el
+                 archivo mide 150x150 y sin hoja de estilos se dibujaría a tamaño
+                 natural y desbarataría la cabecera. */ ?>
+        <img src="<?= e($logo['url']) ?>" alt="" class="reporte-logo"
+             width="58" height="58">
+        <div class="reporte-identidad">
+            <div class="reporte-institucion"><?= e($titular) ?></div>
+            <h2 class="reporte-titulo"><?= e($titulo) ?></h2>
+            <?php if ($subtitulo !== ''): ?>
+                <p class="reporte-subtitulo"><?= e($subtitulo) ?></p>
+            <?php endif; ?>
+        </div>
+        <div class="reporte-emision">
+            Emitido el <?= e(date('d/m/Y H:i')) ?><br>
+            por <?= e($_SESSION['username'] ?? 'sistema') ?>
+        </div>
+    </div>
+    <?php
+}

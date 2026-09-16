@@ -54,6 +54,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
 
 set_exception_handler(static function (Throwable $e): void {
     error_log('[API] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+
+    /* Un ParseError significa que un archivo .php del servidor quedó dañado
+       —casi siempre al subirlo o al editarlo— y PHP no puede leerlo. El mensaje
+       que da PHP («syntax error, unexpected token "<"») no dice CUÁL, y son más
+       de cien archivos: se lo decimos nosotros, que es el único dato que sirve
+       para arreglarlo. Se da la ruta relativa, no la del servidor. */
+    if ($e instanceof ParseError) {
+        $archivo = str_replace(dirname(__DIR__) . DIRECTORY_SEPARATOR, '', $e->getFile());
+        $archivo = str_replace('\\', '/', $archivo);
+
+        Response::error(
+            'Un archivo del sistema quedó dañado en el servidor: «' . $archivo . '», línea '
+            . $e->getLine() . '. Vuelva a subirlo desde la entrega original y repita la operación.',
+            500
+        );
+    }
+
     Response::error('Error interno del servidor: ' . $e->getMessage(), 500);
 });
 

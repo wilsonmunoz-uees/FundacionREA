@@ -97,6 +97,13 @@ $todosLosRoles = [];
 $mapaInstituciones = [];
 $puedeAsignarInstituciones = false;
 
+/* De una cuenta que pertenece a OTRA institución, quien no es SuperAdmin solo
+   mueve sus roles aquí: el nombre de usuario, el estado y la contraseña son de
+   la institución dueña de la cuenta. Lo decide la API; la pantalla se limita a
+   no ofrecer lo que no corresponde. */
+$puedeEditarIdentidad = true;
+$cuentaEsPropia       = true;
+
 if ($accion === 'editar') {
     /* Tras un intento fallido de guardar, el identificador ya no viene por la
        URL sino en el propio formulario: si solo se mirara $_GET, la pantalla
@@ -111,6 +118,9 @@ if ($accion === 'editar') {
 
     $puedeAsignarInstituciones = !empty($registroEditar['puede_asignar_instituciones']);
     $mapaInstituciones         = $registroEditar['instituciones'] ?? [];
+
+    $puedeEditarIdentidad = !empty($registroEditar['puede_editar_identidad']);
+    $cuentaEsPropia       = !empty($registroEditar['es_propia']);
 }
 
 /* Lo que debe verse en cada campo: lo que la persona acaba de escribir si el
@@ -159,12 +169,25 @@ if ($reintento && $mapaInstituciones) {
 }
 
 $buscar = trim($_GET['q'] ?? '');
+
+/* El SuperAdmin ve toda la red; con veintiuna instituciones conviene poder
+   acotar. A los demás la API los acota sola a su institución, así que este
+   parámetro no les cambia nada. */
+$filtroInstitucion = (int)($_GET['institucion_id'] ?? 0);
+
 $listado = apiGet('usuarios', [
-    'q'      => $buscar,
-    'pagina' => max(1, (int)($_GET['pagina'] ?? 1)),
+    'q'              => $buscar,
+    'institucion_id' => $filtroInstitucion ?: '',
+    'pagina'         => max(1, (int)($_GET['pagina'] ?? 1)),
 ]);
 $registros = apiDatos($listado, []);
 [$numPagina, $totalPaginas] = paginacionDesdeMeta(apiMeta($listado));
+
+/* Con el listado llega también si quien mira alcanza toda la red y, en ese
+   caso, las instituciones para el desplegable del filtro. */
+$verTodaLaRed       = (bool)apiMeta($listado, 'puede_asignar_instituciones', false);
+$institucionesFiltro = apiMeta($listado, 'instituciones_filtro', []);
+$institucionActual   = (int)apiMeta($listado, 'institucion_actual', 0);
 
 if (!$listado['ok']) {
     flashSet('error', apiError($listado));
@@ -238,23 +261,51 @@ include __DIR__ . '/../includes/layout_top.php';
                 ?>
             <?php endif; ?>
 
+            <?php if (!$puedeEditarIdentidad): ?>
+                <div class="alerta alerta-info">
+                    Esta cuenta pertenece a
+                    <strong><?= e($registroEditar['InstitucionNombre'] ?? 'otra institución') ?></strong>
+                    y tiene acceso a la suya. Aquí puede darle o quitarle
+                    <strong>los roles de esta institución</strong>, que es lo que decide qué ve mientras
+                    trabaja aquí. El nombre de usuario, el estado y la contraseña los administra su
+                    propia institución.
+                </div>
+            <?php endif; ?>
+
             <div class="form-row">
                 <div class="form-group">
-                    <label for="username" class="campo-requerido">Usuario</label>
-                    <input type="text" name="username" id="username" maxlength="50" required
-                           class="<?= trim($marcaError('username')) ?>"
-                           value="<?= e($valorCampo('username', 'Username')) ?>" autocomplete="off">
+                    <label for="username" <?= $puedeEditarIdentidad ? 'class="campo-requerido"' : '' ?>>Usuario</label>
+                    <?php if ($puedeEditarIdentidad): ?>
+                        <input type="text" name="username" id="username" maxlength="50" required
+                               class="<?= trim($marcaError('username')) ?>"
+                               value="<?= e($valorCampo('username', 'Username')) ?>" autocomplete="off">
+                    <?php else: ?>
+                        <?php /* Sin `name`: un campo bloqueado no debe viajar en el POST. Quien
+                                 decide es la API, pero no tiene sentido mandarle lo que va a
+                                 descartar. */ ?>
+                        <input type="text" id="username" class="campo-bloqueado" disabled
+                               value="<?= e($valorCampo('username', 'Username')) ?>">
+                    <?php endif; ?>
                 </div>
                 <div class="form-group" style="flex:0 1 180px;">
                     <label for="estado">Estado</label>
                     <?php $estadoActual = $valorCampo('estado', 'Estado') ?: 'ACTIVO'; ?>
-                    <select name="estado" id="estado">
-                        <option value="ACTIVO"   <?= $estadoActual === 'ACTIVO'   ? 'selected' : '' ?>>ACTIVO</option>
-                        <option value="INACTIVO" <?= $estadoActual === 'INACTIVO' ? 'selected' : '' ?>>INACTIVO</option>
-                    </select>
+                    <?php if ($puedeEditarIdentidad): ?>
+                        <select name="estado" id="estado">
+                            <option value="ACTIVO"   <?= $estadoActual === 'ACTIVO'   ? 'selected' : '' ?>>ACTIVO</option>
+                            <option value="INACTIVO" <?= $estadoActual === 'INACTIVO' ? 'selected' : '' ?>>INACTIVO</option>
+                        </select>
+                    <?php else: ?>
+                        <input type="text" id="estado" class="campo-bloqueado" disabled
+                               value="<?= e($estadoActual) ?>">
+                    <?php endif; ?>
                 </div>
             </div>
 
+            <?php /* De una cuenta ajena no se ofrece siquiera restablecer la clave:
+                     dejaría sin entrar a alguien en SU institución, que no ha
+                     pedido nada. */ ?>
+            <?php if ($puedeEditarIdentidad): ?>
             <fieldset class="bloque-clave">
                 <legend>Contraseña</legend>
 
@@ -279,6 +330,7 @@ include __DIR__ . '/../includes/layout_top.php';
                     </div>
                 <?php endif; ?>
             </fieldset>
+            <?php endif; ?>
 
             <?php if ($puedeAsignarInstituciones && $mapaInstituciones): ?>
                 <fieldset>
@@ -391,21 +443,53 @@ include __DIR__ . '/../includes/layout_top.php';
             <label>Buscar</label>
             <input type="text" name="q" placeholder="Usuario o nombre de persona..." value="<?= e($buscar) ?>">
         </div>
+        <?php if ($verTodaLaRed && $institucionesFiltro): ?>
+            <div class="form-group" style="flex:0 1 260px;">
+                <label for="filtro_institucion_id">Institución</label>
+                <select name="institucion_id" id="filtro_institucion_id">
+                    <option value="">Todas las de la red</option>
+                    <?php foreach ($institucionesFiltro as $inst): ?>
+                        <option value="<?= e((string)$inst['id']) ?>"
+                            <?= (int)$inst['id'] === $filtroInstitucion ? 'selected' : '' ?>>
+                            <?= e($inst['nombre']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        <?php endif; ?>
         <button type="submit" class="btn btn-secundario">Buscar</button>
     </form>
 </div>
 
 <div class="tabla-wrap">
     <table class="tabla-datos">
-        <thead><tr><th>Usuario</th><th>Persona</th><th>Roles</th><th>Entra en</th><th>Último Acceso</th><th>Estado</th><th class="no-imprimir">Acciones</th></tr></thead>
+        <thead><tr>
+            <th>Usuario</th><th>Persona</th>
+            <?php if ($verTodaLaRed): ?><th>Su institución</th><?php endif; ?>
+            <th>Roles</th><th>Entra en</th><th>Último Acceso</th><th>Estado</th>
+            <th class="no-imprimir">Acciones</th>
+        </tr></thead>
         <tbody>
         <?php if (empty($registros)): ?>
-            <tr><td colspan="7" class="tabla-vacia">No se encontraron usuarios registrados.</td></tr>
+            <tr><td colspan="<?= $verTodaLaRed ? 8 : 7 ?>" class="tabla-vacia">No se encontraron usuarios registrados.</td></tr>
         <?php endif; ?>
         <?php foreach ($registros as $r): ?>
             <tr>
-                <td><strong><?= e($r['Username']) ?></strong></td>
+                <td>
+                    <strong><?= e($r['Username']) ?></strong>
+                    <?php if (!$verTodaLaRed && isset($r['EsPropia']) && !$r['EsPropia']): ?>
+                        <?php /* Cuenta de otra institución con acceso a esta. De ella solo se
+                                 tocan sus roles de aquí, y conviene saberlo antes de abrirla. */ ?>
+                        <span class="badge badge-advertencia"
+                              title="Su cuenta pertenece a otra institución: aquí solo puede cambiar sus roles">
+                            de otra institución
+                        </span>
+                    <?php endif; ?>
+                </td>
                 <td><?= e(nombreCompleto($r['Nombres'], $r['Apellidos'])) ?></td>
+                <?php if ($verTodaLaRed): ?>
+                    <td><?= e($r['InstitucionNombre'] ?? '—') ?></td>
+                <?php endif; ?>
                 <td>
                     <?php if (!empty($rolesPorUsuario[$r['UsuarioId']])): ?>
                         <?php foreach ($rolesPorUsuario[$r['UsuarioId']] as $nombreRol): ?>
@@ -440,14 +524,20 @@ include __DIR__ . '/../includes/layout_top.php';
                 <td class="no-imprimir">
                     <div class="tabla-acciones">
                         <a class="btn btn-sm btn-secundario" href="usuarios.php?accion=editar&id=<?= e((string)$r['UsuarioId']) ?>">Editar</a>
-                        <form method="POST" action="usuarios.php?accion=cambiar_estado" onsubmit="return confirm('¿Confirma el cambio de estado?');" style="display:inline;">
-                            <?= csrfCampo() ?>
-                            <input type="hidden" name="id" value="<?= e((string)$r['UsuarioId']) ?>">
-                            <input type="hidden" name="estado_actual" value="<?= e($r['Estado']) ?>">
-                            <button type="submit" class="btn btn-sm <?= $r['Estado'] === 'ACTIVO' ? 'btn-peligro' : 'btn-exito' ?>">
-                                <?= $r['Estado'] === 'ACTIVO' ? 'Inactivar' : 'Activar' ?>
-                            </button>
-                        </form>
+                        <?php /* Inactivar deja la cuenta fuera de TODAS sus instituciones, no solo
+                                 de esta. De una cuenta ajena no se ofrece siquiera: dejaría sin
+                                 entrar a alguien en su propia escuela. Para retirarle el acceso
+                                 aquí, lo que corresponde es quitarle los roles. */ ?>
+                        <?php if ($verTodaLaRed || !isset($r['EsPropia']) || $r['EsPropia']): ?>
+                            <form method="POST" action="usuarios.php?accion=cambiar_estado" onsubmit="return confirm('¿Confirma el cambio de estado?');" style="display:inline;">
+                                <?= csrfCampo() ?>
+                                <input type="hidden" name="id" value="<?= e((string)$r['UsuarioId']) ?>">
+                                <input type="hidden" name="estado_actual" value="<?= e($r['Estado']) ?>">
+                                <button type="submit" class="btn btn-sm <?= $r['Estado'] === 'ACTIVO' ? 'btn-peligro' : 'btn-exito' ?>">
+                                    <?= $r['Estado'] === 'ACTIVO' ? 'Inactivar' : 'Activar' ?>
+                                </button>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 </td>
             </tr>

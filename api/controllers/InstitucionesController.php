@@ -41,7 +41,17 @@ final class InstitucionesController extends Controller
             'SELECT COALESCE(MAX(id),0)+1 AS total FROM institucion_educativa'
         );
 
-        Response::lista($datos, $total, $pagina, $porPagina, ['siguiente_id' => $siguienteId]);
+        Response::lista($datos, $total, $pagina, $porPagina, [
+            'siguiente_id' => $siguienteId,
+            /* Los largos viajan a la pantalla en vez de escribirse allí: así el
+               formulario no puede quedarse en desacuerdo con lo que acepta el
+               servidor, que es quien decide al guardar. */
+            'reglas' => [
+                'nombre'    => ['maximo' => self::LARGO_NOMBRE],
+                'direccion' => ['maximo' => self::LARGO_DIRECCION],
+                'telefono'  => Telefono::reglasContacto(),
+            ],
+        ]);
     }
 
     /** GET /api/instituciones/{id} */
@@ -140,6 +150,10 @@ final class InstitucionesController extends Controller
 
     /* ------------------------------------------------------------------ */
 
+    /** Topes de las columnas de `institucion_educativa`. */
+    private const LARGO_NOMBRE    = 100;
+    private const LARGO_DIRECCION = 100;
+
     private function validar(bool $esNuevo): array
     {
         $errores   = [];
@@ -147,20 +161,32 @@ final class InstitucionesController extends Controller
         $direccion = $this->peticion->texto('direccion');
         $telefono  = $this->peticion->texto('telefono');
 
-        if ($nombre === '')    $errores[] = 'El nombre es obligatorio.';
-        if ($direccion === '') $errores[] = 'La dirección es obligatoria.';
+        if ($nombre === '') {
+            $errores[] = 'El nombre es obligatorio.';
+        } elseif (mb_strlen($nombre) > self::LARGO_NOMBRE) {
+            $errores[] = 'El nombre no puede superar los ' . self::LARGO_NOMBRE . ' caracteres.';
+        }
 
-        // El teléfono sigue la misma regla que en el resto del sistema
-        $errores = array_merge($errores, Telefono::validar($telefono, 'la institución', true));
+        if ($direccion === '') {
+            $errores[] = 'La dirección es obligatoria.';
+        } elseif (mb_strlen($direccion) > self::LARGO_DIRECCION) {
+            $errores[] = 'La dirección no puede superar los ' . self::LARGO_DIRECCION . ' caracteres.';
+        }
+
+        /* El teléfono de la institución NO sigue la regla del teléfono de una
+           persona: es la forma de contacto que publica la escuela, y viene con
+           extensiones, dos números o la palabra «Central». Ver el comentario de
+           api/core/Telefono.php. */
+        $errores = array_merge($errores, Telefono::validarContacto($telefono, true));
 
         if ($errores) {
             Response::validacion($errores);
         }
 
         return [
-            'nombre'    => $nombre,
-            'direccion' => $direccion,
-            'telefono'  => Telefono::normalizar($telefono),
+            'nombre'    => mb_substr($nombre, 0, self::LARGO_NOMBRE),
+            'direccion' => mb_substr($direccion, 0, self::LARGO_DIRECCION),
+            'telefono'  => Telefono::normalizarContacto($telefono),
             'estado'    => $this->estado($this->peticion->texto('estado', 'ACTIVO')),
         ];
     }

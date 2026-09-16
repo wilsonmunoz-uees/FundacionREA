@@ -70,6 +70,17 @@ $registros = apiDatos($listado, []);
 [$numPagina, $totalPaginas] = paginacionDesdeMeta(apiMeta($listado));
 $siguienteId = (int)apiMeta($listado, 'siguiente_id', 1);
 
+/* Los largos de cada campo los publica la API (ver InstitucionesController):
+   así el formulario no puede quedarse en desacuerdo con lo que acepta el
+   servidor. Los valores de reserva son los mismos, por si la API no responde. */
+$reglas = apiMeta($listado, 'reglas', []);
+$largoNombre    = (int)($reglas['nombre']['maximo']    ?? 100);
+$largoDireccion = (int)($reglas['direccion']['maximo'] ?? 100);
+$largoTelefono  = (int)($reglas['telefono']['maximo']  ?? 50);
+$ayudaTelefono  = (string)($reglas['telefono']['ayuda']
+    ?? 'Escríbalo como lo publica la institución: puede llevar letras, extensiones '
+     . 'o más de un número. Máximo 50 caracteres.');
+
 if (!$listado['ok']) {
     flashSet('error', apiError($listado));
 }
@@ -111,23 +122,28 @@ include __DIR__ . '/../includes/layout_top.php';
                 </div>
                 <div class="form-group" style="flex:2;">
                     <label class="campo-requerido">Nombre</label>
-                    <input type="text" name="nombre" maxlength="50" required value="<?= e($registroEditar['nombre'] ?? ($_POST['nombre'] ?? '')) ?>">
+                    <input type="text" name="nombre" maxlength="<?= $largoNombre ?>" required
+                           value="<?= e($registroEditar['nombre'] ?? ($_POST['nombre'] ?? '')) ?>">
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label class="campo-requerido">Dirección</label>
-                    <input type="text" name="direccion" maxlength="100" required value="<?= e($registroEditar['direccion'] ?? ($_POST['direccion'] ?? '')) ?>">
+                    <input type="text" name="direccion" maxlength="<?= $largoDireccion ?>" required
+                           value="<?= e($registroEditar['direccion'] ?? ($_POST['direccion'] ?? '')) ?>">
                 </div>
                 <div class="form-group">
                     <label class="campo-requerido">Teléfono</label>
-                    <input type="tel" name="telefono" maxlength="16" required
-                           inputmode="tel" pattern="^\+?[0-9]{7,15}$" data-telefono="1"
-                           title="Solo números, con un + opcional al inicio"
+                    <?php /* Sin `data-telefono` y sin `pattern`: ese par aplica la regla del
+                             teléfono de una PERSONA —solo dígitos, dieciséis caracteres— y
+                             aquí se guarda el contacto que publica la escuela, que puede
+                             traer extensiones, dos números o una palabra. Lo comprueba el
+                             servidor en Telefono::validarContacto(). */ ?>
+                    <input type="text" name="telefono" maxlength="<?= $largoTelefono ?>" required
+                           inputmode="tel"
+                           title="Como lo publica la institución: admite letras, extensiones o varios números"
                            value="<?= e($registroEditar['telefono'] ?? ($_POST['telefono'] ?? '')) ?>">
-                    <div class="form-ayuda">
-                        Solo números, con un + opcional al inicio. Máximo 16 caracteres.
-                    </div>
+                    <div class="form-ayuda"><?= e($ayudaTelefono) ?></div>
                 </div>
             </div>
             <div class="form-row">

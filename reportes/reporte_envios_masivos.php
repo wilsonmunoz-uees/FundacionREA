@@ -11,6 +11,12 @@ require_once __DIR__ . '/../includes/functions.php';
 requireAcceso('reporte_envios_masivos');
 $institucionId = institucionActual();
 
+/* Cómo se llama este reporte. Se declara UNA sola vez y lo leen las dos
+   cabeceras —la del PDF y la de la pantalla—: escritos por separado, como
+   estaban, acabaron diciendo cosas distintas del mismo documento. */
+$tituloReporte    = 'Reporte de Efectividad de Envíos Masivos';
+$subtituloReporte = 'Auditoría de invitaciones enviadas, uso de enlaces verificados y conversión a consentimientos';
+
 /* ---------------------------------------------------------------------------
    Filtros
    --------------------------------------------------------------------------- */
@@ -58,7 +64,6 @@ $parametros = [
 
 /* Resumen de filtros para encabezado y PDF */
 $resumenFiltros = [
-    'Institución'     => $_SESSION['institucion_nombre'] ?? ('#' . $institucionId),
     'Tipo de titular' => $tiposDisponibles[$filtroTipo],
     'Estado'          => $estadosDisponibles[$filtroEstado],
     'Período'         => ($filtroDesde !== '' || $filtroHasta !== '')
@@ -94,10 +99,12 @@ if ($formato === 'pdf') {
     $pdf = new PdfReporte('H');
 
     $pdf->cabecera([
-        'logo'        => __DIR__ . '/../assets/logo.png',
-        'institucion' => $_SESSION['institucion_nombre'] ?? 'Red Educativa Arquidiocesana',
-        'titulo'      => 'Reporte de Efectividad de Envíos Masivos',
-        'subtitulo'   => 'Auditoría de invitaciones enviadas, uso de enlaces verificados y conversión a consentimientos',
+        // El logotipo y el nombre son los de la institución en la que se emite,
+        // no los de la red: ver logoInstitucion() en includes/functions.php.
+        'logo'        => logoInstitucion()['ruta'],
+        'institucion' => nombreInstitucionActual(),
+        'titulo'      => $tituloReporte,
+        'subtitulo'   => $subtituloReporte,
         'filtros'     => $resumenFiltros,
     ]);
 
@@ -373,30 +380,18 @@ $breadcrumb = [['label' => 'Reportes', 'url' => null], ['label' => 'Efectividad 
 include __DIR__ . '/../includes/layout_top.php';
 ?>
 
-<!-- ================= Encabezado exclusivo de impresión ================= -->
-<div class="solo-impresion" style="display:none;margin-bottom:14px;border-bottom:2px solid #c8102e;padding-bottom:10px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
-        <div style="display:flex;align-items:center;gap:14px;">
-            <img src="<?= e(APP_ROOT) ?>assets/logo.png" alt="REA" style="height:38px;width:auto;">
-            <div>
-                <div style="font-size:13pt;font-weight:700;color:#c8102e;"><?= e($_SESSION['institucion_nombre'] ?? 'Red Educativa Arquidiocesana') ?></div>
-                <div style="font-size:10.5pt;font-weight:700;color:#0f172a;">Reporte de Efectividad de Envíos Masivos</div>
-                <div style="font-size:8pt;color:#64748b;">Monitoreo de alcance y conversión de las campañas de invitación digital</div>
-            </div>
-        </div>
-        <div style="text-align:right;font-size:7.5pt;color:#64748b;">
-            <div>Emisión: <?= date('d/m/Y H:i') ?></div>
-            <div>Usuario: <?= e($_SESSION['username'] ?? 'sistema') ?></div>
-        </div>
-    </div>
-</div>
-
 <?php $urlExcel = 'reporte_envios_masivos.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
-<div class="page-header no-imprimir">
-    <div>
-        <h1>📬 Reporte de Efectividad de Envíos Masivos</h1>
-        <p>Monitoreo de alcance y conversión de las campañas de invitación digital: enlaces emitidos, verificados y pendientes.</p>
-    </div>
+<?php /* La misma cabecera que lleva el PDF: logotipo de la institución, su nombre
+         y el título del reporte. En pantalla va discreta; al imprimir desde el
+         navegador es lo primero de la hoja, de modo que lo impreso y lo
+         descargado no sean dos documentos distintos. */ ?>
+<?php cabeceraReporte($tituloReporte,
+                      $subtituloReporte); ?>
+
+<?php /* Aquí quedan solo las acciones. El título y la descripción los lleva la
+         cabecera del reporte, que es la que además se imprime; repetirlos aquí
+         era decir dos veces lo mismo con distintas palabras. */ ?>
+<div class="page-header page-header-acciones no-imprimir">
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>

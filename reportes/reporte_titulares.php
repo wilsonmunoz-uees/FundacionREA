@@ -10,6 +10,12 @@ require_once __DIR__ . '/../includes/functions.php';
 requireAcceso('reporte_titulares');
 $institucionId = institucionActual();
 
+/* Cómo se llama este reporte. Se declara UNA sola vez y lo leen las dos
+   cabeceras —la del PDF y la de la pantalla—: escritos por separado, como
+   estaban, acabaron diciendo cosas distintas del mismo documento. */
+$tituloReporte    = 'Reporte de Consentimientos por Titular';
+$subtituloReporte = 'Registro de consentimientos otorgados y revocados para el tratamiento de datos personales';
+
 /* ---------------------------------------------------------------------------
    Filtros
    --------------------------------------------------------------------------- */
@@ -102,7 +108,6 @@ if ($formato === 'pdf') {
     }
 
     $resumenFiltros = [
-        'Institución'     => $_SESSION['institucion_nombre'] ?? ('#' . $institucionId),
         'Estado'          => $estadosDisponibles[$filtroEstado],
         'Tipo de titular' => $tiposDisponibles[$filtroTipo],
         'Finalidad'       => $nombreFinalidad,
@@ -119,10 +124,12 @@ if ($formato === 'pdf') {
     $pdf = new PdfReporte('H');
 
     $pdf->cabecera([
-        'logo'        => __DIR__ . '/../assets/logo.png',
-        'institucion' => $_SESSION['institucion_nombre'] ?? 'Red Educativa Arquidiocesana',
-        'titulo'      => 'Reporte de Consentimientos por Titular',
-        'subtitulo'   => 'Registro de consentimientos otorgados y revocados para el tratamiento de datos personales',
+        // El logotipo y el nombre son los de la institución en la que se emite,
+        // no los de la red: ver logoInstitucion() en includes/functions.php.
+        'logo'        => logoInstitucion()['ruta'],
+        'institucion' => nombreInstitucionActual(),
+        'titulo'      => $tituloReporte,
+        'subtitulo'   => $subtituloReporte,
         'filtros'     => $resumenFiltros,
     ]);
 
@@ -336,11 +343,17 @@ include __DIR__ . '/../includes/layout_top.php';
 ?>
 
 <?php $urlExcel = 'reporte_titulares.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
-<div class="page-header no-imprimir">
-    <div>
-        <h1>🧾 Consentimientos por Titular</h1>
-        <p>Detalle de las personas que otorgaron o revocaron su consentimiento para el tratamiento de datos personales.</p>
-    </div>
+<?php /* La misma cabecera que lleva el PDF: logotipo de la institución, su nombre
+         y el título del reporte. En pantalla va discreta; al imprimir desde el
+         navegador es lo primero de la hoja, de modo que lo impreso y lo
+         descargado no sean dos documentos distintos. */ ?>
+<?php cabeceraReporte($tituloReporte,
+                      $subtituloReporte); ?>
+
+<?php /* Aquí quedan solo las acciones. El título y la descripción los lleva la
+         cabecera del reporte, que es la que además se imprime; repetirlos aquí
+         era decir dos veces lo mismo con distintas palabras. */ ?>
+<div class="page-header page-header-acciones no-imprimir">
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>
