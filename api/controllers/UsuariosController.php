@@ -6,14 +6,36 @@
 //
 // QUIÉN PUEDE QUÉ
 //
-// Administrar cuentas —crearlas, renombrarlas, inactivarlas, darles roles— lo
-// hace quien tenga abierta esta opción, y siempre DENTRO de su institución.
+// Hay dos alcances, y de ellos sale todo lo demás:
 //
-// Ampliar una cuenta a OTRA institución es distinto: es dar acceso a los datos
-// personales de otra comunidad educativa, y quien manda en esa institución no
-// participa en la decisión. Por eso queda reservado al SuperAdmin, que es quien
-// responde por toda la red. Un administrador corriente que edite una cuenta con
-// varias instituciones no las pierde: no las ve y no las toca.
+//   SuperAdmin
+//       Ve TODAS las cuentas de la red, entre en la institución que entre, y
+//       puede darle a cualquiera acceso a varias instituciones con sus propios
+//       roles en cada una. Es quien responde por toda la red.
+//
+//   Cualquier otro administrador con esta opción abierta
+//       Trabaja dentro de la institución en la que inició sesión, y solo ahí.
+//       Ve las cuentas que PERTENECEN a esa institución y también las de otras
+//       instituciones a las que se les dio acceso a la suya —gente que trabaja
+//       en su escuela aunque su cuenta viva en otra—, porque es quien debe
+//       darles sus roles allí.
+//
+//       De una cuenta que pertenece a su institución maneja todo: nombre de
+//       usuario, estado, restablecer la clave y roles.
+//
+//       De una cuenta VISITANTE maneja únicamente los roles de SU institución.
+//       El nombre de usuario, el estado y la contraseña son de la institución
+//       dueña de la cuenta: tocarlos desde aquí afectaría a una comunidad
+//       educativa que no participó en la decisión.
+//
+//       Nunca puede ampliar una cuenta a otra institución, ni mover los roles
+//       que esa cuenta tenga en instituciones distintas de la suya, ni siquiera
+//       en las demás instituciones a las que él mismo tenga acceso: lo que
+//       manda es la institución en la que está trabajando ahora.
+//
+// Todo esto se comprueba AQUÍ, en el servidor. La pantalla oculta lo que no
+// corresponde, pero una petición puede armarse a mano y por eso no se confía en
+// que la pantalla haya ocultado nada.
 
 final class UsuariosController extends Controller
 {
@@ -28,8 +50,22 @@ final class UsuariosController extends Controller
         $institucionId = $this->institucion();
 
         $buscar = $this->like($this->peticion->paramTexto('q'));
-        $where  = 'WHERE u.InstitucionEducativaId = ? AND (u.Username LIKE ? OR p.Nombres LIKE ? OR p.Apellidos LIKE ?)';
-        $params = [$institucionId, $buscar, $buscar, $buscar];
+
+        [$alcance, $params] = $this->alcanceCuentas('u', $institucionId);
+        $where = "WHERE $alcance AND (u.Username LIKE ? OR p.Nombres LIKE ? OR p.Apellidos LIKE ?)";
+        $params = array_merge($params, [$buscar, $buscar, $buscar]);
+
+        /* El SuperAdmin ve toda la red y con veintiuna instituciones el listado
+           se vuelve largo, así que puede acotarlo a una. Para los demás el
+           filtro no aplica: ya están acotados a la suya. */
+        $filtroInstitucion = $this->puedeAsignarInstituciones()
+            ? $this->peticion->paramEntero('institucion_id')
+            : 0;
+
+        if ($filtroInstitucion > 0) {
+            $where   .= ' AND u.InstitucionEducativaId = ?';
+            $params[] = $filtroInstitucion;
+        }
 
         $total = $this->contar(
             "SELECT COUNT(*) total FROM usuario u INNER JOIN persona p ON p.PersonaId = u.PersonaId $where",
@@ -39,29 +75,47 @@ final class UsuariosController extends Controller
 
         $datos = $this->consultar(
             "SELECT u.InstitucionEducativaId, u.PersonaId, u.UsuarioId, u.Username, u.Email,
-                    u.UltimoAcceso, u.Estado, p.Nombres, p.Apellidos
+                    u.UltimoAcceso, u.Estado, p.Nombres, p.Apellidos,
+                    i.nombre AS InstitucionNombre
                FROM usuario u
          INNER JOIN persona p ON p.PersonaId = u.PersonaId
+          LEFT JOIN institucion_educativa i ON i.id = u.InstitucionEducativaId
              $where
            ORDER BY u.Username
               LIMIT $offset, $porPagina",
             $params
         );
 
-        // Roles de cada usuario listado (evita N+1 consultas desde la vista)
+        /* Roles de cada cuenta, en una sola consulta en vez de una por fila.
+           Se traen los de TODAS las instituciones porque la columna no siempre
+           enseña los mismos: la regla es «los roles de la institución en la que
+           se está trabajando y, si la cuenta no llega hasta aquí —cosa que solo
+           ve el SuperAdmin—, los de la suya». Así, quien administra una escuela
+           ve siempre lo que él mismo asigna, y quien mira toda la red ve lo que
+           esa cuenta es en su casa. */
         $rolesPorUsuario = [];
         if ($datos) {
             $ids  = array_column($datos, 'UsuarioId');
             $in   = implode(',', array_fill(0, count($ids), '?'));
-            $filas = $this->consultar(
-                "SELECT ur.UsuarioId, r.Nombre
+
+            $porInstitucion = [];
+            foreach ($this->consultar(
+                "SELECT ur.UsuarioId, ur.InstitucionEducativaId, r.Nombre
                    FROM usuariorol ur
              INNER JOIN rol r ON r.RolId = ur.RolId AND r.InstitucionEducativaId = ur.InstitucionEducativaId
-                  WHERE ur.InstitucionEducativaId = ? AND ur.UsuarioId IN ($in)",
-                array_merge([$institucionId], $ids)
-            );
-            foreach ($filas as $fila) {
-                $rolesPorUsuario[(int)$fila['UsuarioId']][] = $fila['Nombre'];
+                  WHERE ur.UsuarioId IN ($in)
+               ORDER BY r.Nombre",
+                $ids
+            ) as $fila) {
+                $porInstitucion[(int)$fila['UsuarioId']][(int)$fila['InstitucionEducativaId']][] = $fila['Nombre'];
+            }
+
+            foreach ($datos as $fila) {
+                $usuarioId = (int)$fila['UsuarioId'];
+                $suyos     = $porInstitucion[$usuarioId] ?? [];
+
+                $rolesPorUsuario[$usuarioId] = $suyos[$institucionId]
+                    ?? ($suyos[(int)$fila['InstitucionEducativaId']] ?? []);
             }
         }
 
@@ -87,13 +141,30 @@ final class UsuariosController extends Controller
         foreach ($datos as &$fila) {
             $fila['Roles'] = $rolesPorUsuario[(int)$fila['UsuarioId']] ?? [];
             $fila['Instituciones'] = $institucionesPorUsuario[(int)$fila['UsuarioId']] ?? [];
+            /* La cuenta vive en otra institución y solo viene de visita a esta.
+               La pantalla lo marca, porque de esas no se toca más que sus roles
+               de aquí. */
+            $fila['EsPropia'] = $this->esCuentaPropia($fila, $institucionId);
         }
         unset($fila);
 
-        Response::lista($datos, $total, $pagina, $porPagina, [
+        $meta = [
             'roles_disponibles' => $this->rolesActivos($institucionId),
             'puede_asignar_instituciones' => $this->puedeAsignarInstituciones(),
-        ]);
+            'institucion_actual' => $institucionId,
+        ];
+
+        /* Con toda la red a la vista, el SuperAdmin necesita poder acotar por
+           institución. Se le mandan las activas para que la pantalla arme el
+           desplegable sin una segunda llamada. */
+        if ($this->puedeAsignarInstituciones()) {
+            $meta['instituciones_filtro'] = $this->consultar(
+                "SELECT id, nombre FROM institucion_educativa WHERE estado = 'ACTIVO' ORDER BY nombre"
+            );
+            $meta['filtro_institucion_id'] = $filtroInstitucion;
+        }
+
+        Response::lista($datos, $total, $pagina, $porPagina, $meta);
     }
 
     /**
@@ -107,9 +178,11 @@ final class UsuariosController extends Controller
         $institucionId = $this->institucion();
 
         $buscar = $this->like($this->peticion->paramTexto('q'));
-        $where  = 'WHERE u.InstitucionEducativaId = ?
-                     AND (u.Username LIKE ? OR p.Nombres LIKE ? OR p.Apellidos LIKE ? OR p.Identificacion LIKE ?)';
-        $params = [$institucionId, $buscar, $buscar, $buscar, $buscar];
+
+        [$alcance, $params] = $this->alcanceCuentas('u', $institucionId);
+        $where  = "WHERE $alcance
+                     AND (u.Username LIKE ? OR p.Nombres LIKE ? OR p.Apellidos LIKE ? OR p.Identificacion LIKE ?)";
+        $params = array_merge($params, [$buscar, $buscar, $buscar, $buscar]);
 
         $total = $this->contar(
             "SELECT COUNT(*) total FROM usuario u
@@ -139,13 +212,17 @@ final class UsuariosController extends Controller
         $institucionId = $this->institucion();
         $id = (int)$ruta['id'];
 
+        [$alcance, $params] = $this->alcanceCuentas('u', $institucionId);
+
         $registro = $this->consultarUna(
-            'SELECT u.InstitucionEducativaId, u.PersonaId, u.UsuarioId, u.Username, u.Email,
-                    u.UltimoAcceso, u.Estado, p.Nombres, p.Apellidos
+            "SELECT u.InstitucionEducativaId, u.PersonaId, u.UsuarioId, u.Username, u.Email,
+                    u.UltimoAcceso, u.Estado, p.Nombres, p.Apellidos,
+                    i.nombre AS InstitucionNombre
                FROM usuario u
          INNER JOIN persona p ON p.PersonaId = u.PersonaId
-              WHERE u.UsuarioId = ? AND u.InstitucionEducativaId = ?',
-            [$id, $institucionId]
+          LEFT JOIN institucion_educativa i ON i.id = u.InstitucionEducativaId
+              WHERE u.UsuarioId = ? AND $alcance",
+            array_merge([$id], $params)
         );
         if (!$registro) {
             Response::noEncontrado();
@@ -161,6 +238,13 @@ final class UsuariosController extends Controller
            instituciones. Para los demás la cuenta se administra como siempre:
            su institución y sus roles. */
         $registro['puede_asignar_instituciones'] = $this->puedeAsignarInstituciones();
+
+        /* Y de una cuenta que no es de esta institución, un administrador
+           corriente solo maneja los roles de aquí: el nombre de usuario, el
+           estado y la contraseña son de la institución dueña de la cuenta. */
+        $registro['es_propia']              = $this->esCuentaPropia($registro, $institucionId);
+        $registro['puede_editar_identidad'] = $this->puedeEditarIdentidad($registro, $institucionId);
+        $registro['institucion_actual']     = $institucionId;
 
         if ($registro['puede_asignar_instituciones']) {
             $registro['instituciones'] = $this->mapaInstituciones(
@@ -299,13 +383,29 @@ final class UsuariosController extends Controller
     {
         $this->requiereAcceso(self::MODULO);
         $institucionId = $this->institucion();
-        $id    = (int)$ruta['id'];
-        $datos = $this->validar(false);
+        $id = (int)$ruta['id'];
 
-        $antes = $this->filaAuditable('usuario', 'UsuarioId', $id, $institucionId);
-        if (!$antes) {
+        /* La cuenta se busca SIN atarla a la institución activa, porque puede
+           pertenecer a otra y venir de visita. Quién la alcanza lo decide el
+           alcance, justo debajo. */
+        $antes = $this->filaAuditable('usuario', 'UsuarioId', $id);
+
+        if (!$antes || !$this->alcanza($id, $institucionId)) {
             Response::noEncontrado();
         }
+
+        /* Hasta dónde llega quien está guardando. De una cuenta visitante, un
+           administrador que no es SuperAdmin solo mueve los roles de SU
+           institución: el nombre de usuario, el estado y la contraseña son de
+           la institución dueña de la cuenta. Se decide aquí y no en la
+           pantalla, porque la petición puede armarse a mano.
+
+           Se resuelve ANTES de validar, porque de ello depende qué campos son
+           obligatorios: a quien no puede cambiar el nombre de usuario no se le
+           puede exigir que lo mande. */
+        $tocaIdentidad = $this->puedeEditarIdentidad($antes, $institucionId);
+        $datos         = $this->validar(false, $tocaIdentidad);
+
         $rolesAntes = $this->nombresRoles($institucionId, array_map('intval', $this->columna(
             'SELECT RolId FROM usuariorol WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
             [$id, $institucionId]
@@ -313,37 +413,43 @@ final class UsuariosController extends Controller
         $institucionesAntes = $this->nombresInstituciones($id);
 
         /* El correo sigue siendo el de la persona: se refresca por si cambió en
-           su ficha. Nadie lo escribe aquí. */
-        $correo = $this->correoDeLaPersona($institucionId, (int)$antes['PersonaId']);
+           su ficha. Nadie lo escribe aquí. Se lee en la institución DUEÑA de la
+           cuenta, que es donde está su ficha del padrón. */
+        $institucionDueña = (int)$antes['InstitucionEducativaId'];
+        $correo = $this->correoDeLaPersona($institucionDueña, (int)$antes['PersonaId']);
 
         /* Restablecer la clave no es escribir una: el sistema genera otra
            temporal, la envía y vuelve a exigir el cambio en el próximo ingreso.
            Así nadie —tampoco quien administra— llega a conocer la contraseña de
            otra persona. */
-        $clave = $datos['restablecer_clave'] ? Password::generar() : '';
+        $clave = ($tocaIdentidad && $datos['restablecer_clave']) ? Password::generar() : '';
 
         try {
             $this->db->beginTransaction();
 
-            if ($clave !== '') {
-                $this->ejecutar(
-                    'UPDATE usuario
-                        SET Username = ?, PasswordHash = ?, DebeCambiarClave = \'SI\', Email = ?, Estado = ?
-                      WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
-                    [
-                        $datos['username'], password_hash($clave, PASSWORD_DEFAULT),
-                        $correo, $datos['estado'], $id, $institucionId,
-                    ]
-                );
-            } else {
-                $this->ejecutar(
-                    'UPDATE usuario SET Username = ?, Email = ?, Estado = ?
-                      WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
-                    [$datos['username'], $correo, $datos['estado'], $id, $institucionId]
-                );
+            if ($tocaIdentidad) {
+                if ($clave !== '') {
+                    $this->ejecutar(
+                        'UPDATE usuario
+                            SET Username = ?, PasswordHash = ?, DebeCambiarClave = \'SI\', Email = ?, Estado = ?
+                          WHERE UsuarioId = ?',
+                        [
+                            $datos['username'], password_hash($clave, PASSWORD_DEFAULT),
+                            $correo, $datos['estado'], $id,
+                        ]
+                    );
+                } else {
+                    $this->ejecutar(
+                        'UPDATE usuario SET Username = ?, Email = ?, Estado = ?
+                          WHERE UsuarioId = ?',
+                        [$datos['username'], $correo, $datos['estado'], $id]
+                    );
+                }
             }
+            /* Si no toca la identidad no se escribe NADA en `usuario`: ni
+               siquiera el correo. Lo único que cambia son sus roles de aquí. */
 
-            $this->guardarAccesos($institucionId, $id, (int)$antes['InstitucionEducativaId'], $datos);
+            $this->guardarAccesos($institucionId, $id, $institucionDueña, $datos);
 
             $this->db->commit();
         } catch (PDOException $ex) {
@@ -394,11 +500,23 @@ final class UsuariosController extends Controller
         $id = (int)$ruta['id'];
 
         $registro = $this->consultarUna(
-            'SELECT Estado FROM usuario WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
-            [$id, $institucionId]
+            'SELECT Estado, InstitucionEducativaId FROM usuario WHERE UsuarioId = ?',
+            [$id]
         );
-        if (!$registro) {
+        if (!$registro || !$this->alcanza($id, $institucionId)) {
             Response::noEncontrado();
+        }
+
+        /* Inactivar una cuenta la deja fuera de TODAS sus instituciones, no solo
+           de esta. Por eso solo puede hacerlo el SuperAdmin o la institución
+           dueña de la cuenta: desde una institución visitada, dar de baja a
+           alguien dejaría sin acceso a su propia escuela. Para retirarle el
+           acceso aquí, lo que corresponde es quitarle sus roles. */
+        if (!$this->puedeEditarIdentidad($registro, $institucionId)) {
+            Response::prohibido(
+                'Esta cuenta pertenece a otra institución: desde aquí solo puede cambiar sus roles. '
+                . 'Activarla o inactivarla le corresponde a su institución o al SuperAdmin.'
+            );
         }
 
         $nuevo = $this->peticion->texto('estado') !== ''
@@ -406,8 +524,8 @@ final class UsuariosController extends Controller
             : $this->estadoInvertido($registro['Estado']);
 
         $this->ejecutar(
-            'UPDATE usuario SET Estado = ? WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
-            [$nuevo, $id, $institucionId]
+            'UPDATE usuario SET Estado = ? WHERE UsuarioId = ?',
+            [$nuevo, $id]
         );
         $this->auditarActualizacion('usuario', 'UsuarioId', $id, $registro, $institucionId);
 
@@ -424,6 +542,68 @@ final class UsuariosController extends Controller
     private function puedeAsignarInstituciones(): bool
     {
         return Auth::esSuperAdmin($this->usuario ?? []);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Alcance: qué cuentas alcanza quien está en la pantalla              */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Condición SQL que acota las cuentas visibles, con sus parámetros.
+     *
+     * · SuperAdmin: ninguna condición. Ve toda la red desde donde esté.
+     * · Los demás: las cuentas que PERTENECEN a la institución activa y las que
+     *   tienen acceso a ella. Son las personas que trabajan en esa escuela,
+     *   viva su cuenta donde viva.
+     *
+     * @param string $alias alias de la tabla `usuario` en la consulta
+     * @return array{0:string, 1:array} fragmento SQL y sus parámetros
+     */
+    private function alcanceCuentas(string $alias, int $institucionId): array
+    {
+        if ($this->puedeAsignarInstituciones()) {
+            return ['1=1', []];
+        }
+
+        return [
+            "($alias.InstitucionEducativaId = ?
+              OR EXISTS (SELECT 1 FROM usuario_institucion ui
+                          WHERE ui.UsuarioId = $alias.UsuarioId
+                            AND ui.InstitucionEducativaId = ?))",
+            [$institucionId, $institucionId],
+        ];
+    }
+
+    /** ¿Está esta cuenta dentro del alcance de quien está en la pantalla? */
+    private function alcanza(int $usuarioId, int $institucionId): bool
+    {
+        [$alcance, $params] = $this->alcanceCuentas('u', $institucionId);
+
+        return $this->consultarUna(
+            "SELECT 1 AS ok FROM usuario u WHERE u.UsuarioId = ? AND $alcance",
+            array_merge([$usuarioId], $params)
+        ) !== null;
+    }
+
+    /**
+     * ¿La cuenta PERTENECE a la institución en la que se está trabajando?
+     *
+     * De eso depende hasta dónde llega un administrador que no es SuperAdmin:
+     * de las suyas maneja todo; de las visitantes, solo los roles de aquí.
+     */
+    private function esCuentaPropia(array $registro, int $institucionId): bool
+    {
+        return (int)($registro['InstitucionEducativaId'] ?? 0) === $institucionId;
+    }
+
+    /**
+     * ¿Puede quien está en la pantalla cambiar la identidad de esta cuenta
+     * —nombre de usuario, estado, contraseña— y no solo sus roles de aquí?
+     */
+    private function puedeEditarIdentidad(array $registro, int $institucionId): bool
+    {
+        return $this->puedeAsignarInstituciones()
+            || $this->esCuentaPropia($registro, $institucionId);
     }
 
     /**
@@ -597,12 +777,26 @@ final class UsuariosController extends Controller
         );
     }
 
+    /**
+     * Deja los roles de UNA institución tal como pide el formulario.
+     *
+     * Solo toca esa institución: los roles que la cuenta tenga en otras quedan
+     * exactamente como estaban. Es lo que hace que un administrador que no es
+     * SuperAdmin no pueda mover nada fuera de donde está trabajando.
+     */
     private function sincronizarRoles(int $institucionId, int $usuarioId, array $roles): void
     {
         $this->ejecutar(
             'DELETE FROM usuariorol WHERE UsuarioId = ? AND InstitucionEducativaId = ?',
             [$usuarioId, $institucionId]
         );
+
+        /* Los identificadores se comprueban contra ESTA institución: un
+           formulario manipulado no puede colar aquí el rol de otra escuela. */
+        $roles = $this->rolesPorInstitucionValidados(
+            [$institucionId => $roles],
+            [$institucionId]
+        )[$institucionId] ?? [];
 
         if (!$roles) {
             return;
@@ -614,7 +808,13 @@ final class UsuariosController extends Controller
         }
     }
 
-    private function validar(bool $esNuevo): array
+    /**
+     * @param bool $tocaIdentidad false cuando quien edita solo puede mover los
+     *                            roles de su institución: entonces el nombre de
+     *                            usuario no se le pide, porque no puede
+     *                            cambiarlo.
+     */
+    private function validar(bool $esNuevo, bool $tocaIdentidad = true): array
     {
         $errores   = [];
         $personaId = $this->peticion->entero('persona_id');
@@ -635,7 +835,7 @@ final class UsuariosController extends Controller
             $falla('persona_id', 'La persona seleccionada no pertenece a esta institución.');
         }
 
-        if ($username === '') {
+        if ($tocaIdentidad && $username === '') {
             $falla('username', 'El nombre de usuario es obligatorio.');
         }
 

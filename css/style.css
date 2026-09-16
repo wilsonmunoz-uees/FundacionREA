@@ -490,6 +490,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
 .logout-btn {
     display: inline-flex;
     align-items: center;
+    /* Separa el icono del texto. Cuando en el teléfono el texto se oculta, el
+       hueco desaparece solo: `gap` no deja aire donde no hay dos cosas. */
+    gap: 6px;
     padding: 8px 15px;
     background: var(--rea-blanco);
     border: 1px solid var(--rea-gris-300);
@@ -705,6 +708,17 @@ input[type=checkbox], input[type=radio] { accent-color: var(--rea-rojo); width: 
 .page-header h1 { font-size: 1.55rem; }
 .page-header p { color: var(--rea-gris-600); margin: 6px 0 0; font-size: .88rem; }
 
+/* En los reportes esta franja solo lleva las acciones: el título y la
+   descripción los da la cabecera del reporte. Sin texto a la izquierda, los
+   botones se van al borde derecho y la línea divisoria sobra. */
+.page-header-acciones {
+    justify-content: flex-end;
+    border-bottom: 0;
+    padding-bottom: 0;
+    margin-top: -6px;
+    margin-bottom: 18px;
+}
+
 /* ---------- Tarjetas ---------- */
 .card {
     background: var(--rea-blanco);
@@ -877,6 +891,9 @@ table.tabla-datos tbody tr:last-child td { border-bottom: none; }
 .badge-neutro { background: var(--rea-gris-100); color: var(--rea-gris-700); border-color: var(--rea-gris-200); }
 .badge-info { background: var(--color-info-bg); color: var(--color-info); border-color: #c7e2f6; }
 .badge-sensible { background: #fde3e6; color: #a3122c; border-color: #f3b7bd; }
+/* Una cuenta de otra institución que viene de visita: no es un error ni un
+   estado malo, es un dato que conviene ver antes de abrirla. */
+.badge-advertencia { background: var(--color-advertencia-bg, #fdf3d8); color: #8a6100; border-color: #f0dcae; }
 
 /* ---------- Filtros de búsqueda ---------- */
 .filtros-bar {
@@ -1039,6 +1056,9 @@ select.campo-bloqueado:disabled {
     .avatar-usuario { width: 32px; height: 32px; font-size: .78rem; }
     /* El texto de los botones de la barra sobra: quedan el icono y el título */
     .logout-btn { padding: 7px 10px; font-size: .76rem; }
+    /* Lo que solo cabe cuando hay ancho. El botón conserva su title y su
+       aria-label, así que sigue diciendo lo que hace. */
+    .solo-ancho { display: none; }
 
     .content-wrap { padding: 16px 12px 4px; }
     .page-header { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -1138,6 +1158,100 @@ select.campo-bloqueado:disabled {
     .app-shell, .main-area, .content-wrap { display: block; width: 100%; padding: 0; margin: 0; max-width: none; }
     body { background: #fff; }
     .card, .tabla-wrap, .kpi-card { box-shadow: none; break-inside: avoid; }
+}
+
+/* =========================================================================
+   CABECERA DE REPORTE (logotipo e institución)
+   =========================================================================
+   La misma que lleva el PDF. En pantalla acompaña sin robar protagonismo al
+   título de la página; al imprimir es lo primero de la hoja. */
+.reporte-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    margin-bottom: 18px;
+    background: var(--rea-blanco);
+    border: 1px solid var(--rea-gris-200);
+    border-left: 5px solid var(--rea-rojo);
+    border-radius: var(--radio-sm);
+}
+/* En PANTALLA el escudo y el nombre de la institución no se dibujan: la barra
+   superior ya los muestra en todas las páginas, y repetirlos aquí hacía que el
+   mismo nombre se leyera dos veces en la misma pantalla. En PAPEL sí hacen
+   falta —ahí no hay barra superior— y vuelven a aparecer en el @media print de
+   más abajo. El PDF descargado no depende de esta hoja: arma su propia
+   cabecera en includes/pdf_reporte.php. */
+/* Los archivos miden 150x150: la medida se fija por los dos lados para que el
+   escudo no crezca por su cuenta y desbarate la cabecera. */
+.reporte-logo {
+    display: none;
+    width: 58px !important;
+    height: 58px !important;
+    max-width: 58px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+.reporte-identidad { flex: 1; min-width: 0; }
+.reporte-institucion {
+    display: none;
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--rea-rojo);
+    line-height: 1.25;
+}
+.reporte-titulo {
+    font-size: 1.05rem;
+    margin: 2px 0 0;
+    color: var(--rea-gris-700);
+}
+.reporte-subtitulo {
+    margin: 2px 0 0;
+    font-size: .85rem;
+    color: var(--rea-gris-500);
+}
+.reporte-emision {
+    flex: 0 0 auto;
+    text-align: right;
+    font-size: .78rem;
+    color: var(--rea-gris-500);
+    line-height: 1.4;
+}
+
+/* En pantallas estrechas la cabecera se apila y la fecha de emisión pasa a
+   ocupar el ancho, alineada a la izquierda como el resto. */
+@media (max-width: 640px) {
+    .reporte-cabecera { flex-wrap: wrap; gap: 12px; padding: 12px 14px; }
+    .reporte-logo { width: 44px; height: 44px; }
+    .reporte-identidad { flex: 1 1 60%; }
+    .reporte-emision { flex: 1 1 100%; text-align: left; }
+}
+
+/* En papel, la cabecera encabeza la hoja sin caja ni fondo, que solo gastan
+   tinta, y se queda pegada a lo que sigue.
+   Va DESPUÉS de las reglas de arriba a propósito: con la misma especificidad
+   gana la última, y puesta antes no anulaba nada. */
+@media print {
+    /* El rastro de navegación es para moverse por el sitio; en una hoja de papel
+       no lleva a ninguna parte y además repite el nombre del reporte, que ya da
+       la cabecera. */
+    .breadcrumb { display: none !important; }
+
+    /* Sin barra superior en la hoja, la identificación del documento tiene que
+       estar aquí: quién lo emite y con qué escudo. */
+    .reporte-logo { display: block; }
+    .reporte-institucion { display: block; }
+
+    .reporte-cabecera {
+        border: 0;
+        border-bottom: 2px solid #000;
+        border-radius: 0;
+        background: none;
+        padding: 0 0 10px;
+        margin: 0 0 14px;
+        break-after: avoid;
+    }
+    .reporte-emision { color: #000; }
 }
 
 /* =========================================================================
@@ -1391,22 +1505,35 @@ input[type="file"]:hover { border-color: var(--rea-rojo); background: #fff; }
 .btn:disabled,
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 
-/* Distintivo del SuperAdmin cuando trabaja en una institución que no es la suya */
-.badge-institucion {
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 8px;
-    padding: 2px 9px;
-    border: 1px solid #f2dcb0;
-    border-radius: 999px;
-    background: var(--color-advertencia-bg);
-    color: var(--color-advertencia);
-    font-family: var(--fuente-base);
-    font-size: .62rem;
-    font-weight: 700;
-    letter-spacing: .07em;
-    text-transform: uppercase;
+/* Logotipo de la institución activa en la barra superior. Sustituyó a la
+   pastilla de «otra institución»: el escudo se reconoce antes que un nombre
+   largo, y no gasta el ancho que en un teléfono hace falta para el nombre.
+
+   Los archivos miden 150×150, así que la medida se fija por los dos lados y
+   además se acota contra la altura de la barra: pase lo que pase, el escudo no
+   puede salirse de ella. El `!important` no es capricho —es la única forma de
+   que una regla posterior de `img` no vuelva a estirarlo—. */
+.topbar-logo {
+    width: 38px !important;
+    height: 38px !important;
+    max-width: 38px;
+    max-height: calc(var(--topbar-alto) - 20px);
+    object-fit: contain;
+    flex: 0 0 auto;
 }
+
+/* En el teléfono se encoge, pero se queda: es lo que identifica la institución
+   de un vistazo, justo cuando el nombre tiene que recortarse.
+   Va DESPUÉS de la regla de arriba a propósito: con la misma especificidad gana
+   la última, y puesta antes —que es donde estaba— no llegaba a aplicarse. */
+@media (max-width: 640px) {
+    .topbar-logo { width: 30px !important; height: 30px !important; max-width: 30px; }
+}
+/* El bloque del nombre se queda con el ancho que sobra, y `min-width: 0` es lo
+   que permite que un nombre largo se recorte con puntos suspensivos en vez de
+   empujar la barra entera. */
+.topbar > .flex-gap:first-child { flex: 1 1 auto; min-width: 0; }
+.topbar-identidad { flex: 1 1 auto; min-width: 0; }
 
 
 /* =========================================================================

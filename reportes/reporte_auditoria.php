@@ -13,6 +13,12 @@ require_once __DIR__ . '/../includes/selector_persona.php';
 requireAcceso('reporte_auditoria');
 $institucionId = institucionActual();
 
+/* Cómo se llama este reporte. Se declara UNA sola vez y lo leen las dos
+   cabeceras —la del PDF y la de la pantalla—: escritos por separado, como
+   estaban, acabaron diciendo cosas distintas del mismo documento. */
+$tituloReporte    = 'Bitácora de Auditoría del Sistema';
+$subtituloReporte = 'Registro de altas, cambios y bajas realizados sobre la base de datos';
+
 /* ---------------------------------------------------------------------------
    Filtros
    --------------------------------------------------------------------------- */
@@ -55,7 +61,6 @@ $parametros = [
 
 /* Resumen de filtros, tal como se muestra en pantalla y en el PDF */
 $resumenFiltros = [
-    'Institución' => $_SESSION['institucion_nombre'] ?? ('#' . $institucionId),
     'Período'     => ($filtroDesde !== '' || $filtroHasta !== '')
         ? (($filtroDesde !== '' ? f_fecha($filtroDesde, 'd/m/Y') : 'inicio') . ' a ' .
            ($filtroHasta !== '' ? f_fecha($filtroHasta, 'd/m/Y') : 'hoy'))
@@ -94,10 +99,12 @@ if ($consultado && $formato === 'pdf') {
     $pdf = new PdfReporte('H');
 
     $pdf->cabecera([
-        'logo'        => __DIR__ . '/../assets/logo.png',
-        'institucion' => $_SESSION['institucion_nombre'] ?? 'Red Educativa Arquidiocesana',
-        'titulo'      => 'Bitácora de Auditoría del Sistema',
-        'subtitulo'   => 'Registro de altas, cambios y bajas realizados sobre la base de datos',
+        // El logotipo y el nombre son los de la institución en la que se emite,
+        // no los de la red: ver logoInstitucion() en includes/functions.php.
+        'logo'        => logoInstitucion()['ruta'],
+        'institucion' => nombreInstitucionActual(),
+        'titulo'      => $tituloReporte,
+        'subtitulo'   => $subtituloReporte,
         'filtros'     => $resumenFiltros,
     ]);
 
@@ -326,12 +333,17 @@ include __DIR__ . '/../includes/layout_top.php';
 ?>
 
 <?php $urlExcel = 'reporte_auditoria.php?' . http_build_query($parametros + ['formato' => 'excel']); ?>
-<div class="page-header no-imprimir">
-    <div>
-        <h1>🗂️ Bitácora de Auditoría</h1>
-        <p>Movimientos registrados en la base de datos de <strong><?= e($_SESSION['institucion_nombre'] ?? 'la institución') ?></strong>:
-           quién, cuándo, desde qué IP y qué dato se tocó.</p>
-    </div>
+<?php /* La misma cabecera que lleva el PDF: logotipo de la institución, su nombre
+         y el título del reporte. En pantalla va discreta; al imprimir desde el
+         navegador es lo primero de la hoja, de modo que lo impreso y lo
+         descargado no sean dos documentos distintos. */ ?>
+<?php cabeceraReporte($tituloReporte,
+                      $subtituloReporte); ?>
+
+<?php /* Aquí quedan solo las acciones. El título y la descripción los lleva la
+         cabecera del reporte, que es la que además se imprime; repetirlos aquí
+         era decir dos veces lo mismo con distintas palabras. */ ?>
+<div class="page-header page-header-acciones no-imprimir">
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>

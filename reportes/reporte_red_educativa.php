@@ -14,6 +14,12 @@ require_once __DIR__ . '/../includes/api_client.php';
 
 requireRol(['SuperAdmin']);
 
+/* Cómo se llama este reporte. Se declara UNA sola vez y lo leen las dos
+   cabeceras —la del PDF y la de la pantalla—: escritos por separado, como
+   estaban, acabaron diciendo cosas distintas del mismo documento. */
+$tituloReporte    = 'Tablero Comparativo de la Red Educativa';
+$subtituloReporte = 'Consolidado general de cumplimiento LOPDP en todas las sedes de la red';
+
 /* ---------------------------------------------------------------------------
    Exportación a PDF
    --------------------------------------------------------------------------- */
@@ -43,8 +49,8 @@ if (isset($_GET['formato']) && $_GET['formato'] === 'pdf') {
     $pdf->cabecera([
         'logo'        => __DIR__ . '/../assets/logo.png',
         'institucion' => 'Sede Central - Red Educativa Arquidiocesana',
-        'titulo'      => 'Tablero Comparativo de Red Educativa',
-        'subtitulo'   => 'Consolidado General de Cumplimiento LOPDP - Todas las Sedes de la Red',
+        'titulo'      => $tituloReporte,
+        'subtitulo'   => $subtituloReporte,
     ]);
 
     $pdf->pie([
@@ -221,11 +227,18 @@ $breadcrumb = [['label' => 'Reportes', 'url' => null], ['label' => 'Red Educativ
 include __DIR__ . '/../includes/layout_top.php';
 ?>
 
-<div class="page-header no-imprimir">
-    <div>
-        <h1>🏫 Tablero Comparativo de Red Educativa (Multi-Sede)</h1>
-        <p>Vista ejecutiva global de cumplimiento de la LOPDP para todas las instituciones educativas pertenecientes a la red.</p>
-    </div>
+<?php /* La misma cabecera que lleva el PDF: logotipo de la institución, su nombre
+         y el título del reporte. En pantalla va discreta; al imprimir desde el
+         navegador es lo primero de la hoja, de modo que lo impreso y lo
+         descargado no sean dos documentos distintos. */ ?>
+<?php cabeceraReporte($tituloReporte,
+                      $subtituloReporte,
+                      true); // abarca toda la red: lleva la marca de la Red, no la de una escuela ?>
+
+<?php /* Aquí quedan solo las acciones. El título y la descripción los lleva la
+         cabecera del reporte, que es la que además se imprime; repetirlos aquí
+         era decir dos veces lo mismo con distintas palabras. */ ?>
+<div class="page-header page-header-acciones no-imprimir">
     <div class="flex-gap">
         <?php if ($hayResultados): ?>
             <a href="<?= e($urlPdf) ?>" class="btn btn-primario" target="_blank" rel="noopener">Exportar a PDF</a>

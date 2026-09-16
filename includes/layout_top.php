@@ -43,18 +43,25 @@ $flash = flashGet();
                          llegara a cargarse: abrir el menú es lo mínimo. */ ?>
                 <button type="button" class="menu-toggle" aria-controls="sidebarApp"
                         onclick="document.getElementById('sidebarApp').classList.toggle('abierto')">☰</button>
-                <div>
+                <?php /* El logotipo de la institución activa acompaña a su nombre: una
+                         cuenta puede entrar en varias, y el escudo se reconoce de un
+                         vistazo mucho antes que un nombre largo. Sustituye a la
+                         pastilla de «otra institución», que decía lo mismo con menos
+                         claridad y ocupaba sitio en la barra. */ ?>
+                <?php /* `width` y `height` van como ATRIBUTOS, no solo en la hoja de
+                         estilos: el archivo mide 150×150 y, si la hoja no llegara a
+                         cargarse —o el navegador sirviera una copia vieja—, la imagen
+                         se dibujaría a tamaño natural y reventaría la barra. Con los
+                         atributos puestos entra bien aunque no haya CSS, y además el
+                         navegador le reserva el hueco antes de descargarla, con lo que
+                         la barra no da el salto al aparecer. */ ?>
+                <?php $logoTopbar = logoInstitucion(); ?>
+                <img src="<?= e($logoTopbar['url']) ?>" alt="" class="topbar-logo"
+                     width="38" height="38">
+                <div class="topbar-identidad">
                     <span class="topbar-eyebrow">Protección de Datos</span>
-                    <div class="topbar-titulo">
+                    <div class="topbar-titulo" title="<?= e($institucionNombre ?: 'Red Educativa Arquidiocesana') ?>">
                         <?= e($institucionNombre ?: 'Red Educativa Arquidiocesana') ?>
-                        <?php if (!empty($_SESSION['institucion_visita'])): ?>
-                            <?php /* Una cuenta puede entrar en varias instituciones —el SuperAdmin
-                                     en todas; las demás, en las que se les hayan asignado—, así que
-                                     se le recuerda en cuál está trabajando, porque no es la suya. */ ?>
-                            <span class="badge-institucion" title="Está trabajando en una institución distinta a la de su cuenta">
-                                otra institución
-                            </span>
-                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -64,8 +71,18 @@ $flash = flashGet();
                     <?= e(implode(', ', $_SESSION['roles'] ?? [])) ?>
                 </div>
                 <div class="avatar-usuario"><?= e(iniciales($_SESSION['username'] ?? '?')) ?></div>
-                <a href="<?= e(APP_ROOT) ?>cambiar_clave.php" class="logout-btn" title="Cambiar mi contraseña">Contraseña</a>
-                <a href="<?= e(APP_ROOT) ?>logout.php" class="logout-btn" title="Cerrar sesión">Salir</a>
+                <?php /* En un teléfono el texto de estos botones se lleva el ancho que
+                         necesita el nombre de la institución, así que ahí queda solo el
+                         icono; el nombre sigue en el title y en aria-label, de modo que
+                         quien navega con lector de pantalla no pierde nada. */ ?>
+                <a href="<?= e(APP_ROOT) ?>cambiar_clave.php" class="logout-btn"
+                   title="Cambiar mi contraseña" aria-label="Cambiar mi contraseña">
+                    <span aria-hidden="true">🔑</span><span class="solo-ancho">Contraseña</span>
+                </a>
+                <a href="<?= e(APP_ROOT) ?>logout.php" class="logout-btn"
+                   title="Cerrar sesión" aria-label="Cerrar sesión">
+                    <span aria-hidden="true">⏻</span><span class="solo-ancho">Salir</span>
+                </a>
             </div>
         </header>
 

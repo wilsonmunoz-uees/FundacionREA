@@ -112,6 +112,25 @@ Códigos usados: `200` correcto, `201` creado, `401` sin token o token vencido,
 | GET · PUT | `/api/instituciones/{id}` | SuperAdmin |
 | PATCH | `/api/instituciones/{id}/estado` | SuperAdmin |
 
+**Largos de los campos.** `nombre` y `direccion` admiten **100** caracteres;
+`telefono`, **50**. El listado los publica en la metadata (`reglas`), y la
+pantalla los toma de ahí en lugar de escribirlos, para que el formulario no
+pueda quedarse en desacuerdo con lo que acepta el servidor.
+
+**El teléfono de una institución no es el de una persona.** Aquí se guarda la
+forma de contacto que la escuela publica —«(04) 2345-678 ext. 102»,
+«042345678 / 0999123456», «Central 2345678»—, así que admite **letras** y los
+separadores habituales, y lo único que se le exige es que lleve **algún
+dígito**: un contacto telefónico sin números no es un teléfono. Lo comprueba
+`Telefono::validarContacto()`, y lo que se guarda es lo que se escribió, sin
+reducirlo a dígitos.
+
+El teléfono de una **persona** —empleados, estudiantes, representantes,
+proveedores— no cambia: sigue siendo un número marcable de hasta 16 caracteres,
+solo dígitos con un `+` opcional al inicio (`Telefono::validar()`). Las dos
+reglas conviven en `api/core/Telefono.php`, una junto a la otra, con la
+diferencia explicada en la cabecera del archivo.
+
 ### Personas
 | Método | Ruta | Acceso |
 |---|---|---|
@@ -152,13 +171,44 @@ Las escrituras se ejecutan dentro de una transacción y registran automáticamen
 ### Usuarios, roles y permisos (SuperAdmin)
 | Método | Ruta |
 |---|---|
-| GET | `/api/usuarios?q=&pagina=` · `/api/usuarios/personas-disponibles` |
+| GET | `/api/usuarios?q=&institucion_id=&pagina=` · `/api/usuarios/personas-disponibles` |
 | GET | `/api/usuarios/{id}` |
 | POST · PUT | `/api/usuarios` · `/api/usuarios/{id}` (sincroniza `usuariorol` y `usuario_institucion`) |
 | PATCH | `/api/usuarios/{id}/estado` |
 | GET·POST·PUT·PATCH | `/api/roles`, `/api/roles/{id}`, `/api/roles/{id}/estado` (sincroniza `rolpermiso`) |
 | GET·POST·PUT·PATCH | `/api/permisos`, `/api/permisos/{id}`, `/api/permisos/{id}/estado` |
 | GET | `/api/usuarios/politica-clave` |
+
+**Hasta dónde llega cada quien.** De esta regla sale todo lo demás del módulo,
+y se comprueba en el servidor, no ocultando campos en la pantalla:
+
+| | SuperAdmin | Cualquier otro administrador |
+|---|---|---|
+| Qué cuentas ve | **Todas las de la red**, entre por la institución que entre | Las que pertenecen a la institución activa **y** las de otras instituciones con acceso a ella |
+| Filtrar por institución | Sí (`institucion_id`) | No aplica: ya está acotado |
+| Nombre de usuario, estado, restablecer clave | De cualquier cuenta | Solo de las cuentas **de su institución** |
+| Roles | Los de cualquier institución | Solo los de **la institución activa** |
+| Ampliar la cuenta a otra institución | Sí | No |
+
+La distinción que importa es entre una cuenta **propia** de la institución
+activa y una **visitante** —pertenece a otra institución y se le dio acceso a
+esta—. De una visitante, un administrador corriente mueve únicamente sus roles
+aquí: el nombre de usuario, el estado y la contraseña son de la institución
+dueña de la cuenta, y cambiarlos afectaría a una comunidad educativa que no
+participó en la decisión. Inactivarla es el caso más claro: dejaría a esa
+persona sin entrar a su propia escuela, así que `PATCH .../estado` responde
+`403` y lo explica. Para retirarle el acceso aquí, lo que corresponde es
+quitarle los roles.
+
+Ni siquiera las **otras instituciones a las que el propio administrador tenga
+acceso** cuentan: lo que manda es la institución en la que está trabajando
+ahora. Si necesita mover roles en otra de las suyas, entra por ella.
+
+Cada fila del listado trae `EsPropia` y, para el SuperAdmin, `InstitucionNombre`.
+La ficha individual trae además `es_propia` y `puede_editar_identidad`, que es lo
+que la pantalla usa para bloquear lo que no corresponde. La columna `Roles` del
+listado muestra los roles **de la institución activa** y, si la cuenta no llega
+hasta aquí —cosa que solo ve el SuperAdmin—, los de la suya.
 
 **Instituciones de una cuenta.** `GET /api/usuarios/{id}` devuelve
 `puede_asignar_instituciones` y, cuando es cierto, `instituciones`: una entrada
