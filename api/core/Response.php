@@ -39,12 +39,21 @@ final class Response
         self::json(['ok' => true, 'datos' => $datos, 'meta' => $meta], 200);
     }
 
-    /** Error genérico. $errores permite devolver validaciones múltiples. */
-    public static function error(string $mensaje, int $estado = 400, array $errores = []): void
+    /**
+     * Error genérico. $errores permite devolver validaciones múltiples.
+     *
+     * @param array $datos Información que la pantalla necesita para explicar el
+     *        fallo —la conversación con el servidor de correo, por ejemplo—.
+     *        Va aparte del mensaje porque no es texto para leer de corrido.
+     */
+    public static function error(string $mensaje, int $estado = 400, array $errores = [], array $datos = []): void
     {
         $carga = ['ok' => false, 'error' => $mensaje];
         if (!empty($errores)) {
             $carga['errores'] = array_values($errores);
+        }
+        if (!empty($datos)) {
+            $carga['datos'] = $datos;
         }
         self::json($carga, $estado);
     }

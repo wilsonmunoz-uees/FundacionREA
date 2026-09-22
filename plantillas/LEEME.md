@@ -29,6 +29,7 @@ rompa el mensaje.
 | `$datos['documento']` | CEDULA o RUC |
 | `$datos['representante']` | Nombre del representante (solo estudiantes) |
 | `$datos['es_representante']` | `true` si el correo va dirigido al representante |
+| `$datos['correo_contacto']` | Dirección a la que escribir para revocar: el remitente configurado en *Configuración de Correo* de la institución. Vacía si no hay ninguno configurado |
 | `$datos['institucion']` | Nombre de la institución educativa |
 | `$datos['version']` | Versión del disclaimer que se aceptó |
 | `$datos['fecha']` | Fecha y hora del registro, ya con formato |

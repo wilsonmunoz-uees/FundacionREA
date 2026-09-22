@@ -23,6 +23,12 @@ $esRepresentante = !empty($datos['es_representante']);
 $titular         = (string)($datos['titular'] ?? '');
 $institucion     = (string)($datos['institucion'] ?? 'Red Educativa Arquidiocesana');
 
+/* Dirección a la que escribir para revocar: es el remitente configurado en
+   «Configuración de Correo» de la institución. Si no hubiera ninguno, se dice
+   lo de antes —responder a este mismo correo—, que siempre llega a algún
+   sitio; dar una dirección inventada sería peor que no dar ninguna. */
+$correoContacto  = trim((string)($datos['correo_contacto'] ?? ''));
+
 $color      = $otorga ? '#12734a' : '#9a5b00';
 $colorFondo = $otorga ? '#e4f7ec' : '#fdf2dd';
 $colorBorde = $otorga ? '#c3ead4' : '#f2dcb0';
@@ -128,8 +134,15 @@ $tipoTexto = match (strtoupper((string)($datos['tipo'] ?? ''))) {
 
         <?php if ($otorga): ?>
           <p style="margin:0 0 12px;">
-            Si en el futuro desea <strong>revocar</strong> este consentimiento, escríbanos desde este
-            mismo correo y atenderemos su solicitud.
+            <?php if ($correoContacto !== ''): ?>
+              Si en el futuro desea <strong>revocar</strong> este consentimiento, escríbanos al correo
+              <a href="mailto:<?= $e($correoContacto) ?>"
+                 style="color:#c8102e;font-weight:bold;text-decoration:underline;"><?= $e($correoContacto) ?></a>
+              y atenderemos su solicitud.
+            <?php else: ?>
+              Si en el futuro desea <strong>revocar</strong> este consentimiento, escríbanos desde este
+              mismo correo y atenderemos su solicitud.
+            <?php endif; ?>
           </p>
         <?php else: ?>
           <p style="margin:0 0 12px;">

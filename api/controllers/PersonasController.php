@@ -21,7 +21,21 @@ final class PersonasController extends Controller
     /** Clave en includes/accesos.php */
     private const MODULO_LECTURA = 'personas_lectura';
 
-    /** GET /api/personas?q=&estado=&excluir=&sin_usuario=&pagina=&por_pagina= */
+    /**
+     * Vínculos con la institución y la tabla donde consta cada uno.
+     *
+     * Los representantes no están aquí a propósito: no tienen tabla propia
+     * —lo son por aparecer en `estudiante`.`RepresentanteId`— y nadie los pide
+     * como filtro. La lista es cerrada para que el nombre de la tabla no pueda
+     * venir de fuera.
+     */
+    private const VINCULOS = [
+        'empleado'   => 'empleado',
+        'estudiante' => 'estudiante',
+        'proveedor'  => 'proveedor',
+    ];
+
+    /** GET /api/personas?q=&estado=&vinculo=&excluir=&sin_usuario=&pagina=&por_pagina= */
     public function index(array $ruta = []): void
     {
         // Lectura del directorio: la usan también los módulos que eligen persona
@@ -46,6 +60,19 @@ final class PersonasController extends Controller
         if ($excluir > 0) {
             $where   .= ' AND PersonaId <> ?';
             $params[] = $excluir;
+        }
+
+        /* Solo personas con un vínculo concreto con la institución.
+           `persona` es el padrón y no distingue por sí misma entre un empleado,
+           un estudiante y un proveedor: el vínculo vive en su propia tabla. Sin
+           este filtro, elegir «la persona» de una cuenta de usuario ofrecía
+           también a alumnos y representantes, que no son quienes trabajan aquí. */
+        $vinculo = strtolower($this->peticion->paramTexto('vinculo'));
+        if (isset(self::VINCULOS[$vinculo])) {
+            $where   .= ' AND PersonaId IN (SELECT PersonaId FROM ' . self::VINCULOS[$vinculo]
+                      . ' WHERE InstitucionEducativaId = ? AND Estado = ?)';
+            $params[] = $institucionId;
+            $params[] = 'ACTIVO';
         }
 
         // Solo personas que todavía no tienen cuenta de usuario en esta institución

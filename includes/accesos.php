@@ -72,15 +72,22 @@ function accesosSistema(): array
         /**
          * Envío Masivo de invitaciones al consentimiento.
          *
-         * Es la opción del rol **Registro de Datos**: envía a estudiantes,
-         * empleados o proveedores el enlace de consentimiento con verificación,
-         * con su documento precargado. Como toda opción del sistema, el
-         * SuperAdmin también la ve.
+         * Envía a estudiantes, empleados o proveedores el enlace de
+         * consentimiento con verificación, con su documento precargado.
+         *
+         * Tiene permiso propio, REG_ENVIO_MASIVO, de modo que se puede dar y
+         * quitar desde Roles como cualquier otra opción. Antes solo se abría
+         * por el rol «Registro de Datos», y eso obligaba a conceder el rol
+         * entero —con el mantenimiento del padrón dentro— a quien únicamente
+         * tenía que mandar las invitaciones.
+         *
+         * El rol se conserva en la lista para no quitarle el acceso a quien ya
+         * lo tenía, y el SuperAdmin la ve como toda opción del sistema.
          */
         'envio_masivo' => [
             'etiqueta' => 'Envío Masivo de Invitaciones',
             'roles'    => ['SuperAdmin', 'Registro de Datos'],
-            'permisos' => [],
+            'permisos' => ['REG_ENVIO_MASIVO'],
         ],
 
         /**

@@ -22,10 +22,19 @@ final class Correo
 {
     private const SALTO = "\r\n";
 
+    /** Cuántas líneas de la conversación se conservan para diagnóstico. */
+    private const DIALOGO_MAXIMO = 80;
+
     private array $config;
     /** Conexión SMTP reutilizada entre envíos de una misma tanda. */
     private $socket = null;
     private string $ultimoError = '';
+    /** Última línea que devolvió el servidor, tal cual. */
+    private string $ultimaRespuesta = '';
+    /** La conversación con el servidor, sin credenciales, para diagnosticar. */
+    private array $dialogo = [];
+    /** Hay un MAIL FROM abierto que habría que cerrar con RSET. */
+    private bool $enTransaccion = false;
 
     private function __construct(array $config)
     {
@@ -61,11 +70,57 @@ final class Correo
         return $this->ultimoError;
     }
 
+    /** La última línea que devolvió el servidor, tal cual la mandó. */
+    public function ultimaRespuesta(): string
+    {
+        return $this->ultimaRespuesta;
+    }
+
+    /**
+     * La conversación con el servidor, línea a línea, sin las credenciales.
+     *
+     * Es lo que muestra la pantalla de prueba cuando el envío falla. Sin ella,
+     * un fallo de SMTP deja una sola frase y hay que adivinar en qué paso
+     * ocurrió; con ella se ve la orden exacta que el servidor rechazó, que es
+     * lo que permite distinguir «el buzón no existe aquí» de «el destinatario
+     * no existe» o «el hosting bloquea el puerto».
+     *
+     * @return string[]
+     */
+    public function dialogo(): array
+    {
+        return $this->dialogo;
+    }
+
+    /**
+     * Anota una línea de la conversación, hasta el tope.
+     *
+     * Una respuesta multilínea —la del EHLO lo es siempre— se parte en un
+     * renglón por línea: pegadas quedan ilegibles en la pantalla.
+     */
+    private function anotar(string $lado, string $texto): void
+    {
+        foreach (preg_split('/\r?\n/', rtrim($texto)) as $linea) {
+            if (count($this->dialogo) >= self::DIALOGO_MAXIMO) {
+                return;
+            }
+            $this->dialogo[] = $lado . ' ' . $linea;
+        }
+    }
+
     /** Dirección que aparecerá como remitente. */
     public function remitente(): string
     {
         if ($this->config['de_correo'] !== '') {
             return $this->config['de_correo'];
+        }
+        /* Sin remitente escrito, el usuario SMTP es la mejor apuesta: muchos
+           servidores —los cPanel entre ellos— rechazan un MAIL FROM que no
+           corresponda a la cuenta autenticada. Inventar
+           no-responder@<dominio del sitio>, como se hacía antes, hacía que el
+           servidor respondiera «sender verify failed» y el correo no salía. */
+        if (str_contains($this->config['usuario'], '@')) {
+            return $this->config['usuario'];
         }
         $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
         return 'no-responder@' . preg_replace('/^www\./', '', $host);
@@ -98,9 +153,26 @@ final class Correo
     public function cerrar(): void
     {
         if ($this->socket) {
-            @$this->orden('QUIT');
+            /* QUIT se responde con 221, no con 250. Esperar 250 hacía que la
+               comprobación diera el cierre por fallido y SOBRESCRIBIERA el
+               error de verdad: cualquier fallo de SMTP terminaba reportándose
+               como «El servidor de correo respondió: 221 … closing
+               connection», que es justamente la señal de que la despedida fue
+               correcta. El error real —una autenticación rechazada, por
+               ejemplo— se perdía por el camino.
+               Por eso se espera 221 y, además, se conserva lo que ya hubiera
+               registrado: el cierre nunca debe cambiar el diagnóstico. */
+            $error     = $this->ultimoError;
+            $respuesta = $this->ultimaRespuesta;
+
+            @$this->orden('QUIT', [221], 'cerrar la conexión');
+
+            $this->ultimoError     = $error;
+            $this->ultimaRespuesta = $respuesta;
+
             @fclose($this->socket);
-            $this->socket = null;
+            $this->socket        = null;
+            $this->enTransaccion = false;
         }
     }
 
@@ -157,14 +229,16 @@ final class Correo
 
         $de = $this->remitente();
 
-        if (!$this->orden('MAIL FROM:<' . $de . '>', [250])) {
-            return false;
+        if (!$this->orden('MAIL FROM:<' . $de . '>', [250], 'aceptar el remitente')) {
+            return $this->abortarTransaccion();
         }
-        if (!$this->orden('RCPT TO:<' . $para . '>', [250, 251])) {
-            return false;
+        $this->enTransaccion = true;
+
+        if (!$this->orden('RCPT TO:<' . $para . '>', [250, 251], 'aceptar el destinatario')) {
+            return $this->abortarTransaccion();
         }
-        if (!$this->orden('DATA', [354])) {
-            return false;
+        if (!$this->orden('DATA', [354], 'empezar el mensaje')) {
+            return $this->abortarTransaccion();
         }
 
         $frontera = $this->frontera();
@@ -186,9 +260,41 @@ final class Correo
         // Un punto al inicio de línea debe duplicarse (RFC 5321)
         $mensaje = preg_replace('/^\./m', '..', $mensaje);
 
+        $this->anotar('C:', '(cuerpo del mensaje, ' . strlen($mensaje) . ' bytes)');
         fwrite($this->socket, $mensaje . self::SALTO . '.' . self::SALTO);
 
-        return $this->respuestaEsperada([250]);
+        // El punto final cierra la transacción, la acepten o no.
+        $this->enTransaccion = false;
+
+        return $this->respuestaEsperada([250], 'aceptar el mensaje');
+    }
+
+    /**
+     * Deja la sesión limpia tras un fallo y devuelve false.
+     *
+     * Sin esto, un destinatario rechazado dejaba el MAIL FROM abierto, y el
+     * servidor contestaba «503 Sender already given» a todos los correos que
+     * vinieran detrás: un solo buzón inexistente tumbaba el resto de la tanda,
+     * con la conexión compartida del envío masivo. Un RSET devuelve la sesión
+     * al punto de partida sin tener que reconectar.
+     *
+     * El error que se estaba reportando se conserva: el RSET tiene su propia
+     * respuesta y, si no, la pisaría —el mismo descuido que producía el 221—.
+     */
+    private function abortarTransaccion(): bool
+    {
+        if ($this->socket && $this->enTransaccion) {
+            $error     = $this->ultimoError;
+            $respuesta = $this->ultimaRespuesta;
+
+            @$this->orden('RSET', [250], 'reiniciar la sesión');
+
+            $this->ultimoError     = $error;
+            $this->ultimaRespuesta = $respuesta;
+        }
+        $this->enTransaccion = false;
+
+        return false;
     }
 
     /** Abre y autentica la conexión, reutilizándola si ya estaba abierta. */
@@ -201,6 +307,9 @@ final class Correo
         $servidor = $this->config['servidor'];
         $puerto   = $this->config['puerto'] ?: 587;
         $destino  = ($this->config['seguridad'] === 'SSL' ? 'ssl://' : '') . $servidor . ':' . $puerto;
+
+        $this->anotar('·', 'Conectando con ' . $destino
+            . ' (seguridad: ' . $this->config['seguridad'] . ')');
 
         $contexto = stream_context_create([
             'ssl' => ['verify_peer' => false, 'verify_peer_name' => false, 'allow_self_signed' => true],
@@ -219,44 +328,51 @@ final class Correo
 
         if (!$this->socket) {
             $this->ultimoError = 'No se pudo conectar con ' . $servidor . ':' . $puerto
-                . ($errorMensaje !== '' ? ' (' . $errorMensaje . ')' : '');
+                . ($errorMensaje !== '' ? ' (' . $errorMensaje . ')' : '')
+                . '. Compruebe el servidor y el puerto, y que el hospedaje permita salir por ese puerto.';
+            $this->anotar('·', 'No se pudo abrir la conexión: '
+                . ($errorMensaje !== '' ? $errorMensaje : 'sin detalle'));
             return false;
         }
 
         stream_set_timeout($this->socket, 20);
 
-        if (!$this->respuestaEsperada([220])) {
+        if (!$this->respuestaEsperada([220], 'saludar')) {
             $this->cerrar();
             return false;
         }
 
         $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
 
-        if (!$this->orden('EHLO ' . $host, [250])) {
+        if (!$this->orden('EHLO ' . $host, [250], 'presentarse')) {
             // Servidores antiguos que no admiten EHLO
-            if (!$this->orden('HELO ' . $host, [250])) {
+            if (!$this->orden('HELO ' . $host, [250], 'presentarse')) {
                 $this->cerrar();
                 return false;
             }
         }
 
         if ($this->config['seguridad'] === 'TLS') {
-            if (!$this->orden('STARTTLS', [220])) {
+            if (!$this->orden('STARTTLS', [220], 'iniciar el cifrado')) {
                 $this->cerrar();
                 return false;
             }
-            $cifrado = @stream_socket_enable_crypto(
-                $this->socket,
-                true,
-                STREAM_CRYPTO_METHOD_TLS_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT
-            );
+            $metodos = STREAM_CRYPTO_METHOD_TLS_CLIENT
+                     | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT
+                     | STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+            if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+                $metodos |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+            }
+            $cifrado = @stream_socket_enable_crypto($this->socket, true, $metodos);
             if (!$cifrado) {
                 $this->ultimoError = 'No se pudo establecer el cifrado TLS con el servidor de correo.';
+                $this->anotar('·', 'Falló el cifrado TLS tras STARTTLS');
                 $this->cerrar();
                 return false;
             }
+            $this->anotar('·', 'Cifrado TLS establecido');
             // Tras STARTTLS hay que volver a saludar
-            if (!$this->orden('EHLO ' . $host, [250])) {
+            if (!$this->orden('EHLO ' . $host, [250], 'presentarse tras el cifrado')) {
                 $this->cerrar();
                 return false;
             }
@@ -275,49 +391,167 @@ final class Correo
     private function autenticar(): bool
     {
         // AUTH LOGIN es el más aceptado; si el servidor lo rechaza, se prueba PLAIN
-        if ($this->orden('AUTH LOGIN', [334])) {
-            if (!$this->orden(base64_encode($this->config['usuario']), [334])) {
+        if ($this->orden('AUTH LOGIN', [334], 'empezar la autenticación')) {
+            if (!$this->orden(base64_encode($this->config['usuario']), [334],
+                              'aceptar el usuario', '(usuario, codificado)')) {
+                $this->ultimoError = 'El servidor de correo no aceptó el usuario «'
+                    . $this->config['usuario'] . '». Respondió: ' . $this->ultimaRespuesta;
                 return false;
             }
-            if (!$this->orden(base64_encode($this->config['clave']), [235])) {
-                $this->ultimoError = 'El servidor de correo rechazó el usuario o la contraseña.';
+            if (!$this->orden(base64_encode($this->config['clave']), [235],
+                              'aceptar la contraseña', '(contraseña, oculta)')) {
+                $this->ultimoError = $this->explicarRechazoDeClave();
                 return false;
             }
             return true;
         }
 
         $plain = base64_encode("\0" . $this->config['usuario'] . "\0" . $this->config['clave']);
-        if (!$this->orden('AUTH PLAIN ' . $plain, [235])) {
-            $this->ultimoError = 'El servidor de correo rechazó el usuario o la contraseña.';
+        if (!$this->orden('AUTH PLAIN ' . $plain, [235], 'autenticar',
+                          'AUTH PLAIN (credenciales ocultas)')) {
+            $this->ultimoError = $this->explicarRechazoDeClave();
             return false;
         }
 
         return true;
     }
 
-    /** Envía una orden SMTP y comprueba el código de respuesta. */
-    private function orden(string $orden, array $codigosEsperados = [250]): bool
+    /**
+     * Mensaje para una autenticación rechazada.
+     *
+     * Se separa porque es el fallo más frecuente y el que más tiempo hace
+     * perder: casi siempre significa que el buzón no está en ese servidor
+     * —el dominio se mudó de proveedor y nadie actualizó esta pantalla— y no
+     * que la contraseña esté mal escrita.
+     */
+    private function explicarRechazoDeClave(): string
     {
+        $pista = self::pistaDelServidor($this->ultimaRespuesta);
+        if ($pista !== '') {
+            // Cuando el servidor dice exactamente qué pasa, esa explicación
+            // manda: la sospecha genérica del buzón equivocado sobraría.
+            return 'El servidor de correo rechazó la autenticación. Respondió: '
+                . $this->ultimaRespuesta . ' — ' . $pista;
+        }
+
+        return 'El servidor de correo rechazó el usuario o la contraseña. Respondió: '
+            . $this->ultimaRespuesta
+            . ' — compruebe que el buzón «' . $this->config['usuario'] . '» exista en '
+            . $this->config['servidor'] . ' y que la contraseña sea la de ese buzón.';
+    }
+
+    /**
+     * Traduce los códigos de estado que los proveedores grandes devuelven.
+     *
+     * Un «535 5.7.139» no le dice nada a quien administra la institución, y
+     * sin embargo es el fallo más común al conectar con Microsoft 365: no es
+     * que la contraseña esté mal, es que el envío por SMTP viene apagado de
+     * fábrica y hay que encenderlo en el buzón. Traducirlo aquí ahorra la
+     * búsqueda a ciegas que, si no, hay que hacer con el código en la mano.
+     *
+     * Devuelve '' cuando no se reconoce nada: es preferible callar a inventar.
+     *
+     * Es pública porque la usan también la pantalla de configuración y el
+     * guion de consola, y no tiene sentido que cada una traduzca por su cuenta.
+     */
+    public static function pistaDelServidor(string $respuesta): string
+    {
+        $r = strtolower($respuesta);
+
+        if (str_contains($r, 'smtpclientauthentication is disabled')) {
+            /* El ajuste del BUZÓN manda sobre el de la organización, de modo que
+               no hace falta encender el envío por SMTP para todos —y no conviene:
+               Microsoft recomienda justo lo contrario, dejarlo apagado en general
+               y abrirlo cuenta por cuenta—. La excepción son los valores
+               predeterminados de seguridad: con ellos activos, SMTP queda apagado
+               para todo el mundo y la casilla del buzón no basta. */
+            return 'Microsoft 365 tiene apagado el envío por SMTP para esta cuenta. '
+                 . 'Enciéndalo en el centro de administración: Usuarios › Usuarios activos › '
+                 . 'la cuenta › pestaña Correo › Administrar aplicaciones de correo electrónico '
+                 . '› marcar «SMTP autenticado». Esa casilla manda sobre el ajuste de la '
+                 . 'organización, así que no hace falta encenderlo para todos. Si aun así sigue '
+                 . 'fallando, compruebe que la organización no tenga activos los «valores '
+                 . 'predeterminados de seguridad» de Microsoft Entra: con ellos puestos, el '
+                 . 'envío por SMTP queda apagado para todas las cuentas y la casilla no basta.';
+        }
+        if (str_contains($r, '5.7.139')) {
+            return 'Microsoft 365 rechazó la autenticación. Suele ser una de tres: el envío por '
+                 . 'SMTP no está habilitado en el buzón, la cuenta tiene autenticación '
+                 . 'multifactor o valores predeterminados de seguridad —que son incompatibles '
+                 . 'con esta forma de conexión—, o la contraseña no es la correcta.';
+        }
+        if (str_contains($r, '5.7.57') || str_contains($r, 'anonymous mail')) {
+            return 'El servidor exige autenticarse y no recibió usuario ni contraseña. '
+                 . 'Complete esos dos campos.';
+        }
+        if (str_contains($r, '5.7.60') || str_contains($r, '5.7.708')
+            || str_contains($r, 'send as this sender')) {
+            return 'El servidor no permite enviar con ese remitente. Tiene que ser la misma '
+                 . 'dirección del buzón con el que se autentica, o una que ese buzón tenga '
+                 . 'permiso de usar.';
+        }
+        if (str_contains($r, 'application-specific password')
+            || str_contains($r, 'contraseña de aplicación')) {
+            return 'El proveedor exige una contraseña de aplicación, no la del buzón. '
+                 . 'Genérela en la cuenta del proveedor y escríbala aquí.';
+        }
+
+        return '';
+    }
+
+    /**
+     * Envía una orden SMTP y comprueba el código de respuesta.
+     *
+     * @param string      $queHacia    Qué se intentaba, para el mensaje de error.
+     * @param string|null $comoSeAnota Qué escribir en la conversación en lugar
+     *                                 de la orden: lo usan las líneas que
+     *                                 llevan credenciales.
+     */
+    private function orden(
+        string $orden,
+        array $codigosEsperados = [250],
+        string $queHacia = '',
+        ?string $comoSeAnota = null
+    ): bool {
         if (!$this->socket) {
             return false;
         }
+        $this->anotar('C:', $comoSeAnota ?? $orden);
         fwrite($this->socket, $orden . self::SALTO);
 
-        return $this->respuestaEsperada($codigosEsperados);
+        return $this->respuestaEsperada($codigosEsperados, $queHacia);
     }
 
-    private function respuestaEsperada(array $codigos): bool
+    private function respuestaEsperada(array $codigos, string $queHacia = ''): bool
     {
         $respuesta = $this->leerRespuesta();
-        $codigo    = (int)substr($respuesta, 0, 3);
+
+        $this->ultimaRespuesta = trim($respuesta);
+        $this->anotar('S:', $this->ultimaRespuesta !== '' ? $this->ultimaRespuesta : '(sin respuesta)');
+
+        $codigo = (int)substr($respuesta, 0, 3);
 
         if (in_array($codigo, $codigos, true)) {
             return true;
         }
 
-        $this->ultimoError = trim($respuesta) !== ''
-            ? 'El servidor de correo respondió: ' . trim($respuesta)
-            : 'El servidor de correo no respondió.';
+        if ($this->ultimaRespuesta === '') {
+            $this->ultimoError = $queHacia !== ''
+                ? 'El servidor de correo no respondió al ' . $queHacia . '.'
+                : 'El servidor de correo no respondió.';
+            return false;
+        }
+
+        $this->ultimoError = $queHacia !== ''
+            ? 'El servidor de correo no dejó ' . $queHacia . ' y respondió: ' . $this->ultimaRespuesta
+            : 'El servidor de correo respondió: ' . $this->ultimaRespuesta;
+
+        // Si el código es uno de los conocidos, se añade qué significa: un
+        // «5.7.60» a secas obliga a buscarlo fuera para entender nada.
+        $pista = self::pistaDelServidor($this->ultimaRespuesta);
+        if ($pista !== '') {
+            $this->ultimoError .= ' — ' . $pista;
+        }
 
         return false;
     }

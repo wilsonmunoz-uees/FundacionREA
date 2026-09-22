@@ -1120,6 +1120,7 @@ $spec['paths']['/personas'] = [
             ['name' => 'estado', 'in' => 'query', 'description' => 'Filtra por estado.', 'schema' => ['type' => 'string', 'enum' => ['ACTIVO', 'INACTIVO']]],
             ['name' => 'excluir', 'in' => 'query', 'description' => 'Omite un PersonaId concreto (por ejemplo, el titular al elegir su representante).', 'schema' => ['type' => 'integer']],
             ['name' => 'sin_usuario', 'in' => 'query', 'description' => 'Con valor 1 devuelve solo personas que aún no tienen cuenta de usuario en la institución activa.', 'schema' => ['type' => 'integer', 'enum' => [0, 1]]],
+            ['name' => 'vinculo', 'in' => 'query', 'description' => 'Acota al vínculo que la persona tiene con la institución activa, y solo si ese vínculo está ACTIVO. `persona` es el padrón y no distingue por sí misma: el vínculo vive en su propia tabla. Lo usa el alta de usuarios del sistema, que solo debe ofrecer empleados.', 'schema' => ['type' => 'string', 'enum' => ['empleado', 'estudiante', 'proveedor']]],
             ['$ref' => '#/components/parameters/Pagina'],
             ['$ref' => '#/components/parameters/PorPagina'],
         ],
@@ -2310,7 +2311,7 @@ $envioPersona = [
 $spec['paths']['/envio-masivo/resumen'] = [
     'get' => [
         'tags' => ['Envío Masivo'], 'summary' => 'Cuántos hay de cada tipo y a cuántos se les puede escribir',
-        'description' => "Conteos por grupo de la institución del token, con cuántos tienen un correo válido y cuántos no lo tienen —esos no reciben nada—, más el estado del servidor de correo saliente configurado para esa institución.\n\nEn estudiantes el correo es el del **representante**, no el del alumno.\n\n**Acceso:** SuperAdmin o el rol Registro de Datos.",
+        'description' => "Conteos por grupo de la institución del token, con cuántos tienen un correo válido y cuántos no lo tienen —esos no reciben nada—, más el estado del servidor de correo saliente configurado para esa institución.\n\nEn estudiantes el correo es el del **representante**, no el del alumno.\n\n**Acceso:** SuperAdmin, el rol Registro de Datos, o quien tenga el permiso REG_ENVIO_MASIVO.",
         'operationId' => 'resumenEnvioMasivo',
         'responses' => $erroresComunes([
             '200' => $respuesta('Resumen por grupo.', $sobre([
@@ -2346,7 +2347,7 @@ $spec['paths']['/envio-masivo/resumen'] = [
 $spec['paths']['/envio-masivo/destinatarios'] = [
     'get' => [
         'tags' => ['Envío Masivo'], 'summary' => 'Listado paginado para elegir uno por uno',
-        'description' => "Alimenta la subventana de selección individual de la pantalla. Devuelve, de la institución del token, las personas activas del tipo indicado con el correo al que se les escribiría.\n\n`Destinatario` es el correo de destino: el de la persona, o el de su representante cuando el tipo es ESTUDIANTE. `TieneCorreo` en `false` significa que esa persona no puede recibir la invitación.\n\n**Acceso:** SuperAdmin o el rol Registro de Datos.",
+        'description' => "Alimenta la subventana de selección individual de la pantalla. Devuelve, de la institución del token, las personas activas del tipo indicado con el correo al que se les escribiría.\n\n`Destinatario` es el correo de destino: el de la persona, o el de su representante cuando el tipo es ESTUDIANTE. `TieneCorreo` en `false` significa que esa persona no puede recibir la invitación.\n\n**Acceso:** SuperAdmin, el rol Registro de Datos, o quien tenga el permiso REG_ENVIO_MASIVO.",
         'operationId' => 'destinatariosEnvioMasivo',
         'parameters'  => [
             ['name' => 'tipo', 'in' => 'query', 'required' => true, 'schema' => $envioTipo],
@@ -2394,7 +2395,7 @@ $spec['paths']['/envio-masivo/destinatarios'] = [
 $spec['paths']['/envio-masivo/enviar'] = [
     'post' => [
         'tags' => ['Envío Masivo'], 'summary' => 'Enviar las invitaciones',
-        'description' => "Escribe a cada destinatario con el enlace de **consentimiento con verificación** de su tipo, con su número de documento ya cargado en la dirección (`&doc=`), de modo que quien lo abre solo tiene que continuar. Al abrirlo se le enviará un código a ese mismo correo.\n\nEl remitente y el servidor salen de la configuración de correo de la institución del token; el texto del mensaje vive en `plantillas/correo_invitacion_consentimiento.php`.\n\nCon `alcance: \"seleccion\"` se acota a los `personas` indicados; un identificador de otra institución sencillamente no coincide y no se le escribe. Quien no tenga correo válido sale nombrado en `sin_correo` y la tanda continúa.\n\nToda la tanda usa **una sola conexión SMTP**. El tope es de 300 correos por petición.\n\nNo modifica ningún dato: puede repetirse cuantas veces haga falta. Deja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** SuperAdmin o el rol Registro de Datos.",
+        'description' => "Escribe a cada destinatario con el enlace de **consentimiento con verificación** de su tipo, con su número de documento ya cargado en la dirección (`&doc=`), de modo que quien lo abre solo tiene que continuar. Al abrirlo se le enviará un código a ese mismo correo.\n\nEl remitente y el servidor salen de la configuración de correo de la institución del token; el texto del mensaje vive en `plantillas/correo_invitacion_consentimiento.php`.\n\nCon `alcance: \"seleccion\"` se acota a los `personas` indicados; un identificador de otra institución sencillamente no coincide y no se le escribe. Quien no tenga correo válido sale nombrado en `sin_correo` y la tanda continúa.\n\nToda la tanda usa **una sola conexión SMTP**. El tope es de 300 correos por petición.\n\nNo modifica ningún dato: puede repetirse cuantas veces haga falta. Deja una anotación de balance en la bitácora de auditoría.\n\n**Acceso:** SuperAdmin, el rol Registro de Datos, o quien tenga el permiso REG_ENVIO_MASIVO.",
         'operationId' => 'enviarEnvioMasivo',
         'requestBody' => ['required' => true, 'content' => ['application/json' => ['schema' => [
             'required'   => ['tipo', 'alcance'],

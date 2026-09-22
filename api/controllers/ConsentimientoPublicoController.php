@@ -63,6 +63,8 @@ final class ConsentimientoPublicoController extends Controller
             'institucion'      => $institucion['nombre'],
             'hay_disclaimer'   => $disclaimer !== null,
             'disclaimer'       => $this->disclaimerPublico($disclaimer),
+            // A dónde escribir para revocar; la pantalla lo pinta como enlace.
+            'correo_contacto'  => $this->correoContacto((int)$institucion['id']),
         ]);
     }
 
@@ -154,9 +156,13 @@ final class ConsentimientoPublicoController extends Controller
         if ($decision === 'REVOCA') {
             $estado = $this->estadoConsentimiento($institucionId, (int)$existente['PersonaId']);
             if ($estado !== null && $estado['Estado'] === 'ACTIVO') {
+                $contacto = $this->correoContacto($institucionId);
                 Response::error(
-                    'Su consentimiento ya está registrado. Para revocarlo debe escribir a la '
-                    . 'Fundación REA desde el correo que tiene registrado.',
+                    'Su consentimiento ya está registrado. Para revocarlo debe escribir '
+                    . ($contacto !== ''
+                        ? 'al correo ' . $contacto
+                        : 'a la institución')
+                    . ' desde el correo que tiene registrado.',
                     409
                 );
             }
@@ -546,6 +552,14 @@ final class ConsentimientoPublicoController extends Controller
             'institucion'      => $institucionNombre,
             'version'          => $disclaimer['Version'] ?? self::VERSION_POR_DEFECTO,
             'fecha'            => date('d/m/Y H:i'),
+            /* La dirección a la que escribir para revocar es el remitente que la
+               institución tenga configurado, no una escrita en la plantilla:
+               así cada institución dice la suya y basta con cambiarla en
+               Configuración de Correo. Se toma el valor configurado tal cual y
+               no el que use el envío, porque ese puede acabar siendo un
+               no-responder@ deducido del dominio, y mandar al titular a
+               escribir ahí sería mandarlo a un buzón que nadie lee. */
+            'correo_contacto'  => $this->correoContacto($institucionId),
         ]);
 
         $asunto = $decision === 'OTORGA'
@@ -562,6 +576,26 @@ final class ConsentimientoPublicoController extends Controller
     /* ================================================================== */
     /* Utilidades                                                          */
     /* ================================================================== */
+
+    /**
+     * Dirección a la que el titular debe escribir para revocar.
+     *
+     * Es el remitente que la institución tenga configurado en «Configuración
+     * de Correo»: cada una atiende lo suyo, y cambiarla es cambiar un campo de
+     * esa pantalla y no tocar el código. Se toma el valor configurado tal cual
+     * y no el que acabe usando el envío, porque ese puede ser un no-responder@
+     * deducido del dominio, y mandar ahí al titular sería mandarlo a un buzón
+     * que nadie lee.
+     *
+     * Devuelve '' si la institución no tiene ninguno: entonces se dice lo de
+     * siempre —que escriba a la institución— en lugar de una dirección falsa.
+     */
+    private function correoContacto(int $institucionId): string
+    {
+        $config = CorreoConfiguracionController::configuracionDe($this->db, $institucionId);
+
+        return trim((string)($config['RemitenteCorreo'] ?? ''));
+    }
 
     /** Datos del disclaimer que se envían a la pantalla pública. */
     private function disclaimerPublico(?array $disclaimer): ?array

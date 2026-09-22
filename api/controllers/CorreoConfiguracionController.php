@@ -36,6 +36,7 @@ final class CorreoConfiguracionController extends Controller
             'remitente_nombre' => $config['RemitenteNombre'] ?? '',
             'activo'           => ($config['Activo'] ?? 'NO') === 'SI',
             'actualizado'      => $config['Actualizado'] ?? null,
+            'avisos'           => self::revisar($config),
         ]);
     }
 
@@ -58,6 +59,15 @@ final class CorreoConfiguracionController extends Controller
         $errores = [];
         if ($activo === 'SI' && $servidor === null) {
             $errores[] = 'Indique el servidor SMTP o desactive el envío por SMTP.';
+        }
+        /* Con SMTP activo el remitente deja de ser opcional. Antes, si se
+           dejaba vacío, el sistema inventaba no-responder@<dominio del sitio>,
+           y casi ningún servidor acepta un MAIL FROM de un dominio que no es
+           suyo: el correo no salía y el motivo —«sender verify failed»— no
+           apuntaba a este campo por ninguna parte. */
+        if ($activo === 'SI' && $remitente === null) {
+            $errores[] = 'Indique el correo del remitente: es la dirección desde la que '
+                       . 'saldrán los mensajes, y el servidor la comprueba.';
         }
         if ($remitente !== null && !CorreoElectronico::esValido($remitente)) {
             $errores[] = 'La dirección del remitente no es válida: '
@@ -112,23 +122,170 @@ final class CorreoConfiguracionController extends Controller
             ]);
         }
 
-        $correo = Correo::desdeConfiguracion(self::configuracionDe($this->db, $this->institucion()));
+        $correo = Correo::desdeConfiguracion($config = self::configuracionDe($this->db, $this->institucion()));
 
         $html = '<p>Este es un mensaje de prueba del Sistema de Gestión de Protección de Datos '
               . 'de la Red Educativa Arquidiocesana.</p>'
               . '<p>Si lo está leyendo, la configuración de correo funciona correctamente.</p>';
 
         $ok = $correo->enviar($destino, '', 'Prueba de configuración de correo — REA', $html);
+
+        /* La conversación se recoge antes de cerrar por si quedara algo
+           abierto. Puede terminar igualmente en «QUIT / 221 closing
+           connection» —cuando el fallo es de autenticación, la conexión se
+           cierra sola ahí mismo—, y está bien que se vea: ese 221 es la
+           despedida correcta del servidor, y verlo debajo del error real es lo
+           que deja claro que no era él quien fallaba. */
+        $dialogo = $correo->dialogo();
         $correo->cerrar();
 
         if (!$ok) {
-            Response::error('No se pudo enviar el mensaje de prueba. ' . $correo->ultimoError(), 502);
+            Response::error(
+                'No se pudo enviar el mensaje de prueba. ' . $correo->ultimoError(),
+                502,
+                [],
+                ['dialogo' => $dialogo, 'avisos' => self::revisar($config)]
+            );
         }
 
         Response::exito([
             'mensaje' => 'Mensaje de prueba enviado a ' . $destino . '.',
             'via'     => $correo->usaSmtp() ? 'SMTP' : 'mail() de PHP',
+            'dialogo' => $dialogo,
+            'avisos'  => self::revisar($config),
         ]);
+    }
+
+    /**
+     * Dominios de correo público. Con ellos la comparación contra el MX no
+     * dice nada: el servidor de salida y el de entrada son distintos por
+     * diseño —smtp.gmail.com envía, google.com recibe— y avisar sería ruido.
+     */
+    private const CORREO_PUBLICO = [
+        'gmail.com', 'googlemail.com', 'outlook.com', 'outlook.es', 'hotmail.com',
+        'live.com', 'msn.com', 'yahoo.com', 'yahoo.es', 'icloud.com', 'me.com',
+        'zoho.com', 'proton.me', 'protonmail.com',
+    ];
+
+    /**
+     * Revisa la configuración y devuelve avisos en lenguaje llano.
+     *
+     * No son errores: hay montajes perfectamente válidos en los que el
+     * servidor de salida no tiene nada que ver con el que recibe —cualquier
+     * servicio de envío lo es—. El aviso apunta solo al caso que cuesta horas
+     * descubrir: el servidor configurado es el del propio dominio, pero el
+     * correo de ese dominio ya lo recibe otro proveedor. Eso significa que el
+     * dominio se mudó y esta pantalla se quedó atrás, con lo que el buzón que
+     * intenta autenticarse probablemente ya no exista donde se le busca.
+     *
+     * @return array<int, array{tipo: string, texto: string}>
+     */
+    public static function revisar(?array $config): array
+    {
+        $avisos = [];
+
+        if (empty($config) || ($config['Activo'] ?? 'NO') !== 'SI') {
+            return $avisos;
+        }
+
+        $servidor  = strtolower(trim((string)($config['Servidor'] ?? '')));
+        $usuario   = trim((string)($config['Usuario'] ?? ''));
+        $remitente = trim((string)($config['RemitenteCorreo'] ?? ''));
+
+        if ($servidor === '') {
+            return $avisos;
+        }
+
+        $dominioRemitente = self::dominioDe($remitente);
+        $dominioUsuario   = self::dominioDe($usuario);
+
+        if ($dominioRemitente !== '' && $dominioUsuario !== ''
+            && $dominioRemitente !== $dominioUsuario) {
+            $avisos[] = [
+                'tipo'  => 'aviso',
+                'texto' => 'El remitente es de «' . $dominioRemitente . '» pero el usuario SMTP es '
+                         . 'de «' . $dominioUsuario . '». Muchos servidores rechazan un mensaje '
+                         . 'cuyo remitente no corresponde a la cuenta con la que se autentica.',
+            ];
+        }
+
+        $aviso = self::avisoPorMx($servidor, $dominioRemitente, $usuario,
+                                  self::mxDe($dominioRemitente));
+        if ($aviso !== null) {
+            $avisos[] = $aviso;
+        }
+
+        return $avisos;
+    }
+
+    /**
+     * El aviso de «su dominio ya no recibe el correo aquí», o null.
+     *
+     * Se separa de la consulta al DNS para poder probarlo sin depender de la
+     * red, que es justo lo que no se puede reproducir cuando hace falta.
+     *
+     * @param string[] $mx Servidores de entrada del dominio, el primero el de
+     *                     mayor prioridad. Vacío si no se pudo consultar.
+     */
+    public static function avisoPorMx(string $servidor, string $dominio, string $usuario, array $mx): ?array
+    {
+        if ($dominio === '' || $mx === []) {
+            return null;
+        }
+        if (in_array($dominio, self::CORREO_PUBLICO, true)) {
+            return null;
+        }
+        // Solo interesa cuando el servidor configurado es el del propio
+        // dominio. Si es el de un servicio externo, que no coincida con el MX
+        // es lo esperado y no hay nada que advertir.
+        if ($servidor !== $dominio && !str_ends_with($servidor, '.' . $dominio)) {
+            return null;
+        }
+        // Se mira el MX de mayor prioridad: es el que recibe de verdad. Un
+        // dominio mudado suele conservar el servidor viejo como MX de reserva,
+        // y compararse contra ese ocultaría precisamente el problema.
+        $principal = $mx[0];
+        if ($principal === $dominio || str_ends_with($principal, '.' . $dominio)) {
+            return null;
+        }
+
+        return [
+            'tipo'  => 'aviso',
+            'texto' => 'El correo de «' . $dominio . '» lo recibe ' . $principal . ', no ' . $servidor
+                     . '. Si los buzones del dominio se mudaron a ese proveedor, «' . $usuario
+                     . '» probablemente ya no exista en ' . $servidor . ' y la autenticación '
+                     . 'fallará. Para seguir enviando por ' . $servidor . ' hace falta una cuenta '
+                     . 'de correo creada en ese servidor.',
+        ];
+    }
+
+    /** Dominio de una dirección, en minúsculas y sin el punto final. */
+    private static function dominioDe(string $correo): string
+    {
+        $arroba = strrpos($correo, '@');
+        if ($arroba === false) {
+            return '';
+        }
+        return rtrim(strtolower(substr($correo, $arroba + 1)), '.');
+    }
+
+    /**
+     * Servidores que reciben el correo de un dominio, el primero el de mayor
+     * prioridad. Devuelve [] si el hospedaje no permite consultar el DNS.
+     */
+    private static function mxDe(string $dominio): array
+    {
+        if ($dominio === '' || !function_exists('getmxrr')) {
+            return [];
+        }
+        $hosts = [];
+        $pesos = [];
+        if (!@getmxrr($dominio, $hosts, $pesos) || !$hosts) {
+            return [];
+        }
+        array_multisort($pesos, $hosts);
+
+        return array_map(static fn($h) => rtrim(strtolower($h), '.'), $hosts);
     }
 
     /**

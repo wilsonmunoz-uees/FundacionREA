@@ -1161,6 +1161,28 @@ select.campo-bloqueado:disabled {
 }
 
 /* =========================================================================
+   CONVERSACIÓN CON EL SERVIDOR DE CORREO
+   =========================================================================
+   La transcripción SMTP que muestra la pantalla de Configuración de Correo
+   cuando se prueba el envío. Va en monoespaciada y con desplazamiento propio:
+   son líneas largas y no deben ensanchar la página. */
+.dialogo-smtp {
+    margin: 10px 0;
+    padding: 12px 14px;
+    max-height: 320px;
+    overflow: auto;
+    background: var(--rea-gris-50);
+    border: 1px solid var(--rea-gris-200);
+    border-radius: var(--radio-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem;
+    line-height: 1.5;
+    color: var(--rea-gris-700);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* =========================================================================
    CABECERA DE REPORTE (logotipo e institución)
    =========================================================================
    La misma que lleva el PDF. En pantalla acompaña sin robar protagonismo al

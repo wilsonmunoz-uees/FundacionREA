@@ -17,6 +17,11 @@ requireAcceso('correo_configuracion');
 
 $mensajePrueba = '';
 $errores       = [];
+/* Conversación con el servidor y avisos de la última prueba. Se leen del
+   cuerpo de la respuesta incluso cuando falla: apiDatos() devuelve el valor
+   por defecto si ok es false, y justamente en el fallo es cuando hacen falta. */
+$dialogo = [];
+$avisos  = [];
 
 /* --- Guardar --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'guardar') {
@@ -54,10 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'proba
     } else {
         $respuesta = apiPost('correo/probar', ['correo' => trim($_POST['correo_prueba'] ?? '')]);
 
+        $cuerpo  = is_array($respuesta['datos'] ?? null) ? $respuesta['datos'] : [];
+        $dialogo = $cuerpo['dialogo'] ?? [];
+        $avisos  = $cuerpo['avisos'] ?? [];
+
         if ($respuesta['ok']) {
-            $datos = apiDatos($respuesta, []);
-            $mensajePrueba = ($datos['mensaje'] ?? 'Mensaje enviado.')
-                           . ' (vía ' . ($datos['via'] ?? '—') . ')';
+            $mensajePrueba = ($cuerpo['mensaje'] ?? 'Mensaje enviado.')
+                           . ' (vía ' . ($cuerpo['via'] ?? '—') . ')';
         } else {
             $errores = apiErrores($respuesta) ?: [apiError($respuesta)];
         }
@@ -65,6 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'proba
 }
 
 $config = apiDatos(apiGet('correo/configuracion'), []);
+
+// Los avisos de la prueba mandan sobre los del alta: son de esta misma pulsación.
+if (!$avisos) {
+    $avisos = $config['avisos'] ?? [];
+}
 
 $pageTitle  = 'Configuración de Correo';
 $breadcrumb = [
@@ -98,6 +111,32 @@ include __DIR__ . '/../includes/layout_top.php';
     <div class="alerta alerta-exito"><?= e($mensajePrueba) ?></div>
 <?php endif; ?>
 
+<?php /* Los avisos no son errores: son las dos cosas que más tiempo hacen
+         perder cuando el correo no sale, y que ningún mensaje del servidor
+         explica —que el dominio ya no recibe su correo en ese servidor, y que
+         el remitente no corresponde a la cuenta que se autentica—. */ ?>
+<?php foreach ($avisos as $aviso): ?>
+    <div class="alerta alerta-advertencia"><?= e($aviso['texto'] ?? '') ?></div>
+<?php endforeach; ?>
+
+<?php if ($dialogo): ?>
+    <?php /* La conversación con el servidor, tal cual. Es lo que convierte un
+             «no se pudo enviar» en un diagnóstico: se ve la orden exacta que
+             el servidor rechazó. Las credenciales no llegan hasta aquí. */ ?>
+    <details class="card" style="padding:12px 16px;">
+        <summary style="cursor:pointer;font-weight:600;">
+            Ver la conversación con el servidor de correo
+        </summary>
+        <pre class="dialogo-smtp"><?php foreach ($dialogo as $linea) {
+            echo e($linea) . "\n";
+        } ?></pre>
+        <p class="texto-mutado" style="margin:0;">
+            <code>C:</code> lo que envió el sistema · <code>S:</code> lo que respondió el servidor.
+            La contraseña no se muestra.
+        </p>
+    </details>
+<?php endif; ?>
+
 <div class="form-row" style="align-items:stretch;">
 
     <div class="card" style="flex:2 1 460px;">
@@ -117,10 +156,48 @@ include __DIR__ . '/../includes/layout_top.php';
                 </div>
             </div>
 
+            <?php /* Los preajustes rellenan servidor, puerto y seguridad, que son
+                     los tres datos que se copian mal de cualquier instructivo.
+                     Los pinta js/correo_configuracion.js; sin él, el bloque no
+                     aparece y los campos se escriben a mano como siempre. */ ?>
+            <div class="form-group" id="preajustesCorreo" hidden
+                 data-preajustes='<?= e(json_encode([
+                     [
+                         'nombre'    => 'Hospedaje propio (cPanel)',
+                         'servidor'  => 'mail.sudominio.edu.ec',
+                         'puerto'    => 465,
+                         'seguridad' => 'SSL',
+                         'ayuda'     => 'El usuario es la dirección completa del buzón, y ese buzón '
+                                      . 'tiene que existir en el cPanel del hospedaje. Cree uno solo '
+                                      . 'para envíos, por ejemplo notificaciones@sudominio.edu.ec.',
+                     ],
+                     [
+                         'nombre'    => 'Microsoft 365',
+                         'servidor'  => 'smtp.office365.com',
+                         'puerto'    => 587,
+                         'seguridad' => 'TLS',
+                         'ayuda'     => 'El usuario es la dirección completa del buzón, con licencia. '
+                                      . 'Antes hay que habilitar «SMTP autenticado» en ese buzón '
+                                      . '(Usuarios activos › la cuenta › Correo › Administrar '
+                                      . 'aplicaciones de correo electrónico) y que la cuenta no '
+                                      . 'tenga autenticación multifactor ni valores '
+                                      . 'predeterminados de seguridad.',
+                     ],
+                     [
+                         'nombre'    => 'Gmail / Google Workspace',
+                         'servidor'  => 'smtp.gmail.com',
+                         'puerto'    => 587,
+                         'seguridad' => 'TLS',
+                         'ayuda'     => 'La contraseña no es la de la cuenta: hay que generar una '
+                                      . '«contraseña de aplicación» en la cuenta de Google.',
+                     ],
+                 ], JSON_UNESCAPED_UNICODE)) ?>'>
+            </div>
+
             <div class="form-row">
                 <div class="form-group" style="flex:2 1 240px;">
                     <label for="servidor">Servidor</label>
-                    <input type="text" name="servidor" id="servidor" placeholder="smtp.gmail.com"
+                    <input type="text" name="servidor" id="servidor" placeholder="mail.sudominio.edu.ec"
                            value="<?= e($config['servidor'] ?? '') ?>">
                 </div>
                 <div class="form-group" style="flex:0 1 120px;">
@@ -144,7 +221,11 @@ include __DIR__ . '/../includes/layout_top.php';
                 <div class="form-group">
                     <label for="usuario">Usuario</label>
                     <input type="text" name="usuario" id="usuario" autocomplete="off"
+                           placeholder="notificaciones@sudominio.edu.ec"
                            value="<?= e($config['usuario'] ?? '') ?>">
+                    <div class="form-ayuda" id="ayudaUsuario">
+                        Normalmente es la dirección completa del buzón desde el que se envía.
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="clave">Contraseña</label>
@@ -153,17 +234,24 @@ include __DIR__ . '/../includes/layout_top.php';
                     <div class="form-ayuda">
                         <?= !empty($config['clave_definida'])
                             ? 'Ya hay una contraseña guardada. Déjelo vacío para conservarla.'
-                            : 'En Gmail y Outlook use una «contraseña de aplicación», no la del correo.' ?>
+                            : 'En Gmail y Microsoft 365 use una «contraseña de aplicación», no la del correo.' ?>
                     </div>
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="remitente_correo">Correo del remitente</label>
+                    <label for="remitente_correo" class="campo-requerido">Correo del remitente</label>
                     <input type="email" name="remitente_correo" id="remitente_correo"
-                           placeholder="protecciondatos@institucion.edu.ec"
+                           placeholder="notificaciones@institucion.edu.ec"
                            value="<?= e($config['remitente_correo'] ?? '') ?>">
+                    <div class="form-ayuda">
+                        <?php /* Dejarlo vacío era la causa silenciosa de que el correo
+                                 no saliera: el sistema inventaba una dirección del
+                                 dominio del sitio y el servidor la rechazaba. */ ?>
+                        La dirección desde la que saldrán los mensajes. El servidor la comprueba:
+                        lo habitual es que sea la misma del usuario.
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="remitente_nombre">Nombre visible</label>
@@ -205,15 +293,24 @@ include __DIR__ . '/../includes/layout_top.php';
 
         <h3>Valores habituales</h3>
         <ul class="lista-simple">
-            <li><strong>Gmail:</strong> smtp.gmail.com · 587 · TLS</li>
-            <li><strong>Outlook / Microsoft 365:</strong> smtp.office365.com · 587 · TLS</li>
-            <li><strong>Hospedaje propio:</strong> mail.sudominio.com · 465 · SSL</li>
+            <li><strong>Hospedaje propio (cPanel):</strong> mail.sudominio.edu.ec · 465 · SSL</li>
+            <li><strong>Microsoft 365:</strong> smtp.office365.com · 587 · TLS</li>
+            <li><strong>Gmail / Google Workspace:</strong> smtp.gmail.com · 587 · TLS</li>
         </ul>
+        <p class="texto-mutado">
+            El buzón del <strong>Usuario</strong> tiene que existir <em>en ese servidor</em>. Si el
+            dominio de la institución se mudó de proveedor de correo, el servidor viejo sigue
+            respondiendo pero ya no conoce el buzón, y la autenticación falla.
+        </p>
         <p class="texto-mutado">
             Si el hospedaje bloquea las conexiones salientes a esos puertos, el envío fallará
             aunque los datos sean correctos; consúltelo con su proveedor.
         </p>
     </div>
 </div>
+
+<?php /* Los preajustes de proveedor. Va antes del pie porque layout_bottom.php
+         cierra ya el documento. */ ?>
+<script src="<?= e(APP_ROOT) ?>js/correo_configuracion.js" defer></script>
 
 <?php include __DIR__ . '/../includes/layout_bottom.php'; ?>
