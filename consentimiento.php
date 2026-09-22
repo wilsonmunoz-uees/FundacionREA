@@ -142,6 +142,12 @@ $verificado   = !empty($hilo['verificado']);
 $documento    = $contexto['documento'] ?? 'CEDULA';
 $institucion  = $contexto['institucion'] ?? 'Red Educativa Arquidiocesana';
 
+/* A dónde escribir para revocar: el remitente que la institución tenga
+   configurado en «Configuración de Correo». Si no hay ninguno se dice lo de
+   siempre —que escriba a la institución—, porque dar una dirección inventada
+   es peor que no dar ninguna. */
+$correoContacto = trim((string)($contexto['correo_contacto'] ?? ''));
+
 $etiquetaTipo = match ($tipo) {
     'ESTUDIANTE' => 'Estudiante',
     'EMPLEADO'   => 'Colaborador',
@@ -237,8 +243,13 @@ $urlBase = 'consentimiento.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst
 
             <?php if (($resultado['decision'] ?? '') === 'OTORGA'): ?>
                 <p class="texto-menor">
-                    Si en el futuro desea revocar este consentimiento, escriba a la Fundación REA desde
-                    el correo que tiene registrado.
+                    Si en el futuro desea revocar este consentimiento, escriba
+                    <?php if ($correoContacto !== ''): ?>
+                        al correo <a href="mailto:<?= $e($correoContacto) ?>"><?= $e($correoContacto) ?></a>
+                    <?php else: ?>
+                        a la institución
+                    <?php endif; ?>
+                    desde el correo que tiene registrado.
                 </p>
             <?php endif; ?>
 
@@ -328,9 +339,14 @@ $urlBase = 'consentimiento.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst
                                         aria-describedby="ayudaRevocar">
                                     Revoco mi consentimiento
                                 </button>
+                                <?php /* Dentro de un globo de ayuda no se pone un enlace: no se
+                                         puede pulsar con el ratón encima y en el teléfono ni
+                                         aparece. La dirección va en texto, y el párrafo de
+                                         abajo la repite como enlace. */ ?>
                                 <span class="tooltip" id="ayudaRevocar" role="tooltip">
                                     Su consentimiento ya está registrado. Para revocarlo debe enviar un
-                                    correo a la Fundación REA desde la dirección que tiene registrada.
+                                    correo <?= $correoContacto !== '' ? 'a ' . $e($correoContacto) : 'a la institución' ?>
+                                    desde la dirección que tiene registrada.
                                 </span>
                             </span>
                         <?php endif; ?>
@@ -339,8 +355,13 @@ $urlBase = 'consentimiento.php?tipo=' . urlencode(mb_strtolower($tipo)) . '&inst
                     <?php if (!$puedeRevocar): ?>
                         <p class="texto-menor nota-revocar">
                             ℹ️ La revocatoria no está disponible en línea porque su consentimiento ya
-                            consta registrado. Para revocarlo, escriba a la Fundación REA desde el correo
-                            que tiene registrado con nosotros.
+                            consta registrado. Para revocarlo, escriba
+                            <?php if ($correoContacto !== ''): ?>
+                                al correo <a href="mailto:<?= $e($correoContacto) ?>"><?= $e($correoContacto) ?></a>
+                            <?php else: ?>
+                                a la institución
+                            <?php endif; ?>
+                            desde el correo que tiene registrado con nosotros.
                         </p>
                     <?php endif; ?>
 

@@ -1,0 +1,46 @@
+# .gitattributes
+# -----------------------------------------------------------------------------
+# Qué archivos son BINARIOS y no deben tocarse nunca al convertir finales de
+# línea.
+#
+# El repositorio guarda el texto con LF y los paquetes de entrega se convierten
+# a CRLF para Windows. Esa conversión, aplicada por error a un .xlsx, lo
+# destruye: un libro de Excel es un ZIP, y cambiar cada 0x0A por 0x0D 0x0A
+# dentro de un ZIP desplaza todas las cabeceras. Fue lo que le pasó a
+# assets/plantillas/carga_informacion_rea.xlsx, que dejó de abrir sin que nada
+# lo avisara —el archivo seguía ahí, con buen tamaño y buena fecha—.
+#
+# Marcarlos aquí protege también al que venga después: git deja de intentar
+# normalizarlos, y cualquier herramienta que respete .gitattributes sabe que no
+# son texto.
+# -----------------------------------------------------------------------------
+
+# Por omisión, git decide; el texto se guarda con LF.
+* text=auto eol=lf
+
+# Hojas de cálculo y documentos: son contenedores ZIP.
+*.xlsx binary
+*.xlsm binary
+*.xltx binary
+*.docx binary
+*.pptx binary
+*.odt  binary
+*.ods  binary
+
+# Imágenes y tipografías.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+
+# Otros binarios que suelen acabar en el proyecto.
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.bundle binary

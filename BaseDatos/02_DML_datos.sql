@@ -79,7 +79,8 @@ INSERT INTO `permiso` (`InstitucionEducativaId`, `PermisoId`, `Codigo`, `Nombre`
 (1, 20, 'REP_AUDITORIA', 'Bitácora de Auditoría', 'REPORTES_EXPORTACION', 'Consulta de todos los movimientos registrados en la base de datos', 'ACTIVO'),
 (1, 21, 'ADM_DISCLAIMERS', 'Disclaimers de Datos', 'ADMINISTRACION', 'Redacción y vigencia de las políticas de protección de datos que se muestran al dar el consentimiento.', 'ACTIVO'),
 (1, 22, 'ADM_CORREO', 'Configuración de Correo', 'ADMINISTRACION', 'Servidor de correo saliente de la institución: dirección, puerto, credenciales y remitente.', 'ACTIVO'),
-(1, 23, 'ADM_ENLACES_VERIF', 'Enlaces con Verificación', 'ADMINISTRACION', 'Enlaces públicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO');
+(1, 23, 'ADM_ENLACES_VERIF', 'Enlaces con Verificación', 'ADMINISTRACION', 'Enlaces públicos de solo consulta que verifican la identidad con un código enviado por correo.', 'ACTIVO'),
+(1, 24, 'REG_ENVIO_MASIVO', 'Envío Masivo de Invitaciones', 'REGISTRO_DATOS', 'Enviar a estudiantes, empleados o proveedores el enlace de consentimiento con su documento precargado.', 'ACTIVO');
 
 INSERT INTO `permiso` (`InstitucionEducativaId`, `Codigo`, `Nombre`, `Modulo`, `Descripcion`, `Estado`)
 SELECT i.id, p.Codigo, p.Nombre, p.Modulo, p.Descripcion, p.Estado
@@ -106,6 +107,7 @@ INSERT INTO `rolpermiso` (`InstitucionEducativaId`, `RolId`, `PermisoId`) VALUES
 (1, 3, 10),
 (1, 3, 11),
 (1, 3, 12),
+(1, 3, 24),
 (1, 4, 13),
 (1, 4, 14),
 (1, 4, 15),
@@ -130,7 +132,7 @@ WHERE r.InstitucionEducativaId >= 2
     (r.Nombre = 'Seguridades' AND p.Codigo IN ('SEG_USUARIOS', 'SEG_ROLES', 'SEG_PERMISOS', 'ADM_ENLACES_VERIF')) OR
     
     -- Mapeo para el rol Registro de Datos
-    (r.Nombre = 'Registro de Datos' AND p.Codigo IN ('REG_PERSONAS', 'REG_EMPLEADOS', 'REG_ESTUDIANTES', 'REG_PROVEEDORES', 'REG_CONSENTIMIENTOS', 'REG_FINALIDADES', 'REG_TIPOS_DATO')) OR
+    (r.Nombre = 'Registro de Datos' AND p.Codigo IN ('REG_PERSONAS', 'REG_EMPLEADOS', 'REG_ESTUDIANTES', 'REG_PROVEEDORES', 'REG_CONSENTIMIENTOS', 'REG_FINALIDADES', 'REG_TIPOS_DATO', 'REG_ENVIO_MASIVO')) OR
     
     -- Mapeo para el rol Consultas
     (r.Nombre = 'Consultas' AND p.Codigo IN ('CON_BUSCAR_PERSONA', 'CON_HISTORIAL', 'CON_VIGENTES')) OR

@@ -38,15 +38,25 @@ if (!in_array($estado, ['ACTIVO', 'INACTIVO', ''], true)) {
 
 /* Filtros opcionales que declaran los formularios:
      excluir      -> omite una persona concreta (el titular al elegir representante)
-     sin_usuario  -> solo personas que aún no tienen cuenta en la institución    */
+     sin_usuario  -> solo personas que aún no tienen cuenta en la institución
+     vinculo      -> solo empleados, estudiantes o proveedores de la institución */
 $excluir    = max(0, (int)($_GET['excluir'] ?? 0));
 $sinUsuario = ((int)($_GET['sin_usuario'] ?? 0) === 1) ? 1 : 0;
+
+/* La lista es cerrada aquí también, y no por desconfiar de la API —que valida
+   igual—, sino para que un filtro mal escrito no pase en silencio devolviendo
+   el padrón entero, que es justo lo que se quería evitar. */
+$vinculo = strtolower(trim($_GET['vinculo'] ?? ''));
+if (!in_array($vinculo, ['empleado', 'estudiante', 'proveedor'], true)) {
+    $vinculo = '';
+}
 
 $respuesta = apiGet('personas', [
     'q'           => trim($_GET['q'] ?? ''),
     'estado'      => $estado,
     'excluir'     => $excluir ?: '',
     'sin_usuario' => $sinUsuario ?: '',
+    'vinculo'     => $vinculo,
     'pagina'      => max(1, (int)($_GET['pagina'] ?? 1)),
     'por_pagina'  => min(50, max(5, (int)($_GET['por_pagina'] ?? 8))),
 ]);

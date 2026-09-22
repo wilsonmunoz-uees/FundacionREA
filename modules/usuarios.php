@@ -242,8 +242,12 @@ include __DIR__ . '/../includes/layout_top.php';
                 </div>
             <?php else: ?>
                 <?php
-                // Persona: etiqueta + subpantalla de búsqueda, filtrada a quienes
-                // aún no tienen cuenta de usuario en esta institución.
+                /* Persona: etiqueta + subpantalla de búsqueda, acotada a los
+                   EMPLEADOS activos de esta institución que aún no tienen
+                   cuenta. Sin el filtro de vínculo salía el padrón entero
+                   —alumnos, representantes y proveedores incluidos—, y quien
+                   recibe una cuenta del sistema es siempre alguien que trabaja
+                   en la institución. */
                 $personaId = (int)($_POST['persona_id'] ?? 0);
                 $persona   = personaResumen($personaId);
 
@@ -255,8 +259,8 @@ include __DIR__ . '/../includes/layout_top.php';
                     'texto'     => $persona['texto'],
                     'detalle'   => $persona['detalle'],
                     'vacio'     => 'Ninguna persona seleccionada',
-                    'filtros'   => ['sin_usuario' => 1],
-                    'ayuda'     => 'Solo se muestran personas activas que aún no tienen usuario en esta institución.',
+                    'filtros'   => ['sin_usuario' => 1, 'vinculo' => 'empleado'],
+                    'ayuda'     => 'Solo se muestran empleados activos de esta institución que aún no tienen usuario.',
                 ]);
                 ?>
             <?php endif; ?>
